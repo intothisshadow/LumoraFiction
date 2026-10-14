@@ -55,7 +55,7 @@ final class BasePath
         }
 
         // The value is later placed into URLs, so anything outside a plain path is discarded.
-        return preg_match('#^/[A-Za-z0-9._~/-]*$#', $directory) === 1 ? rtrim($directory, '/') : '';
+        return preg_match('#^/[A-Za-z0-9._~/-]*\z#', $directory) === 1 ? rtrim($directory, '/') : '';
     }
 
     /**

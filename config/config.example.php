@@ -22,6 +22,10 @@ return [
     'db_user' => '',
     'db_password' => '',
     'db_charset' => 'utf8mb4',
+    // Full public address of the site, including any subdirectory and with no trailing slash.
+    // Emailed links are built from this value, never from the request, so a forged Host header
+    // cannot redirect a password-reset link. The installer sets it.
+    'site_url' => '',
     // The installer suggests a random prefix (e.g. "lumfic_a8f3d1_"); never change it after install.
     'table_prefix' => 'lumfic_',
     // Generated at install time; used for signing tokens. Never change it after install.

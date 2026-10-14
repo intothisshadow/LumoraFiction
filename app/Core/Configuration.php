@@ -34,7 +34,8 @@ final class Configuration
 {
     private const REQUIRED_FILE_KEYS = ['db_host', 'db_name', 'db_user', 'db_password', 'table_prefix', 'secret_key'];
 
-    private const SETTING_NAME_PATTERN = '/^[a-z][a-z0-9_.]{0,99}$/';
+    // \z, not $: $ also matches before a trailing newline.
+    private const SETTING_NAME_PATTERN = '/^[a-z][a-z0-9_.]{0,99}\z/';
 
     /** @var array<string, mixed> */
     private array $fileConfig = [];
@@ -166,7 +167,7 @@ final class Configuration
             }
         }
 
-        if (preg_match('/^[A-Za-z][A-Za-z0-9_]{1,29}$/', $data['table_prefix']) !== 1) {
+        if (preg_match('/^[A-Za-z][A-Za-z0-9_]{1,29}\z/', $data['table_prefix']) !== 1) {
             throw new RuntimeException('The configuration contains an invalid table prefix.');
         }
 

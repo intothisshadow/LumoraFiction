@@ -31,7 +31,8 @@ use Throwable;
  */
 final class Database
 {
-    private const PREFIX_PATTERN = '/^[A-Za-z][A-Za-z0-9_]{1,29}$/';
+    // \z, not $: $ also matches before a trailing newline, which would let one into a table name.
+    private const PREFIX_PATTERN = '/^[A-Za-z][A-Za-z0-9_]{1,29}\z/';
 
     private function __construct(
         private readonly PDO $pdo,
@@ -104,7 +105,7 @@ final class Database
      */
     public function table(string $name): string
     {
-        if (preg_match('/^[a-z][a-z0-9_]*$/', $name) !== 1) {
+        if (preg_match('/^[a-z][a-z0-9_]*\z/', $name) !== 1) {
             throw new InvalidArgumentException('Invalid table name.');
         }
 

@@ -23,6 +23,17 @@ use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Hooks\Hooks;
 use LumoraFiction\Core\Http\BasePath;
 use LumoraFiction\Core\Http\Router;
+use LumoraFiction\Core\Mail\NativeMailer;
+use LumoraFiction\Core\Security\ContentSecurityPolicy;
+use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Security\DatabaseSessionHandler;
+use LumoraFiction\Core\Security\LoginThrottle;
+use LumoraFiction\Core\Security\PasswordPolicy;
+use LumoraFiction\Core\Security\SecurityHeaders;
+use LumoraFiction\Core\Security\SessionManager;
+use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\UserService;
 
 /**
  * One Kernel is built per request and handed to the entry script, instead of services being
@@ -36,6 +47,10 @@ final class Kernel
         public readonly ErrorHandler $errors,
         public readonly HookManager $hooks,
         public readonly Router $router,
+        public readonly SessionManager $sessions,
+        public readonly UserService $users,
+        public readonly AuthService $auth,
+        private readonly bool $isHttps = false,
     ) {
     }
 
@@ -76,7 +91,33 @@ final class Kernel
 
         $router = new Router();
 
-        $kernel = new self($config, $database, $errors, $hooks, $router);
+        $config->registerDefaults(AuthService::DEFAULTS);
+
+        $isHttps = SecurityHeaders::isHttps($server);
+        $sessions = new SessionManager(
+            $isHttps,
+            SessionManager::DEFAULT_NAME,
+            new DatabaseSessionHandler($database),
+            (int) $config->setting('security.session_lifetime', 86400),
+        );
+        Csrf::useSessions($sessions);
+
+        $passwords = new PasswordPolicy($config);
+        $users = new UserService($database, $passwords);
+        $siteUrl = rtrim((string) $config->get('site_url', ''), '/');
+
+        $auth = new AuthService(
+            $users,
+            $sessions,
+            new TokenService($database),
+            new NativeMailer('noreply@' . (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost')),
+            new LoginThrottle($database),
+            $passwords,
+            $config,
+            $siteUrl,
+        );
+
+        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $isHttps);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -90,6 +131,8 @@ final class Kernel
      */
     public function handle(string $method, string $uri): void
     {
+        $this->sendSecurityHeaders();
+
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
         if ($resolution->isFound() && $resolution->handler !== null) {
@@ -109,6 +152,31 @@ final class Kernel
         }
 
         $this->renderStatusPage($resolution->status);
+    }
+
+    /**
+     * The protective headers sent with every response, including the Content-Security-Policy.
+     *
+     * @return array<string, string> header name => value
+     */
+    public function responseHeaders(): array
+    {
+        $headers = SecurityHeaders::headers($this->isHttps, $this->config->setting('security.hsts', false) === true);
+
+        // Themes and plugins widen the default same-origin policy through this filter, not by editing core.
+        $directives = $this->hooks->applyFilters('csp_directives', ContentSecurityPolicy::defaultDirectives());
+
+        $headers['Content-Security-Policy'] = (new ContentSecurityPolicy(is_array($directives) ? $directives : []))->header();
+
+        return $headers;
+    }
+
+    /**
+     * Sent before anything else so every response, including error pages, carries them.
+     */
+    private function sendSecurityHeaders(): void
+    {
+        SecurityHeaders::send($this->responseHeaders());
     }
 
     private function renderStatusPage(int $status): void
