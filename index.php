@@ -34,8 +34,25 @@ $autoloader->register();
 $errors = new LumoraFiction\Core\Errors\ErrorHandler(LF_ROOT . '/storage/logs');
 $errors->register();
 
-// Until the installer exists, a missing config is the only state this entry point can reach.
 if (!LumoraFiction\Core\Kernel::isInstalled(LF_ROOT)) {
+    $basePath = LumoraFiction\Core\Http\BasePath::detect($_SERVER);
+    $requestPath = (string) strtok((string) ($_SERVER['REQUEST_URI'] ?? '/'), '?#');
+
+    // The installer's browser-side check asks for this address. Getting this answer proves clean
+    // web addresses reach the application, because no file exists at this path.
+    if ($requestPath === $basePath . '/rewrite-check') {
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo 'lumora-fiction-rewrite-ok';
+        exit(0);
+    }
+
+    // The target is built from the script's own location, never from the Host header.
+    if (is_file(LF_ROOT . '/install/index.php')) {
+        header('Location: ' . $basePath . '/install/', true, 302);
+        exit(0);
+    }
+
     http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');
     header('Retry-After: 3600');

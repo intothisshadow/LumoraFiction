@@ -38,9 +38,18 @@ final class Database
         private readonly PDO $pdo,
         private readonly string $tablePrefix,
     ) {
-        if (preg_match(self::PREFIX_PATTERN, $tablePrefix) !== 1) {
+        if (!self::isValidPrefix($tablePrefix)) {
             throw new InvalidArgumentException('The table prefix must start with a letter and contain only letters, numbers, and underscores (2 to 30 characters).');
         }
+    }
+
+    /**
+     * The one definition of an acceptable table prefix, shared by the connection, the config file
+     * check, and the installer so they cannot drift apart.
+     */
+    public static function isValidPrefix(string $prefix): bool
+    {
+        return preg_match(self::PREFIX_PATTERN, $prefix) === 1;
     }
 
     /**

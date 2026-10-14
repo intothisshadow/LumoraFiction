@@ -1,0 +1,251 @@
+/* Installer styles. Self-contained: the installer runs before any theme exists, and the
+   Content-Security-Policy only allows styles from this site. */
+
+:root {
+    --bg: #f7f4ee;
+    --surface: #ffffff;
+    --text: #25211c;
+    --muted: #5d5548;
+    --accent: #7a3b1f;
+    --accent-text: #ffffff;
+    --border: #cfc6b6;
+    --error: #a1261a;
+    --error-bg: #fbeceb;
+    --warning-bg: #fff4d6;
+    --warning: #6b4a00;
+    --success-bg: #e6f4e8;
+    --success: #1d5b2a;
+    --focus: #1a5fb4;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #17140f;
+        --surface: #221e17;
+        --text: #f1ece2;
+        --muted: #b9b0a0;
+        --accent: #e0a173;
+        --accent-text: #1c1209;
+        --border: #4a4234;
+        --error: #ff9f94;
+        --error-bg: #3a1c19;
+        --warning-bg: #3a2f10;
+        --warning: #f2d58a;
+        --success-bg: #17301c;
+        --success: #9bd7a6;
+        --focus: #8ab8ff;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 Georgia, "Times New Roman", serif;
+}
+
+.skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 2px solid var(--focus);
+    z-index: 10;
+}
+
+.skip-link:focus {
+    top: 1rem;
+}
+
+.installer {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+}
+
+.brand {
+    margin: 0 0 0.5rem;
+    color: var(--accent);
+    font-size: 0.9rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+h1 {
+    margin: 0 0 0.5rem;
+    font-size: 2rem;
+    line-height: 1.2;
+}
+
+h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+}
+
+.lead {
+    color: var(--muted);
+    margin-top: 0;
+}
+
+fieldset {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+fieldset fieldset {
+    background: transparent;
+    border-color: transparent;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+legend {
+    padding: 0 0.5rem;
+    font-weight: bold;
+}
+
+.field {
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="url"],
+input[type="email"],
+input[type="password"],
+select {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible,
+#error-summary:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.field--error input,
+.field--error select {
+    border-color: var(--error);
+    border-width: 2px;
+}
+
+.hint {
+    margin: 0.25rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.error {
+    margin: 0.25rem 0 0;
+    color: var(--error);
+    font-weight: bold;
+}
+
+.choice {
+    margin-bottom: 0.75rem;
+}
+
+.choice input[type="radio"] {
+    margin-right: 0.5rem;
+}
+
+.choice label {
+    display: inline;
+}
+
+.choice .hint {
+    margin-left: 1.6rem;
+}
+
+.notice {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border-left: 4px solid currentColor;
+    border-radius: 0.35rem;
+}
+
+.notice[hidden] {
+    display: none;
+}
+
+.notice--error {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+.notice--warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.notice--success {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.notice ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.notice a {
+    color: inherit;
+}
+
+.problems {
+    list-style: none;
+    padding: 0;
+}
+
+.button {
+    display: inline-block;
+    padding: 0.7rem 1.4rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: bold;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+code {
+    padding: 0.1rem 0.3rem;
+    background: var(--bg);
+    border-radius: 0.25rem;
+}
+
+@media (max-width: 30rem) {
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    fieldset {
+        padding: 0.75rem 0.85rem 0.25rem;
+    }
+}

@@ -34,6 +34,8 @@ final class SessionManager
         private readonly ?SessionHandlerInterface $handler = null,
         /** How long an idle session is kept before PHP's garbage collector may remove it; null keeps the host's own setting. */
         private readonly ?int $maxLifetimeSeconds = null,
+        /** Directory for file-based sessions when no handler is given (the installer, before a database exists). */
+        private readonly ?string $savePath = null,
     ) {
     }
 
@@ -71,6 +73,10 @@ final class SessionManager
 
         if ($this->handler !== null) {
             session_set_save_handler($this->handler, true);
+        } elseif ($this->savePath !== null && is_dir($this->savePath) && is_writable($this->savePath)) {
+            // Shared hosts often leave PHP's default session directory unwritable or shared with
+            // other sites, so file sessions are kept in a directory this application owns.
+            session_save_path($this->savePath);
         }
 
         // Debian and Ubuntu hosts ship PHP with session garbage collection switched off and rely on

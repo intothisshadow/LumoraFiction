@@ -106,7 +106,8 @@ final class Configuration
         $this->ensureSettingsLoaded();
 
         try {
-            $encoded = json_encode($value, JSON_THROW_ON_ERROR);
+            // Slashes and Unicode are left as written so values stay readable when inspected in the database.
+            $encoded = json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         } catch (JsonException $exception) {
             throw new InvalidArgumentException('Setting values must be representable as JSON.', previous: $exception);
         }
@@ -167,7 +168,7 @@ final class Configuration
             }
         }
 
-        if (preg_match('/^[A-Za-z][A-Za-z0-9_]{1,29}\z/', $data['table_prefix']) !== 1) {
+        if (!Database::isValidPrefix($data['table_prefix'])) {
             throw new RuntimeException('The configuration contains an invalid table prefix.');
         }
 
