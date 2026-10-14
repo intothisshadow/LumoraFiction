@@ -1,0 +1,29 @@
+DirectoryIndex index.php
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve real files (assets, uploads) directly.
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # The installer and bundled content directories are real directories that must stay reachable.
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteCond %{REQUEST_FILENAME} /(install|content)(/|$)
+    RewriteRule ^ - [L]
+
+    # Everything else, including /admin/, goes through the front controller.
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Source, logs, SQL dumps, shell scripts, and docs are never meant to be downloaded.
+<FilesMatch "\.(ini|log|sh|sql|md)$">
+    Require all denied
+</FilesMatch>
+
+# Dotfiles (.git, .gitignore, .htaccess itself) and the version file.
+<FilesMatch "^(\.|version\.php$)">
+    Require all denied
+</FilesMatch>
