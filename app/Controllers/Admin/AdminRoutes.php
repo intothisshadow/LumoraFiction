@@ -35,6 +35,7 @@ final class AdminRoutes
         TaxonomyController $taxonomy,
         StoryController $stories,
         ChapterController $chapters,
+        ReviewController $review,
         SystemInformationController $systemInformation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
@@ -84,6 +85,10 @@ final class AdminRoutes
         $router->post('/admin/chapters/{id}/publish', $chapters->publish(...));
         $router->post('/admin/chapters/{id}/unpublish', $chapters->unpublish(...));
         $router->get('/admin/chapters/{id}/preview', $chapters->preview(...), 'admin.chapters.preview');
+        $router->get('/admin/review', $review->index(...), 'admin.review');
+        $router->post('/admin/review/{id}/approve', $review->approve(...));
+        $router->get('/admin/review/{id}/reject', $review->showReject(...));
+        $router->post('/admin/review/{id}/reject', $review->reject(...));
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
     }

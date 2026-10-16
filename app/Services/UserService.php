@@ -22,6 +22,7 @@ use InvalidArgumentException;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Helpers\Slug;
+use LumoraFiction\Models\PublishingOverride;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\UserStatus;
@@ -323,6 +324,7 @@ final class UserService
             emailVerifiedAt: $this->date($row['email_verified_at'] ?? null),
             passwordChangedAt: $this->date($row['password_changed_at'] ?? null),
             createdAt: $this->date($row['created_at']) ?? new DateTimeImmutable(),
+            publishingOverride: PublishingOverride::tryFrom((string) ($row['publishing_override'] ?? '')),
         );
     }
 

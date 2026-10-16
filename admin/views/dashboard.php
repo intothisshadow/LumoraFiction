@@ -24,6 +24,8 @@ use LumoraFiction\Models\User;
 /** @var list<array{variant: string, message: string}> $notices */
 /** @var array{total: int, by_role: array<string, int>, by_status: array<string, int>}|null $summary */
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
+/** @var int|null $awaitingApproval stories in the approval queue; null for someone who may not review */
+/** @var string $reviewUrl */
 /** @var string $storiesUrl */
 /** @var string $newStoryUrl */
 /** @var list<array{action: string, actor: string|null, target_type: string|null, target_id: string|null, details: array<string, mixed>, at: DateTimeImmutable}> $activity */
@@ -40,6 +42,17 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
                 <li class="lf-notice lf-notice--<?= Html::e($notice['variant']) ?>"><?= Html::e($notice['message']) ?></li>
             <?php endforeach; ?>
         </ul>
+    </section>
+<?php endif; ?>
+
+<?php if ($awaitingApproval !== null): ?>
+    <section aria-labelledby="lf-review-heading" class="lf-card">
+        <h2 id="lf-review-heading">Awaiting approval</h2>
+        <?php if ($awaitingApproval === 0): ?>
+            <p>No story is waiting for approval.</p>
+        <?php else: ?>
+            <p><a href="<?= Html::e($reviewUrl) ?>"><?= (int) $awaitingApproval ?> <?= $awaitingApproval === 1 ? 'story is' : 'stories are' ?> waiting for approval</a>.</p>
+        <?php endif; ?>
     </section>
 <?php endif; ?>
 

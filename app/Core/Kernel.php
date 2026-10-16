@@ -22,6 +22,7 @@ use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
 use LumoraFiction\Controllers\Admin\ChapterController;
 use LumoraFiction\Controllers\Admin\ContentEditorController;
 use LumoraFiction\Controllers\Admin\EditorSettingsController;
+use LumoraFiction\Controllers\Admin\ReviewController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
 use LumoraFiction\Core\Content\HtmlSanitizer;
@@ -170,7 +171,7 @@ final class Kernel
         $editorSettings = new EditorSettings($kernel->config, $kernel->database, $kernel->audit);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
-        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy);
+        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
         $editor = new ContentEditor($view, $editorSettings, $version['version']);
 
@@ -184,6 +185,7 @@ final class Kernel
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
             new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer),
+            new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
         );
     }

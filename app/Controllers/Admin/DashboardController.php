@@ -65,6 +65,8 @@ final class DashboardController extends AdminController
             'notices' => $isAdministrator ? $this->notices($request) : [],
             'summary' => $user->can(Capability::ManageUsers) ? $this->users->summary() : null,
             'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
+            'awaitingApproval' => $user->can(Capability::ModerateStories) ? $this->stories->countPending($user) : null,
+            'reviewUrl' => AdminUrl::to('review'),
             'storiesUrl' => AdminUrl::to('stories'),
             'newStoryUrl' => AdminUrl::to('stories/new'),
             'activity' => $isAdministrator ? $this->audit->recent(8) : [],

@@ -32,7 +32,7 @@ use LumoraFiction\Models\WorkStatus;
 /** @var string $csrfToken */
 /** @var string $action */
 /** @var string $listUrl */
-/** @var bool $trusted whether the writer may publish without review */
+/** @var bool $trusted whether this story goes straight to readers when the writer publishes it */
 /** @var array<string, string> $urls */
 /** @var int $chapterCount */
 /** @var array{title: int, summary: int, notes: int, disclaimer: int} $limits */
@@ -167,6 +167,14 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                 Only you and the site staff can see it.
             <?php endif; ?>
         </p>
+
+        <?php if ($story->wasRejected()): ?>
+            <div class="lf-notice lf-notice--warning lf-rejection" role="note">
+                <p><strong>This story was not approved.</strong> The reviewer wrote:</p>
+                <blockquote class="lf-rejection__reason"><?= nl2br(Html::e($story->rejectionReason)) ?></blockquote>
+                <p>Change what they asked for, then send it for approval again.</p>
+            </div>
+        <?php endif; ?>
 
         <?php if ($story->state === PublicationState::Published || $story->state === PublicationState::Pending): ?>
             <form method="post" action="<?= Html::e($urls['unpublish']) ?>" class="lf-form">

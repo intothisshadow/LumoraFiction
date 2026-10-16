@@ -106,7 +106,10 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
                         <td><input type="checkbox" name="ids[]" value="<?= (int) $story->id ?>" id="select_<?= (int) $story->id ?>" aria-label="Select <?= Html::e($story->title) ?>"></td>
                         <th scope="row"><a href="<?= Html::e($storyUrl . '/' . $story->id) ?>"><?= Html::e($story->title) ?></a></th>
                         <?php if ($scope === 'all'): ?><td><?= Html::e($owners[$story->ownerId] ?? 'Unknown') ?></td><?php endif; ?>
-                        <td><span class="lf-status<?= $statusClass($story->state) ?>"><?= Html::e($story->state->label()) ?></span></td>
+                        <td>
+                            <span class="lf-status<?= $statusClass($story->state) ?>"><?= Html::e($story->state->label()) ?></span>
+                            <?php if ($story->wasRejected()): ?><span class="lf-status lf-status--error">Not approved</span><?php endif; ?>
+                        </td>
                         <td><?= (int) $counts['published'] ?> of <?= (int) $counts['total'] ?> published</td>
                         <td><?= number_format($story->wordCount) ?></td>
                         <td><time datetime="<?= Html::e($story->updatedAt->format('Y-m-d\TH:i:s')) ?>"><?= Html::e($story->updatedAt->format('Y-m-d H:i')) ?></time></td>

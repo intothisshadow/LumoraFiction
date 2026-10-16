@@ -32,6 +32,7 @@ final readonly class User
         public ?DateTimeImmutable $emailVerifiedAt,
         public ?DateTimeImmutable $passwordChangedAt,
         public DateTimeImmutable $createdAt,
+        public ?PublishingOverride $publishingOverride = null,
     ) {
     }
 

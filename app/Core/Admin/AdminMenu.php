@@ -54,6 +54,7 @@ final class AdminMenu
                     ['slug' => 'stories-mine', 'label' => 'My stories', 'path' => 'stories', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-new', 'label' => 'Add a story', 'path' => 'stories/new', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-all', 'label' => 'All stories', 'path' => 'stories/all', 'capability' => Capability::EditAnyStory],
+                    ['slug' => 'stories-review', 'label' => 'Awaiting approval', 'path' => 'review', 'capability' => Capability::ModerateStories],
                 ],
             ],
             [

@@ -469,7 +469,7 @@ final class StoryController extends WriterController
             $languages[$values['language']] = strtoupper($values['language']);
         }
 
-        $trusted = $user->can(Capability::PublishWithoutReview) || $user->can(Capability::ModerateStories);
+        $trusted = $story !== null && $this->stories->publishesDirectly($user, $story);
         $base = $story === null ? AdminUrl::to(self::PATH) : AdminUrl::to(self::PATH . '/' . $story->id);
 
         return $this->view->render('story-form', [

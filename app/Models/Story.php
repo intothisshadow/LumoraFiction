@@ -36,6 +36,16 @@ final readonly class Story
         public ?DateTimeImmutable $publishedAt,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public string $rejectionReason = '',
+        public ?DateTimeImmutable $rejectedAt = null,
     ) {
+    }
+
+    /**
+     * A rejected story is a draft that still carries the reason; submitting it again clears the reason.
+     */
+    public function wasRejected(): bool
+    {
+        return $this->state === PublicationState::Draft && $this->rejectionReason !== '';
     }
 }

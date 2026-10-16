@@ -20,11 +20,14 @@ namespace LumoraFiction\Services;
 use DateTimeImmutable;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Helpers\Slug;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\PublicationState;
+use LumoraFiction\Models\PublishingOverride;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Models\User;
+use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\WorkStatus;
 use PDOException;
 
@@ -44,6 +47,8 @@ final class StoryService
 
     public const DISCLAIMER_MAX = 2000;
 
+    public const REASON_MAX = 1000;
+
     private const SLUG_BASE_MAX = 100;
 
     private const SLUG_ATTEMPTS = 5;
@@ -53,6 +58,7 @@ final class StoryService
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
         private readonly TaxonomyService $taxonomy,
+        private readonly ?HookManager $hooks = null,
     ) {
     }
 
@@ -166,6 +172,35 @@ final class StoryService
     }
 
     /**
+     * Whether this person's story goes straight to readers. Staff always do; an administrator's per-writer
+     * decision comes next; then the site rule, under which a new writer's first story is held for review and
+     * later ones are not once any of their stories has been published.
+     */
+    public function publishesDirectly(User $actor, Story $story): bool
+    {
+        if ($actor->can(Capability::ModerateStories)) {
+            return true;
+        }
+
+        if ($actor->publishingOverride === PublishingOverride::Review) {
+            return false;
+        }
+
+        if ($actor->publishingOverride === PublishingOverride::Direct || $actor->can(Capability::PublishWithoutReview)) {
+            return true;
+        }
+
+        if ($this->config->setting('publishing.hold_first_story') === false) {
+            return true;
+        }
+
+        return (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM {prefix}stories WHERE owner_id = :owner AND id <> :id AND published_at IS NOT NULL',
+            ['owner' => $story->ownerId, 'id' => $story->id],
+        ) > 0;
+    }
+
+    /**
      * Publishes the story straight away when the caller is trusted to, otherwise puts it in the
      * approval queue. A story already waiting for approval stays there when its own author asks again.
      * Either way the story must already carry the classification the administrator requires.
@@ -176,14 +211,9 @@ final class StoryService
     public function publish(User $actor, int $storyId, string $ipAddress = ''): Story
     {
         $story = $this->manageable($actor, $storyId);
+        $target = PublicationRules::submit($story->state, $this->publishesDirectly($actor, $story));
 
-        if ($story->state === PublicationState::Published) {
-            return $story;
-        }
-
-        $trusted = $actor->can(Capability::PublishWithoutReview) || $actor->can(Capability::ModerateStories);
-
-        if (!$trusted && $story->state === PublicationState::Pending) {
+        if ($target === null) {
             return $story;
         }
 
@@ -193,13 +223,7 @@ final class StoryService
             throw new StoryValidationException($missing);
         }
 
-        return $this->transition(
-            $story,
-            $trusted ? PublicationState::Published : PublicationState::Pending,
-            $actor,
-            $trusted ? 'story.publish' : 'story.submit',
-            $ipAddress,
-        );
+        return $this->transition($story, $target, $actor, $target === PublicationState::Published ? 'story.publish' : 'story.submit', $ipAddress);
     }
 
     /**
@@ -210,14 +234,147 @@ final class StoryService
     public function unpublish(User $actor, int $storyId, string $ipAddress = ''): Story
     {
         $story = $this->manageable($actor, $storyId);
+        $target = PublicationRules::withdraw($story->state);
 
-        $target = match ($story->state) {
-            PublicationState::Published => PublicationState::Unpublished,
-            PublicationState::Pending => PublicationState::Draft,
-            default => null,
-        };
+        if ($target === null) {
+            return $story;
+        }
 
-        return $target === null ? $story : $this->transition($story, $target, $actor, 'story.unpublish', $ipAddress);
+        return $this->transition($story, $target, $actor, $story->state === PublicationState::Pending ? 'story.withdraw' : 'story.unpublish', $ipAddress);
+    }
+
+    /**
+     * Staff accept a story from the queue. The classification is checked again because the required kinds
+     * may have changed since the author sent it.
+     *
+     * @throws StoryPermissionException when the caller may not review stories or the story does not exist
+     * @throws StoryValidationException when the story is no longer waiting, or now lacks required classification
+     */
+    public function approve(User $actor, int $storyId, string $ipAddress = ''): Story
+    {
+        $story = $this->reviewable($actor, $storyId);
+        $target = PublicationRules::approve($story->state) ?? throw new StoryValidationException(['state' => 'That story is no longer waiting for approval.']);
+
+        $missing = $this->taxonomy->missingRequired($story->id);
+
+        if ($missing !== []) {
+            throw new StoryValidationException($missing);
+        }
+
+        return $this->transition($story, $target, $actor, 'story.approve', $ipAddress);
+    }
+
+    /**
+     * Staff send a story back to its author as a draft, with the reason the author will read.
+     *
+     * @throws StoryPermissionException
+     * @throws StoryValidationException when no acceptable reason is given or the story is no longer waiting
+     */
+    public function reject(User $actor, int $storyId, string $reason, string $ipAddress = ''): Story
+    {
+        $story = $this->reviewable($actor, $storyId);
+        $target = PublicationRules::reject($story->state) ?? throw new StoryValidationException(['state' => 'That story is no longer waiting for approval.']);
+
+        $errors = [];
+        $reason = $this->multiLine($reason, 'reason', self::REASON_MAX, $errors);
+
+        if ($reason === '' && $errors === []) {
+            $errors['reason'] = 'Tell the author why the story was not approved.';
+        }
+
+        if ($errors !== []) {
+            throw new StoryValidationException($errors);
+        }
+
+        return $this->transition($story, $target, $actor, 'story.reject', $ipAddress, $reason);
+    }
+
+    /**
+     * Takes every public or waiting story of one writer out of view, keeping the stories, chapters and links.
+     * Each story changes in its own transaction, so an interruption leaves the rest to be done by running it again.
+     *
+     * @return int how many stories were taken out of view
+     * @throws StoryPermissionException when the caller may not review stories
+     */
+    public function unpublishAllByOwner(User $actor, int $ownerId, string $reason = '', string $ipAddress = ''): int
+    {
+        if (!$actor->can(Capability::ModerateStories)) {
+            throw new StoryPermissionException('You may not do that.');
+        }
+
+        $errors = [];
+        $reason = $this->multiLine($reason, 'reason', self::REASON_MAX, $errors);
+
+        if ($errors !== []) {
+            throw new StoryValidationException($errors);
+        }
+
+        $count = 0;
+
+        foreach ($this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}stories WHERE owner_id = :owner AND publication_state IN (:published, :pending)',
+            ['owner' => $ownerId, 'published' => PublicationState::Published->value, 'pending' => PublicationState::Pending->value],
+        )) as $story) {
+            $target = PublicationRules::withdraw($story->state);
+
+            if ($target !== null) {
+                $this->transition($story, $target, $actor, 'story.unpublish', $ipAddress, $reason);
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Gives a writer the right to publish without review, or takes it away so every story they send is
+     * reviewed. Null returns them to the site-wide rule.
+     *
+     * @throws StoryPermissionException when the caller may not manage users, or the account is not an author
+     */
+    public function setPublishingOverride(User $actor, int $userId, ?PublishingOverride $override, string $ipAddress = ''): void
+    {
+        if (!$actor->can(Capability::ManageUsers)) {
+            throw new StoryPermissionException('You may not do that.');
+        }
+
+        $role = $this->database->fetchColumn('SELECT role FROM {prefix}users WHERE id = :id', ['id' => $userId]);
+
+        if ($role !== UserRole::Author->value) {
+            throw new StoryPermissionException('Only an author can be given this.');
+        }
+
+        $this->database->transaction(function () use ($actor, $userId, $override, $ipAddress): void {
+            $this->database->execute(
+                'UPDATE {prefix}users SET publishing_override = :override, updated_at = :updated WHERE id = :id',
+                ['override' => $override?->value, 'updated' => date('Y-m-d H:i:s'), 'id' => $userId],
+            );
+            $this->audit->record($actor->id, 'user.publishing_override', 'user', (string) $userId, ['to' => $override?->value], $ipAddress);
+        });
+    }
+
+    /**
+     * @return list<Story> the stories waiting for approval, longest waiting first; empty for anyone who may not review
+     */
+    public function listPending(User $actor, int $limit = 25, int $offset = 0): array
+    {
+        if (!$actor->can(Capability::ModerateStories)) {
+            return [];
+        }
+
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}stories WHERE publication_state = :state ORDER BY updated_at ASC, id ASC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            ['state' => PublicationState::Pending->value],
+        ));
+    }
+
+    public function countPending(User $actor): int
+    {
+        if (!$actor->can(Capability::ModerateStories)) {
+            return 0;
+        }
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}stories WHERE publication_state = :state', ['state' => PublicationState::Pending->value]);
     }
 
     /**
@@ -584,26 +741,63 @@ final class StoryService
         return $base . '-' . bin2hex(random_bytes(4));
     }
 
-    private function transition(Story $story, PublicationState $to, User $actor, string $auditAction, string $ipAddress): Story
+    /**
+     * @throws StoryPermissionException when the caller may not review stories or the story does not exist
+     */
+    private function reviewable(User $actor, int $storyId): Story
     {
-        $this->database->transaction(function () use ($story, $to, $actor, $auditAction, $ipAddress): void {
+        $story = $this->find($storyId);
+
+        if ($story === null || !$actor->can(Capability::ModerateStories)) {
+            throw new StoryPermissionException('That story is not available.');
+        }
+
+        return $story;
+    }
+
+    /**
+     * $reason is a rejection note when the new state is a draft, and otherwise only goes to the audit log.
+     * Submitting or publishing clears an earlier rejection, so the note never outlives the decision it explains.
+     */
+    private function transition(Story $story, PublicationState $to, User $actor, string $auditAction, string $ipAddress, string $reason = ''): Story
+    {
+        $rejecting = $auditAction === 'story.reject';
+
+        $this->database->transaction(function () use ($story, $to, $actor, $auditAction, $ipAddress, $reason, $rejecting): void {
             $now = date('Y-m-d H:i:s');
+            $keepsNote = !in_array($to, [PublicationState::Pending, PublicationState::Published], true);
 
             $this->database->execute(
-                'UPDATE {prefix}stories SET publication_state = :state, published_at = :published, updated_at = :updated WHERE id = :id',
+                'UPDATE {prefix}stories SET publication_state = :state, published_at = :published, rejection_reason = :reason,
+                 rejected_at = :rejected, updated_at = :updated WHERE id = :id',
                 [
                     'state' => $to->value,
                     // The first publication date is kept when a story is unpublished and published again.
                     'published' => $to === PublicationState::Published && $story->publishedAt === null ? $now : $story->publishedAt?->format('Y-m-d H:i:s'),
+                    'reason' => $rejecting ? $reason : ($keepsNote && $story->rejectionReason !== '' ? $story->rejectionReason : null),
+                    'rejected' => $rejecting ? $now : ($keepsNote ? $story->rejectedAt?->format('Y-m-d H:i:s') : null),
                     'updated' => $now,
                     'id' => $story->id,
                 ],
             );
             $this->taxonomy->refreshCountsForStory($story->id);
-            $this->audit->record($actor->id, $auditAction, 'story', (string) $story->id, ['from' => $story->state->value, 'to' => $to->value], $ipAddress);
+
+            $details = ['from' => $story->state->value, 'to' => $to->value];
+
+            if ($reason !== '') {
+                $details['reason'] = $reason;
+            }
+
+            $this->audit->record($actor->id, $auditAction, 'story', (string) $story->id, $details, $ipAddress);
         });
 
-        return $this->mustFind($story->id);
+        $changed = $this->mustFind($story->id);
+
+        // Other features (notifications, mail) listen here; it runs after the change is saved so a listener
+        // that fails cannot undo it.
+        $this->hooks?->doAction('story_state_changed', $changed, $story->state, $actor, $reason);
+
+        return $changed;
     }
 
     private function fieldValue(Story $story, string $field): string
@@ -653,6 +847,8 @@ final class StoryService
             publishedAt: is_string($row['published_at']) && $row['published_at'] !== '' ? new DateTimeImmutable($row['published_at']) : null,
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
+            rejectionReason: is_string($row['rejection_reason'] ?? null) ? $row['rejection_reason'] : '',
+            rejectedAt: is_string($row['rejected_at'] ?? null) && $row['rejected_at'] !== '' ? new DateTimeImmutable($row['rejected_at']) : null,
         );
     }
 }
