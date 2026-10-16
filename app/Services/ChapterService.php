@@ -1,0 +1,419 @@
+<?php
+
+/**
+ * Adds, edits, orders, publishes and deletes the chapters of a story.
+ *
+ * @package LumoraFiction
+ * @subpackage Services
+ * @author Ariane
+ * @copyright Copyright (c) 2026 Ariane
+ * @license GPL-3.0-or-later
+ * @link https://coding.unloved-heart.net/scripts/lumorafiction
+ * @source https://github.com/intothisshadow/LumoraFiction
+ * @since 0.1.0
+ */
+
+declare(strict_types=1);
+
+namespace LumoraFiction\Services;
+
+use DateTimeImmutable;
+use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Helpers\WordCounter;
+use LumoraFiction\Models\Chapter;
+use LumoraFiction\Models\ContentFormat;
+use LumoraFiction\Models\PublicationState;
+use LumoraFiction\Models\User;
+use PDOException;
+
+/**
+ * Permission follows the story: whoever may change a story may change its chapters (see
+ * StoryService::canManage). Chapter numbers are always 1 to n with no gaps, and the story's word
+ * total is brought back in step after every change. Text is stored as written; the content renderer
+ * sanitises it whenever it is shown.
+ */
+final class ChapterService
+{
+    public const TITLE_MAX = 200;
+
+    public const CONTENT_MAX = 1000000;
+
+    public const NOTES_MAX = 4000;
+
+    /** Large enough to move every number out of the way during a reorder. */
+    private const RENUMBER_OFFSET = 1000000;
+
+    private const NUMBER_ATTEMPTS = 3;
+
+    public function __construct(
+        private readonly Database $database,
+        private readonly StoryService $stories,
+        private readonly AuditLogService $audit,
+    ) {
+    }
+
+    /**
+     * The chapter goes at the end as a draft.
+     *
+     * @param array<string, mixed> $input title, content, format, notes
+     * @throws StoryPermissionException
+     * @throws StoryValidationException
+     */
+    public function add(User $actor, int $storyId, array $input, string $ipAddress = ''): Chapter
+    {
+        $story = $this->stories->manageable($actor, $storyId);
+        $values = $this->validated($input, null);
+
+        $id = (int) $this->database->transaction(function () use ($actor, $story, $values, $ipAddress): int {
+            $id = $this->insert($story->id, $values);
+            $this->stories->refreshWordCount($story->id);
+            $this->audit->record($actor->id, 'chapter.create', 'chapter', (string) $id, ['story' => $story->id], $ipAddress);
+
+            return $id;
+        });
+
+        return $this->mustFind($id);
+    }
+
+    /**
+     * Only the fields present in $input change.
+     *
+     * @param array<string, mixed> $input
+     * @throws StoryPermissionException
+     * @throws StoryValidationException
+     */
+    public function update(User $actor, int $chapterId, array $input, string $ipAddress = ''): Chapter
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+        $values = $this->validated($input, $chapter);
+
+        $this->database->transaction(function () use ($actor, $chapter, $values, $ipAddress): void {
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes,
+                 word_count = :words, updated_at = :updated WHERE id = :id',
+                [
+                    'title' => $values['title'],
+                    'content' => $values['content'],
+                    'format' => $values['format']->value,
+                    'notes' => $values['notes'],
+                    'words' => WordCounter::count($values['content'], $values['format']),
+                    'updated' => date('Y-m-d H:i:s'),
+                    'id' => $chapter->id,
+                ],
+            );
+            $this->stories->refreshWordCount($chapter->storyId);
+            $this->audit->record($actor->id, 'chapter.update', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId], $ipAddress);
+        });
+
+        return $this->mustFind($chapter->id);
+    }
+
+    /**
+     * Puts the chapters in the given order and renumbers them 1 to n. The list must name every chapter
+     * of the story exactly once; anything else is rejected so a stale form cannot silently drop one.
+     *
+     * @param list<int> $orderedChapterIds
+     * @throws StoryPermissionException
+     * @throws StoryValidationException
+     */
+    public function reorder(User $actor, int $storyId, array $orderedChapterIds, string $ipAddress = ''): void
+    {
+        $story = $this->stories->manageable($actor, $storyId);
+
+        $current = array_map('intval', array_column($this->database->fetchAll(
+            'SELECT id FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            ['story' => $story->id],
+        ), 'id'));
+
+        $wanted = array_values(array_map('intval', $orderedChapterIds));
+        $sameSet = count($wanted) === count($current) && count(array_unique($wanted)) === count($wanted) && array_diff($wanted, $current) === [];
+
+        if (!$sameSet) {
+            throw new StoryValidationException(['order' => 'The chapter list is out of date. Reload the page and try again.']);
+        }
+
+        if ($wanted === $current) {
+            return;
+        }
+
+        $this->database->transaction(function () use ($actor, $story, $wanted, $ipAddress): void {
+            // Two steps because (story, number) is unique: moving every chapter out of range first means no
+            // chapter ever briefly shares a number with another.
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET number = number + ' . self::RENUMBER_OFFSET . ' WHERE story_id = :story',
+                ['story' => $story->id],
+            );
+
+            foreach ($wanted as $index => $id) {
+                $this->database->execute(
+                    'UPDATE {prefix}chapters SET number = :number WHERE id = :id AND story_id = :story',
+                    ['number' => $index + 1, 'id' => $id, 'story' => $story->id],
+                );
+            }
+
+            $this->touchStory($story->id);
+            $this->audit->record($actor->id, 'chapter.reorder', 'story', (string) $story->id, [], $ipAddress);
+        });
+    }
+
+    /**
+     * @throws StoryPermissionException
+     */
+    public function publish(User $actor, int $chapterId, string $ipAddress = ''): Chapter
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+
+        return $chapter->state === PublicationState::Published
+            ? $chapter
+            : $this->transition($chapter, PublicationState::Published, $actor, 'chapter.publish', $ipAddress);
+    }
+
+    /**
+     * @throws StoryPermissionException
+     */
+    public function unpublish(User $actor, int $chapterId, string $ipAddress = ''): Chapter
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+
+        return $chapter->state === PublicationState::Published
+            ? $this->transition($chapter, PublicationState::Unpublished, $actor, 'chapter.unpublish', $ipAddress)
+            : $chapter;
+    }
+
+    /**
+     * Later chapters move up so numbering stays complete.
+     *
+     * @throws StoryPermissionException
+     */
+    public function delete(User $actor, int $chapterId, string $ipAddress = ''): void
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+
+        $this->database->transaction(function () use ($actor, $chapter, $ipAddress): void {
+            $this->database->execute('DELETE FROM {prefix}chapters WHERE id = :id', ['id' => $chapter->id]);
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number ORDER BY number ASC',
+                ['story' => $chapter->storyId, 'number' => $chapter->number],
+            );
+            $this->stories->refreshWordCount($chapter->storyId);
+            $this->audit->record($actor->id, 'chapter.delete', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
+        });
+    }
+
+    public function find(int $id): ?Chapter
+    {
+        $row = $this->database->fetchOne('SELECT * FROM {prefix}chapters WHERE id = :id', ['id' => $id]);
+
+        return $row === null ? null : $this->hydrate($row);
+    }
+
+    /**
+     * Every chapter of a story, in any state, for someone who may change the story.
+     *
+     * @return list<Chapter>
+     * @throws StoryPermissionException
+     */
+    public function listForWriter(User $actor, int $storyId): array
+    {
+        $story = $this->stories->manageable($actor, $storyId);
+
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            ['story' => $story->id],
+        ));
+    }
+
+    /**
+     * The chapters a visitor may read, which is none unless the story itself is public.
+     *
+     * @return list<Chapter>
+     */
+    public function listPublic(int $storyId): array
+    {
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT c.* FROM {prefix}chapters c JOIN {prefix}stories s ON s.id = c.story_id
+             WHERE c.story_id = :story AND ' . StoryVisibility::publicChapterCondition('c', 's') . ' ORDER BY c.number',
+            ['story' => $storyId],
+        ));
+    }
+
+    public function findPublic(int $storyId, int $number): ?Chapter
+    {
+        $row = $this->database->fetchOne(
+            'SELECT c.* FROM {prefix}chapters c JOIN {prefix}stories s ON s.id = c.story_id
+             WHERE c.story_id = :story AND c.number = :number AND ' . StoryVisibility::publicChapterCondition('c', 's'),
+            ['story' => $storyId, 'number' => $number],
+        );
+
+        return $row === null ? null : $this->hydrate($row);
+    }
+
+    /**
+     * @throws StoryPermissionException when the chapter is missing or its story may not be changed by the caller
+     */
+    public function manageable(User $actor, int $chapterId): Chapter
+    {
+        $chapter = $this->find($chapterId);
+
+        if ($chapter === null) {
+            throw new StoryPermissionException('That chapter is not available.');
+        }
+
+        $this->stories->manageable($actor, $chapter->storyId);
+
+        return $chapter;
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @return array{title: string, content: string, format: ContentFormat, notes: string}
+     */
+    private function validated(array $input, ?Chapter $existing): array
+    {
+        $errors = [];
+
+        $title = array_key_exists('title', $input) ? $input['title'] : ($existing->title ?? '');
+        $title = is_string($title) ? trim($title) : null;
+
+        if ($title === null || !mb_check_encoding($title, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $title) === 1) {
+            $errors['title'] = 'This contains characters that are not allowed.';
+            $title = '';
+        } elseif (mb_strlen($title, 'UTF-8') > self::TITLE_MAX) {
+            $errors['title'] = 'Keep the title to ' . self::TITLE_MAX . ' characters or fewer.';
+        }
+
+        $content = array_key_exists('content', $input) ? $input['content'] : ($existing->content ?? '');
+
+        if (!is_string($content) || !mb_check_encoding($content, 'UTF-8') || str_contains($content, "\0")) {
+            $errors['content'] = 'The text contains characters that are not allowed.';
+            $content = '';
+        } elseif (mb_strlen($content, 'UTF-8') > self::CONTENT_MAX) {
+            $errors['content'] = 'This chapter is too long to save in one piece. Split it into two chapters.';
+        }
+
+        $formatInput = array_key_exists('format', $input) ? $input['format'] : ($existing->format ?? ContentFormat::Html)->value;
+        $format = is_string($formatInput) ? ContentFormat::tryFrom($formatInput) : null;
+
+        if ($format === null) {
+            $errors['format'] = 'Choose how the text is written.';
+        }
+
+        $notes = array_key_exists('notes', $input) ? $input['notes'] : ($existing->notes ?? '');
+        $notes = is_string($notes) ? trim(str_replace(["\r\n", "\r"], "\n", $notes)) : null;
+
+        if ($notes === null || !mb_check_encoding($notes, 'UTF-8') || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $notes) === 1) {
+            $errors['notes'] = 'This contains characters that are not allowed.';
+            $notes = '';
+        } elseif (mb_strlen($notes, 'UTF-8') > self::NOTES_MAX) {
+            $errors['notes'] = 'Keep the notes to ' . self::NOTES_MAX . ' characters or fewer.';
+        }
+
+        if ($errors !== []) {
+            throw new StoryValidationException($errors);
+        }
+
+        return ['title' => $title, 'content' => $content, 'format' => $format ?? ContentFormat::Html, 'notes' => $notes];
+    }
+
+    /**
+     * @param array{title: string, content: string, format: ContentFormat, notes: string} $values
+     */
+    private function insert(int $storyId, array $values): int
+    {
+        $now = date('Y-m-d H:i:s');
+
+        for ($attempt = 1; ; $attempt++) {
+            $next = (int) $this->database->fetchColumn(
+                'SELECT COALESCE(MAX(number), 0) + 1 FROM {prefix}chapters WHERE story_id = :story',
+                ['story' => $storyId],
+            );
+
+            try {
+                return (int) $this->database->insertGetId(
+                    'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, word_count,
+                     publication_state, published_at, created_at, updated_at)
+                     VALUES (:story, :number, :title, :content, :format, :notes, :words, :state, NULL, :created, :updated)',
+                    [
+                        'story' => $storyId,
+                        'number' => $next,
+                        'title' => $values['title'],
+                        'content' => $values['content'],
+                        'format' => $values['format']->value,
+                        'notes' => $values['notes'],
+                        'words' => WordCounter::count($values['content'], $values['format']),
+                        'state' => PublicationState::Draft->value,
+                        'created' => $now,
+                        'updated' => $now,
+                    ],
+                );
+            } catch (PDOException $exception) {
+                // Two chapters added at the same moment can pick the same number; the unique key stops the second, which retries.
+                if (($exception->errorInfo[1] ?? null) !== 1062 || $attempt >= self::NUMBER_ATTEMPTS) {
+                    throw $exception;
+                }
+            }
+        }
+    }
+
+    private function transition(Chapter $chapter, PublicationState $to, User $actor, string $auditAction, string $ipAddress): Chapter
+    {
+        $this->database->transaction(function () use ($chapter, $to, $actor, $auditAction, $ipAddress): void {
+            $now = date('Y-m-d H:i:s');
+
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET publication_state = :state, published_at = :published, updated_at = :updated WHERE id = :id',
+                [
+                    'state' => $to->value,
+                    'published' => $to === PublicationState::Published && $chapter->publishedAt === null ? $now : $chapter->publishedAt?->format('Y-m-d H:i:s'),
+                    'updated' => $now,
+                    'id' => $chapter->id,
+                ],
+            );
+            $this->touchStory($chapter->storyId);
+            $this->audit->record($actor->id, $auditAction, 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'from' => $chapter->state->value, 'to' => $to->value], $ipAddress);
+        });
+
+        return $this->mustFind($chapter->id);
+    }
+
+    private function touchStory(int $storyId): void
+    {
+        $this->database->execute('UPDATE {prefix}stories SET updated_at = :updated WHERE id = :id', ['updated' => date('Y-m-d H:i:s'), 'id' => $storyId]);
+    }
+
+    private function mustFind(int $id): Chapter
+    {
+        return $this->find($id) ?? throw new StoryPermissionException('That chapter is not available.');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<Chapter>
+     */
+    private function hydrateAll(array $rows): array
+    {
+        return array_map(fn (array $row): Chapter => $this->hydrate($row), $rows);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrate(array $row): Chapter
+    {
+        return new Chapter(
+            id: (int) $row['id'],
+            storyId: (int) $row['story_id'],
+            number: (int) $row['number'],
+            title: (string) $row['title'],
+            content: (string) $row['content'],
+            format: ContentFormat::tryFrom((string) $row['content_format']) ?? ContentFormat::Plain,
+            notes: (string) $row['notes'],
+            wordCount: (int) $row['word_count'],
+            // An unrecognised state counts as a draft so a corrupt value fails closed rather than going public.
+            state: PublicationState::tryFrom((string) $row['publication_state']) ?? PublicationState::Draft,
+            publishedAt: is_string($row['published_at']) && $row['published_at'] !== '' ? new DateTimeImmutable($row['published_at']) : null,
+            createdAt: new DateTimeImmutable((string) $row['created_at']),
+            updatedAt: new DateTimeImmutable((string) $row['updated_at']),
+        );
+    }
+}

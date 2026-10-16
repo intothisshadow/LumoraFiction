@@ -71,9 +71,21 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `security.session_lifetime` | `86400` | Seconds an idle session is kept. |
 | `archive.mode` | `both` | What the site publishes: `both`, `fanfiction`, or `original`. |
 | `publishing.hold_first_story` | `true` | Whether a new Author's first story waits for approval. |
+| `stories.allow_abandoned` | `false` | Whether a story may be marked abandoned. A story already marked abandoned can still be edited when this is off. |
 | `security.hsts` | `false` | Send `Strict-Transport-Security` over HTTPS. Once a browser has seen it, it refuses plain HTTP for the site for a year. |
 
 Emailed links are built from the `site_url` value in `config/config.php`, never from the request, so it must be set to the site's full public address.
+
+## Stories and chapters
+
+`StoryService` and `ChapterService` are the only code that creates, changes, publishes or deletes stories and chapters, and they decide who may. Pass them the signed-in `User`; they throw `StoryPermissionException` when the story is missing or the user may not change it (the two look the same on purpose) and `StoryValidationException`, which carries a message per field, when the input is not acceptable.
+
+- An Author changes only their own stories. A user with `EditAnyStory` may change any. A suspended account changes nothing.
+- A story has a work status (`WorkStatus`: ongoing, completed, on hiatus, abandoned) and, separately, a publication state (`PublicationState`: draft, pending, published, unpublished). `StoryService::publish()` publishes at once for users with `PublishWithoutReview` or `ModerateStories` and otherwise puts the story in the approval queue as pending.
+- Chapters are numbered 1 to n with no gaps. Reordering and deleting renumber them. A chapter stores its text as written plus a `ContentFormat`; sanitising happens when the text is shown, never by trusting what was stored.
+- A story is visible to visitors only when it is published and has at least one published chapter. Build every public query from `StoryVisibility::publicCondition()` (or `StoryService::findPublicBySlug()` and `listPublic()`) so no screen applies a looser rule. A draft must never be returned by a public address.
+- Changes are written to the audit log as `story.create`, `story.update`, `story.work_status`, `story.submit`, `story.publish`, `story.unpublish`, `story.delete`, `chapter.create`, `chapter.update`, `chapter.reorder`, `chapter.publish`, `chapter.unpublish` and `chapter.delete`.
+- Story and chapter text is stored raw. Print it with `Html::e()`.
 
 ## Admin screens
 
