@@ -19,8 +19,10 @@ namespace LumoraFiction\Core;
 
 use LumoraFiction\Controllers\Admin\AdminRoutes;
 use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
+use LumoraFiction\Controllers\Admin\ChapterController;
 use LumoraFiction\Controllers\Admin\ContentEditorController;
 use LumoraFiction\Controllers\Admin\EditorSettingsController;
+use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
 use LumoraFiction\Core\Content\HtmlSanitizer;
 use LumoraFiction\Core\Content\MarkdownParser;
@@ -29,6 +31,7 @@ use LumoraFiction\Controllers\Admin\DashboardController;
 use LumoraFiction\Controllers\Admin\SystemInformationController;
 use LumoraFiction\Core\Admin\AdminMenu;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\ContentEditor;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Errors\ErrorHandler;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -51,7 +54,9 @@ use LumoraFiction\Services\ArchiveSettings;
 use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
 
@@ -162,14 +167,23 @@ final class Kernel
         $flash = new FlashMessages($kernel->sessions);
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version['version']);
 
+        $editorSettings = new EditorSettings($kernel->config, $kernel->database, $kernel->audit);
+        $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
+        $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
+        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy);
+        $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
+        $editor = new ContentEditor($view, $editorSettings, $version['version']);
+
         AdminRoutes::register(
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
-            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $kernel->config, $kernel->hooks, $root),
+            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $kernel->config, $kernel->hooks, $stories, $root),
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit)),
-            new EditorSettingsController($kernel->auth, $view, $flash, new EditorSettings($kernel->config, $kernel->database, $kernel->audit)),
-            new ContentEditorController($kernel->auth, new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks)),
-            new TaxonomyController($kernel->auth, $view, $flash, new TaxonomyService($kernel->database, $kernel->config, $kernel->audit)),
+            new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
+            new ContentEditorController($kernel->auth, $renderer),
+            new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users),
+            new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
         );
     }

@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Controllers\Admin;
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -27,6 +28,7 @@ use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\UserService;
 
 final class DashboardController extends AdminController
@@ -39,6 +41,7 @@ final class DashboardController extends AdminController
         private readonly AuditLogService $audit,
         private readonly Configuration $config,
         private readonly HookManager $hooks,
+        private readonly StoryService $stories,
         private readonly string $root,
     ) {
         parent::__construct($auth, $view, $flash);
@@ -61,6 +64,9 @@ final class DashboardController extends AdminController
             'user' => $user,
             'notices' => $isAdministrator ? $this->notices($request) : [],
             'summary' => $user->can(Capability::ManageUsers) ? $this->users->summary() : null,
+            'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
+            'storiesUrl' => AdminUrl::to('stories'),
+            'newStoryUrl' => AdminUrl::to('stories/new'),
             'activity' => $isAdministrator ? $this->audit->recent(8) : [],
         ], $user, 'Dashboard', '', $this->flash->pull($request->cookies));
     }

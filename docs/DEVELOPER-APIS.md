@@ -89,6 +89,9 @@ Emailed links are built from the `site_url` value in `config/config.php`, never 
 - A story is visible to visitors only when it is published and has at least one published chapter. Build every public query from `StoryVisibility::publicCondition()` (or `StoryService::findPublicBySlug()` and `listPublic()`) so no screen applies a looser rule. A draft must never be returned by a public address.
 - Changes are written to the audit log as `story.create`, `story.update`, `story.work_status`, `story.submit`, `story.publish`, `story.unpublish`, `story.delete`, `chapter.create`, `chapter.update`, `chapter.reorder`, `chapter.publish`, `chapter.unpublish` and `chapter.delete`.
 - Story and chapter text is stored raw. Print it with `Html::e()`.
+- `StoryService::listForWriter()`, `countForWriter()` and `countsByState()` feed the writer screens. The scope `all` is honoured only for users with `EditAnyStory`; for anyone else the list is always limited to their own stories, whatever the request asks. `bulk($actor, 'publish'|'unpublish'|'delete', $ids)` applies one action to up to 100 stories, checking each on its own, and returns `done` and `skipped` counts.
+- `ChapterService::move($actor, $chapterId, 'up'|'down')` swaps a chapter with its neighbour through `reorder()`, and `countsForStories()` gives chapter totals for a page of stories in one query. `UserService::displayNames()` returns public names only, in one query.
+- The writer screens are `StoryController` and `ChapterController`, which extend `WriterController`. Its `writer()` method is the permission check for a screen that has a form: a guest who posts one of the listed fields gets the 401 `session-ended` page that returns the text and sends no token, instead of a redirect that would discard it. Name the fields to keep and the screen to return to when you build another form that holds long text. `Request::inputList()` reads a posted `name[]` list as text values only.
 
 ## Classification
 
@@ -119,7 +122,7 @@ Add a screen to the sidebar with the `admin_menu` filter. Each entry needs a low
 
 ```php
 add_filter('admin_menu', function (array $items): array {
-    $items[] = ['slug' => 'stories', 'label' => 'Stories', 'path' => 'stories', 'capability' => \LumoraFiction\Models\Capability::WriteStories];
+    $items[] = ['slug' => 'library', 'label' => 'Library', 'path' => 'library', 'capability' => \LumoraFiction\Models\Capability::WriteStories];
 
     return $items;
 });

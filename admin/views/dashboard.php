@@ -23,6 +23,9 @@ use LumoraFiction\Models\User;
 /** @var User $user */
 /** @var list<array{variant: string, message: string}> $notices */
 /** @var array{total: int, by_role: array<string, int>, by_status: array<string, int>}|null $summary */
+/** @var array<string, int>|null $writing the writer's own story counts by publication state */
+/** @var string $storiesUrl */
+/** @var string $newStoryUrl */
 /** @var list<array{action: string, actor: string|null, target_type: string|null, target_id: string|null, details: array<string, mixed>, at: DateTimeImmutable}> $activity */
 
 $descriptions = ['settings.archive.update' => 'changed the archive settings'];
@@ -37,6 +40,23 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
                 <li class="lf-notice lf-notice--<?= Html::e($notice['variant']) ?>"><?= Html::e($notice['message']) ?></li>
             <?php endforeach; ?>
         </ul>
+    </section>
+<?php endif; ?>
+
+<?php if ($writing !== null): ?>
+    <section aria-labelledby="lf-writing-heading" class="lf-card">
+        <h2 id="lf-writing-heading">Your writing</h2>
+        <?php if (array_sum($writing) === 0): ?>
+            <p>You have not written a story yet.</p>
+        <?php else: ?>
+            <ul class="lf-writing-counts">
+                <li><a href="<?= Html::e($storiesUrl . '?state=draft') ?>"><?= (int) $writing['draft'] ?> <?= $writing['draft'] === 1 ? 'draft' : 'drafts' ?></a></li>
+                <li><a href="<?= Html::e($storiesUrl . '?state=published') ?>"><?= (int) $writing['published'] ?> published</a></li>
+                <?php if ($writing['pending'] > 0): ?><li><a href="<?= Html::e($storiesUrl . '?state=pending') ?>"><?= (int) $writing['pending'] ?> waiting for approval</a></li><?php endif; ?>
+                <?php if ($writing['unpublished'] > 0): ?><li><a href="<?= Html::e($storiesUrl . '?state=unpublished') ?>"><?= (int) $writing['unpublished'] ?> unpublished</a></li><?php endif; ?>
+            </ul>
+        <?php endif; ?>
+        <p><a href="<?= Html::e($newStoryUrl) ?>" class="lf-button lf-button--secondary">Add a story</a> <a href="<?= Html::e($storiesUrl) ?>">All your stories</a></p>
     </section>
 <?php endif; ?>
 

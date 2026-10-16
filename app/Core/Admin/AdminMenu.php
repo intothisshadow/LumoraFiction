@@ -46,6 +46,17 @@ final class AdminMenu
                 'children' => [],
             ],
             [
+                'slug' => 'stories',
+                'label' => 'Stories',
+                'path' => 'stories',
+                'capability' => Capability::WriteStories,
+                'children' => [
+                    ['slug' => 'stories-mine', 'label' => 'My stories', 'path' => 'stories', 'capability' => Capability::WriteStories],
+                    ['slug' => 'stories-new', 'label' => 'Add a story', 'path' => 'stories/new', 'capability' => Capability::WriteStories],
+                    ['slug' => 'stories-all', 'label' => 'All stories', 'path' => 'stories/all', 'capability' => Capability::EditAnyStory],
+                ],
+            ],
+            [
                 'slug' => 'taxonomy',
                 'label' => 'Classification',
                 'path' => 'taxonomy',

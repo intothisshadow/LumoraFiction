@@ -157,6 +157,78 @@ final class ChapterService
     }
 
     /**
+     * Swaps a chapter with its neighbour. This is the keyboard- and no-script-friendly way to reorder, and it
+     * goes through reorder() so the same checks and renumbering apply.
+     *
+     * @param string $direction "up" or "down"
+     * @throws StoryPermissionException
+     * @throws StoryValidationException when the direction is not recognised
+     */
+    public function move(User $actor, int $chapterId, string $direction, string $ipAddress = ''): void
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+
+        if ($direction !== 'up' && $direction !== 'down') {
+            throw new StoryValidationException(['order' => 'Choose a direction to move the chapter.']);
+        }
+
+        $order = array_map('intval', array_column($this->database->fetchAll(
+            'SELECT id FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            ['story' => $chapter->storyId],
+        ), 'id'));
+
+        $position = array_search($chapter->id, $order, true);
+
+        if ($position === false) {
+            return;
+        }
+
+        $target = $direction === 'up' ? $position - 1 : $position + 1;
+
+        // Moving the first chapter up or the last one down changes nothing.
+        if ($target < 0 || $target >= count($order)) {
+            return;
+        }
+
+        [$order[$position], $order[$target]] = [$order[$target], $order[$position]];
+
+        $this->reorder($actor, $chapter->storyId, $order, $ipAddress);
+    }
+
+    /**
+     * Chapter totals for a page of stories in one query.
+     *
+     * @param list<int> $storyIds
+     * @return array<int, array{total: int, published: int}> story id => counts; a story with no chapters is absent
+     */
+    public function countsForStories(array $storyIds): array
+    {
+        $storyIds = array_values(array_unique(array_filter($storyIds, static fn (int $id): bool => $id > 0)));
+
+        if ($storyIds === []) {
+            return [];
+        }
+
+        $params = [];
+
+        foreach ($storyIds as $index => $id) {
+            $params['story' . $index] = $id;
+        }
+
+        $counts = [];
+
+        foreach ($this->database->fetchAll(
+            "SELECT story_id, COUNT(*) AS total, SUM(CASE WHEN publication_state = 'published' THEN 1 ELSE 0 END) AS published
+             FROM {prefix}chapters WHERE story_id IN (" . implode(', ', array_map(static fn (string $key): string => ':' . $key, array_keys($params))) . ') GROUP BY story_id',
+            $params,
+        ) as $row) {
+            $counts[(int) $row['story_id']] = ['total' => (int) $row['total'], 'published' => (int) $row['published']];
+        }
+
+        return $counts;
+    }
+
+    /**
      * @throws StoryPermissionException
      */
     public function publish(User $actor, int $chapterId, string $ipAddress = ''): Chapter

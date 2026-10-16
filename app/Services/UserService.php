@@ -170,6 +170,38 @@ final class UserService
     }
 
     /**
+     * The public names for a page of listings in one query. Only display names are returned, never login names.
+     *
+     * @param list<int> $ids
+     * @return array<int, string> account id => display name
+     */
+    public function displayNames(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $params = [];
+
+        foreach ($ids as $index => $id) {
+            $params['id' . $index] = $id;
+        }
+
+        $names = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT id, display_name FROM {prefix}users WHERE id IN (' . implode(', ', array_map(static fn (string $key): string => ':' . $key, array_keys($params))) . ')',
+            $params,
+        ) as $row) {
+            $names[(int) $row['id']] = (string) $row['display_name'];
+        }
+
+        return $names;
+    }
+
+    /**
      * Returns the account only when the password matches. The password hash is always checked, even
      * when no account was found (against a throwaway hash), so a missing account takes as long to
      * reject as a wrong password and the response time does not reveal which accounts exist.

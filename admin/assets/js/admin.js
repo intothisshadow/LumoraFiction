@@ -1,5 +1,6 @@
 // Admin behaviour that needs a script. Everything works without it; this only adds the manual
-// light and dark switch and moves focus to a form's list of problems.
+// light and dark switch, moves focus to a form's list of problems, and warns before a writer
+// leaves a form with unsaved changes.
 (function () {
     'use strict';
 
@@ -8,6 +9,42 @@
     if (summary) {
         summary.focus();
     }
+
+    /* A writer's form asks before the page is left with changes that were not saved. The chapter text is
+       left out of the comparison because the editor keeps track of it itself. */
+    function formState(form) {
+        var parts = [];
+
+        Array.prototype.forEach.call(form.elements, function (field) {
+            var skipped = !field.name || field.disabled || field.name === 'csrf_token'
+                || field.type === 'submit' || field.type === 'button'
+                || field.hasAttribute('data-lf-textarea') || field.hasAttribute('data-lf-format-field');
+
+            if (skipped || ((field.type === 'checkbox' || field.type === 'radio') && !field.checked)) {
+                return;
+            }
+
+            parts.push(field.name + '=' + field.value);
+        });
+
+        return parts.join('\u0001');
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-lf-guard]'), function (form) {
+        var original = formState(form);
+        var sending = false;
+
+        form.addEventListener('submit', function () {
+            sending = true;
+        });
+
+        window.addEventListener('beforeunload', function (event) {
+            if (!sending && formState(form) !== original) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+        });
+    });
 
     var toggle = document.querySelector('[data-lf-theme-toggle]');
 

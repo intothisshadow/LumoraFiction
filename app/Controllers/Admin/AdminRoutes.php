@@ -33,6 +33,8 @@ final class AdminRoutes
         EditorSettingsController $editor,
         ContentEditorController $content,
         TaxonomyController $taxonomy,
+        StoryController $stories,
+        ChapterController $chapters,
         SystemInformationController $systemInformation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
@@ -58,6 +60,30 @@ final class AdminRoutes
         $router->get('/admin/taxonomy/{type}', $taxonomy->list(...), 'admin.taxonomy.list');
         $router->get('/admin/taxonomy/{type}/new', $taxonomy->showCreate(...));
         $router->post('/admin/taxonomy/{type}/new', $taxonomy->create(...));
+        // The fixed words "all", "new" and "bulk" come before {id} so they are never read as a story number.
+        $router->get('/admin/stories', $stories->index(...), 'admin.stories');
+        $router->get('/admin/stories/all', $stories->all(...), 'admin.stories.all');
+        $router->get('/admin/stories/new', $stories->showCreate(...), 'admin.stories.new');
+        $router->post('/admin/stories/new', $stories->create(...));
+        $router->post('/admin/stories/bulk', $stories->bulk(...), 'admin.stories.bulk');
+        $router->get('/admin/stories/{id}', $stories->showEdit(...), 'admin.stories.edit');
+        $router->post('/admin/stories/{id}', $stories->update(...));
+        $router->get('/admin/stories/{id}/delete', $stories->showDelete(...));
+        $router->post('/admin/stories/{id}/delete', $stories->delete(...));
+        $router->post('/admin/stories/{id}/publish', $stories->publish(...));
+        $router->post('/admin/stories/{id}/unpublish', $stories->unpublish(...));
+        $router->get('/admin/stories/{id}/preview', $stories->preview(...), 'admin.stories.preview');
+        $router->get('/admin/stories/{id}/chapters', $chapters->index(...), 'admin.chapters');
+        $router->post('/admin/stories/{id}/chapters/move', $chapters->move(...));
+        $router->get('/admin/stories/{id}/chapters/new', $chapters->showCreate(...));
+        $router->post('/admin/stories/{id}/chapters/new', $chapters->create(...));
+        $router->get('/admin/chapters/{id}', $chapters->showEdit(...), 'admin.chapters.edit');
+        $router->post('/admin/chapters/{id}', $chapters->update(...));
+        $router->get('/admin/chapters/{id}/delete', $chapters->showDelete(...));
+        $router->post('/admin/chapters/{id}/delete', $chapters->delete(...));
+        $router->post('/admin/chapters/{id}/publish', $chapters->publish(...));
+        $router->post('/admin/chapters/{id}/unpublish', $chapters->unpublish(...));
+        $router->get('/admin/chapters/{id}/preview', $chapters->preview(...), 'admin.chapters.preview');
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
     }

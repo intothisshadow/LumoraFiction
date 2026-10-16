@@ -634,6 +634,153 @@ fieldset.lf-card legend {
     border-color: var(--border);
 }
 
+/* Writer screens: story and chapter forms, lists, previews */
+
+.lf-field textarea {
+    display: block;
+    width: 100%;
+    max-width: 40rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    resize: vertical;
+}
+
+.lf-field--error input,
+.lf-field--error textarea,
+.lf-fieldset.lf-field--error {
+    border: 2px solid var(--error);
+}
+
+.lf-form--wide .lf-field input[type="text"] {
+    max-width: 100%;
+}
+
+.lf-fieldset {
+    margin: 0 0 1rem;
+    padding: 0.5rem 1rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+.lf-fieldset legend {
+    padding: 0 0.4rem;
+    font-weight: bold;
+}
+
+.lf-required {
+    color: var(--muted);
+    font-weight: normal;
+    font-size: 0.9rem;
+}
+
+.lf-details {
+    margin: 0 0 1rem;
+}
+
+.lf-details summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.lf-table--selectable tbody th,
+.lf-chapter-table tbody th {
+    width: auto;
+    font-weight: bold;
+    color: var(--text);
+}
+
+.lf-chapter-table .lf-button {
+    margin: 0.1rem 0;
+}
+
+.lf-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 1rem 0;
+}
+
+.lf-bulk label {
+    font-weight: bold;
+}
+
+.lf-bulk select {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+
+.lf-writing-counts {
+    margin: 0 0 1rem;
+    padding-left: 1.2rem;
+}
+
+.lf-preview-banner {
+    margin-bottom: 1.25rem;
+}
+
+.lf-reader {
+    max-width: 42rem;
+    margin: 0 auto 2rem;
+    padding: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    font: 1.05rem/1.8 Georgia, "Times New Roman", serif;
+}
+
+.lf-reader__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.6rem;
+}
+
+.lf-reader__byline,
+.lf-reader__meta {
+    margin: 0 0 0.5rem;
+    color: var(--muted);
+    font: 0.9rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.lf-reader__terms dt {
+    margin-top: 0.5rem;
+    font-weight: bold;
+}
+
+.lf-reader__terms dd {
+    margin: 0;
+}
+
+.lf-reader__chapters {
+    padding-left: 1.4rem;
+}
+
+.lf-reader__notes {
+    margin: 0 0 1.25rem;
+    padding: 0.5rem 1rem;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.lf-reader__text p {
+    margin: 0 0 1em;
+}
+
+.lf-reader__nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
 /* Sign-in and other pages without a menu */
 
 .lf-bare {
@@ -695,6 +842,16 @@ fieldset.lf-card legend {
 
     .lf-table tbody th {
         width: auto;
+    }
+
+    .lf-table--selectable,
+    .lf-chapter-table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .lf-reader {
+        padding: 1rem;
     }
 
     .lf-bare {

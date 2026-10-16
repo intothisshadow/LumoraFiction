@@ -61,6 +61,19 @@ final readonly class Request
         return is_string($value) ? $value : null;
     }
 
+    /**
+     * The text values of a field submitted as a list (name[]), such as a set of ticked boxes. Anything that is
+     * not plain text is dropped, so a hostile nested array cannot reach the code that reads the list.
+     *
+     * @return list<string>
+     */
+    public function inputList(string $name): array
+    {
+        $value = $this->post[$name] ?? null;
+
+        return is_array($value) ? array_values(array_filter($value, 'is_string')) : [];
+    }
+
     public function queryValue(string $name): ?string
     {
         $value = $this->query[$name] ?? null;

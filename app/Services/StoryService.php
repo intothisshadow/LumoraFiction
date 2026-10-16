@@ -287,6 +287,96 @@ final class StoryService
     }
 
     /**
+     * The writer's list. An author sees their own stories; someone who may edit any story can ask for every
+     * story with scope "all". The owner restriction is applied here, not by the screen, so a changed address
+     * cannot widen it.
+     *
+     * @param array{scope?: string, state?: string, search?: string} $filters
+     * @return list<Story> most recently changed first
+     */
+    public function listForWriter(User $actor, array $filters, int $limit = 25, int $offset = 0): array
+    {
+        if (!$actor->can(Capability::WriteStories)) {
+            return [];
+        }
+
+        [$where, $params] = $this->writerFilter($actor, $filters);
+
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT s.* FROM {prefix}stories s WHERE ' . $where . ' ORDER BY s.updated_at DESC, s.id DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            $params,
+        ));
+    }
+
+    /**
+     * @param array{scope?: string, state?: string, search?: string} $filters
+     */
+    public function countForWriter(User $actor, array $filters): int
+    {
+        if (!$actor->can(Capability::WriteStories)) {
+            return 0;
+        }
+
+        [$where, $params] = $this->writerFilter($actor, $filters);
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}stories s WHERE ' . $where, $params);
+    }
+
+    /**
+     * @return array<string, int> the owner's story count for every publication state, including those with none
+     */
+    public function countsByState(int $ownerId): array
+    {
+        $counts = array_fill_keys(array_map(static fn (PublicationState $state): string => $state->value, PublicationState::cases()), 0);
+
+        foreach ($this->database->fetchAll(
+            'SELECT publication_state, COUNT(*) AS total FROM {prefix}stories WHERE owner_id = :owner GROUP BY publication_state',
+            ['owner' => $ownerId],
+        ) as $row) {
+            if (isset($counts[$row['publication_state']])) {
+                $counts[$row['publication_state']] = (int) $row['total'];
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Applies one action to several stories. Each story is checked on its own, so a story the caller may
+     * not change, or one that cannot be published yet, is skipped and never stops the others.
+     *
+     * @param list<int> $storyIds
+     * @return array{done: int, skipped: int}
+     */
+    public function bulk(User $actor, string $action, array $storyIds, string $ipAddress = ''): array
+    {
+        $done = 0;
+        $skipped = 0;
+
+        foreach (array_slice(array_values(array_unique($storyIds)), 0, 100) as $id) {
+            try {
+                match ($action) {
+                    'publish' => $this->publish($actor, $id, $ipAddress),
+                    'unpublish' => $this->unpublish($actor, $id, $ipAddress),
+                    'delete' => $this->delete($actor, $id, $ipAddress),
+                    default => throw new StoryValidationException(['bulk_action' => 'Choose what to do with the selected stories.']),
+                };
+                $done++;
+            } catch (StoryPermissionException) {
+                $skipped++;
+            } catch (StoryValidationException $exception) {
+                if (isset($exception->errors['bulk_action'])) {
+                    throw $exception;
+                }
+
+                $skipped++;
+            }
+        }
+
+        return ['done' => $done, 'skipped' => $skipped];
+    }
+
+    /**
      * @return list<Story> public stories, newest first
      */
     public function listPublic(int $limit = 20, int $offset = 0): array
@@ -321,6 +411,37 @@ final class StoryService
         }
 
         return $story;
+    }
+
+    /**
+     * @param array{scope?: string, state?: string, search?: string} $filters
+     * @return array{string, array<string, mixed>}
+     */
+    private function writerFilter(User $actor, array $filters): array
+    {
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (($filters['scope'] ?? 'mine') !== 'all' || !$actor->can(Capability::EditAnyStory)) {
+            $where[] = 's.owner_id = :owner';
+            $params['owner'] = $actor->id;
+        }
+
+        $state = PublicationState::tryFrom($filters['state'] ?? '');
+
+        if ($state !== null) {
+            $where[] = 's.publication_state = :state';
+            $params['state'] = $state->value;
+        }
+
+        $search = mb_substr(trim($filters['search'] ?? ''), 0, 100, 'UTF-8');
+
+        if ($search !== '') {
+            $where[] = 's.title LIKE :search';
+            $params['search'] = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+        }
+
+        return [implode(' AND ', $where), $params];
     }
 
     /**
