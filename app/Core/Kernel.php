@@ -17,11 +17,21 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Core;
 
+use LumoraFiction\Controllers\Admin\AdminRoutes;
+use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
+use LumoraFiction\Controllers\Admin\AuthController;
+use LumoraFiction\Controllers\Admin\DashboardController;
+use LumoraFiction\Controllers\Admin\SystemInformationController;
+use LumoraFiction\Core\Admin\AdminMenu;
+use LumoraFiction\Core\Admin\AdminView;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Errors\ErrorHandler;
 use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Hooks\Hooks;
 use LumoraFiction\Core\Http\BasePath;
+use LumoraFiction\Core\Http\FlashMessages;
+use LumoraFiction\Core\Http\Request;
+use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Http\Router;
 use LumoraFiction\Core\Mail\NativeMailer;
 use LumoraFiction\Core\Security\ContentSecurityPolicy;
@@ -32,6 +42,8 @@ use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Core\Security\SecurityHeaders;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Services\ArchiveSettings;
+use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\UserService;
 
@@ -50,6 +62,7 @@ final class Kernel
         public readonly SessionManager $sessions,
         public readonly UserService $users,
         public readonly AuthService $auth,
+        public readonly AuditLogService $audit,
         private readonly bool $isHttps = false,
     ) {
     }
@@ -91,7 +104,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -117,7 +130,11 @@ final class Kernel
             $siteUrl,
         );
 
-        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $isHttps);
+        $audit = new AuditLogService($database);
+
+        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $isHttps);
+
+        self::registerAdmin($kernel, $root);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -127,16 +144,42 @@ final class Kernel
     }
 
     /**
-     * Matches the request to a route and runs its handler, or sends a 404 or 405 page.
+     * Wires the admin screens and adds their addresses to the router.
      */
-    public function handle(string $method, string $uri): void
+    private static function registerAdmin(self $kernel, string $root): void
+    {
+        /** @var array{version: string} $version */
+        $version = require $root . '/version.php';
+
+        $flash = new FlashMessages($kernel->sessions);
+        $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version['version']);
+
+        AdminRoutes::register(
+            $kernel->router,
+            new AuthController($kernel->auth, $view, $flash),
+            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $kernel->config, $kernel->hooks, $root),
+            new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
+        );
+    }
+
+    /**
+     * Matches the request to a route and runs its handler, or sends a 404 or 405 page. The handler
+     * is given the route's parameters and the Request.
+     */
+    public function handle(string $method, string $uri, ?Request $request = null): void
     {
         $this->sendSecurityHeaders();
 
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
         if ($resolution->isFound() && $resolution->handler !== null) {
-            ($resolution->handler)($resolution->params);
+            $result = ($resolution->handler)($resolution->params, $request ?? Request::fromGlobals($method, $uri));
+
+            // A handler may return a Response to be sent, or print its own output and return nothing.
+            if ($result instanceof Response) {
+                $result->send();
+            }
 
             return;
         }

@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Installer;
 
 use Closure;
+use LumoraFiction\Core\Requirements;
 
 /**
  * A missing extension or an unwritable folder produces a specific message here instead of a
@@ -26,10 +27,10 @@ use Closure;
  */
 final class RequirementsCheck
 {
-    public const MINIMUM_PHP_VERSION = '8.2.0';
+    public const MINIMUM_PHP_VERSION = Requirements::MINIMUM_PHP_VERSION;
 
     /** @var list<string> */
-    public const REQUIRED_EXTENSIONS = ['pdo', 'pdo_mysql', 'session', 'json', 'mbstring', 'zip'];
+    public const REQUIRED_EXTENSIONS = Requirements::REQUIRED_EXTENSIONS;
 
     public function __construct(
         private readonly string $root,

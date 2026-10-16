@@ -30,6 +30,16 @@ When it finishes, the installer deletes its own folder. If your host does not al
 - **Site address.** Links in emails, such as password resets, are built from the address you enter, so make sure it is the one people will really use.
 - **Clean web addresses.** If the installer warns that they do not seem to work, ask your host to enable `mod_rewrite` and allow `.htaccess` files.
 
+## Signing in
+
+Open `/admin/` on your site and sign in with the login name (or email address) and password you chose during installation. Administrators, Editors, and Authors can use the admin area; Readers cannot.
+
+- **Dashboard.** Shows anything that needs attention, such as the installer folder still being on the server, and, for administrators, who has joined and what has changed recently.
+- **Settings > Archive.** Choose whether the site publishes fanfiction, original fiction, or both; whether anyone can register; what role new accounts receive; whether new accounts must confirm their email address; and whether a new Author's first story waits for approval. The recommended settings are the defaults.
+- **Maintenance > System Information.** Shows what your server offers and how the site is set up. **Download a snapshot** produces a file you can send when asking for help. It leaves out passwords, the secret key, the database name and table prefix, and the location of folders on the server.
+- **Too many failed attempts.** After five wrong passwords from one address, sign-in is paused for fifteen minutes.
+- **Light and dark.** The admin area follows your device's setting, and the button in the header switches it by hand.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE.md](LICENSE.md).

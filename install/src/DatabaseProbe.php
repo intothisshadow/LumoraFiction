@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Installer;
 
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Core\Requirements;
 use Throwable;
 
 /**
@@ -28,32 +29,12 @@ use Throwable;
  */
 final class DatabaseProbe
 {
-    public const MINIMUM_MYSQL = '5.6.4';
-
-    public const MINIMUM_MARIADB = '10.0.5';
-
     /**
      * @return string|null a plain-language problem, or null when the version is acceptable or cannot be read
      */
     public static function versionProblem(string $reported): ?string
     {
-        $isMariaDb = stripos($reported, 'mariadb') !== false;
-
-        // Older PDO versions report MariaDB as "5.5.5-10.x.y-MariaDB" for replication compatibility.
-        $clean = (string) preg_replace('/^5\.5\.5-/', '', $reported);
-
-        if (preg_match('/^(\d+\.\d+\.\d+)/', $clean, $match) !== 1) {
-            // An unrecognised string is not a reason to block an installation that would work.
-            return null;
-        }
-
-        $minimum = $isMariaDb ? self::MINIMUM_MARIADB : self::MINIMUM_MYSQL;
-
-        if (version_compare($match[1], $minimum, '<')) {
-            return sprintf('This database server is too old (%s %s). %s %s or newer is required.', $isMariaDb ? 'MariaDB' : 'MySQL', $match[1], $isMariaDb ? 'MariaDB' : 'MySQL', $minimum);
-        }
-
-        return null;
+        return Requirements::databaseVersionProblem($reported);
     }
 
     /**

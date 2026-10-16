@@ -204,9 +204,12 @@ final class AuthService
         return LoginResult::success($user);
     }
 
-    public function logout(): void
+    /**
+     * @param array<string, mixed>|null $cookies the request's cookies; the PHP superglobal when omitted
+     */
+    public function logout(?array $cookies = null): void
     {
-        $this->sessions->startIfExisting($_COOKIE);
+        $this->sessions->startIfExisting($cookies ?? $_COOKIE);
         $this->sessions->destroy();
 
         $this->currentUser = null;
@@ -216,8 +219,10 @@ final class AuthService
     /**
      * The signed-in account, or null for a guest. The account is read from the database on every
      * request, so suspending it or changing its password takes effect immediately.
+     *
+     * @param array<string, mixed>|null $cookies the request's cookies; the PHP superglobal when omitted
      */
-    public function user(): ?User
+    public function user(?array $cookies = null): ?User
     {
         if ($this->resolved) {
             return $this->currentUser;
@@ -225,7 +230,7 @@ final class AuthService
 
         $this->resolved = true;
 
-        if (!$this->sessions->startIfExisting($_COOKIE)) {
+        if (!$this->sessions->startIfExisting($cookies ?? $_COOKIE)) {
             return null;
         }
 
@@ -250,14 +255,20 @@ final class AuthService
         return $this->currentUser = $user;
     }
 
-    public function check(): bool
+    /**
+     * @param array<string, mixed>|null $cookies
+     */
+    public function check(?array $cookies = null): bool
     {
-        return $this->user() !== null;
+        return $this->user($cookies) !== null;
     }
 
-    public function can(Capability $capability): bool
+    /**
+     * @param array<string, mixed>|null $cookies
+     */
+    public function can(Capability $capability, ?array $cookies = null): bool
     {
-        return $this->user()?->can($capability) ?? false;
+        return $this->user($cookies)?->can($capability) ?? false;
     }
 
     /**

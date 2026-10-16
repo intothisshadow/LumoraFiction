@@ -79,9 +79,18 @@ final class Csrf
         return $pool[array_key_last($pool)]['token'];
     }
 
-    public static function verify(string $action, ?string $token): bool
+    /**
+     * @param array<string, mixed>|null $cookies the request's cookies, used to open the visitor's
+     *                                           existing session; the PHP superglobal when omitted
+     */
+    public static function verify(string $action, ?string $token, ?array $cookies = null): bool
     {
-        // A request with no session cannot hold a valid token, and verifying must not create one.
+        // The session is opened only if the visitor already has one: a request with none cannot
+        // hold a valid token, and checking a token must never create a session.
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            self::$sessions?->startIfExisting($cookies ?? $_COOKIE);
+        }
+
         if ($token !== null && $token !== '' && self::ensureSession(false)) {
             $pool = self::pool($action);
 

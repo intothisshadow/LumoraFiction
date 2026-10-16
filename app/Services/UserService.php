@@ -230,6 +230,27 @@ final class UserService
         );
     }
 
+    /**
+     * Headline numbers for the dashboard.
+     *
+     * @return array{total: int, by_role: array<string, int>, by_status: array<string, int>}
+     */
+    public function summary(): array
+    {
+        $byRole = array_fill_keys(array_map(static fn (UserRole $role): string => $role->value, UserRole::cases()), 0);
+        $byStatus = array_fill_keys(array_map(static fn (UserStatus $status): string => $status->value, UserStatus::cases()), 0);
+
+        foreach ($this->database->fetchAll('SELECT role, status, COUNT(*) AS total FROM {prefix}users GROUP BY role, status') as $row) {
+            // A value outside the known sets (a corrupt row) is counted nowhere rather than invented as a new bucket.
+            if (isset($byRole[$row['role']], $byStatus[$row['status']])) {
+                $byRole[$row['role']] += (int) $row['total'];
+                $byStatus[$row['status']] += (int) $row['total'];
+            }
+        }
+
+        return ['total' => array_sum($byStatus), 'by_role' => $byRole, 'by_status' => $byStatus];
+    }
+
     public function setStatus(int $userId, UserStatus $status): void
     {
         $this->database->execute(

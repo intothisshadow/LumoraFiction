@@ -29,6 +29,8 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | Filter | Value | Purpose |
 | ------ | ----- | ------- |
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
+| `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
+| `admin_dashboard_notices` | `list<array{variant: string, message: string}>`, plus the `Request` | Add a notice to the administrator's dashboard. `variant` is `error`, `warning`, `info` or `success`; the message is plain text and is escaped. |
 
 ```php
 add_filter('csp_directives', function (array $directives): array {
@@ -48,6 +50,7 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 
 | Capability | Administrator | Editor | Author | Reader |
 | ---------- | :-----------: | :----: | :----: | :----: |
+| `AccessAdmin` | yes | yes | yes | |
 | `ManageSite`, `ManageUsers` | yes | | | |
 | `ModerateStories`, `EditAnyStory`, `PublishWithoutReview` | yes | yes | | |
 | `WriteStories` | yes | yes | yes | |
@@ -66,9 +69,27 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `registration.email_verification` | `true` | Whether a new account must confirm its email address before signing in. |
 | `security.password_min_length` | `10` | Minimum password length, between 8 and 64. |
 | `security.session_lifetime` | `86400` | Seconds an idle session is kept. |
+| `archive.mode` | `both` | What the site publishes: `both`, `fanfiction`, or `original`. |
+| `publishing.hold_first_story` | `true` | Whether a new Author's first story waits for approval. |
 | `security.hsts` | `false` | Send `Strict-Transport-Security` over HTTPS. Once a browser has seen it, it refuses plain HTTP for the site for a year. |
 
 Emailed links are built from the `site_url` value in `config/config.php`, never from the request, so it must be set to the site's full public address.
+
+## Admin screens
+
+Add a screen to the sidebar with the `admin_menu` filter. Each entry needs a lower-case `slug`, a `label`, a `path` below `/admin/` (letters, digits, `_`, `.`, `/`, `-`), and optionally a `capability` (a `Capability` case) and `children` with the same shape:
+
+```php
+add_filter('admin_menu', function (array $items): array {
+    $items[] = ['slug' => 'stories', 'label' => 'Stories', 'path' => 'stories', 'capability' => \LumoraFiction\Models\Capability::WriteStories];
+
+    return $items;
+});
+```
+
+- The menu builds the address itself; an address in an entry is ignored. A malformed entry is dropped. An entry whose capability is not a `Capability` case is shown to administrators only.
+- Hiding an entry is a convenience. Your screen must check the capability itself, on the server, before doing anything.
+- Register the screen's routes in a `routes_register` callback, as described below.
 
 ## Routes
 
@@ -83,6 +104,8 @@ add_action('routes_register', function (\LumoraFiction\Core\Http\Router $router)
 ```
 
 - `{name}` matches one path segment. `{name*}` matches across slashes; register greedy routes last.
-- Handlers receive the captured parameters as an array of strings. Treat them as untrusted input.
+- Handlers receive the captured parameters as an array of strings, and the `Request`. Treat both as untrusted input.
+- A handler may return a `Response` (`Response::html()`, `Response::redirect()`, `Response::download()`) or print its own output. `Response::redirect()` only accepts a path on this site.
+- Read cookies, form values, and the visitor's address from the `Request`, never from the PHP superglobals. `Request::ip()` ignores forwarding headers because anyone can forge them.
 - A route can be named, and `$router->urlFor('story', ['id' => 7])` returns its path. The path does not include the install's base directory.
 - Paths containing control characters, invalid UTF-8, or `.` and `..` segments never match a route.

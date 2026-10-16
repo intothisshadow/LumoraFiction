@@ -47,13 +47,14 @@ enum UserRole: string
         return match ($this) {
             self::Administrator => Capability::cases(),
             self::Editor => [
+                Capability::AccessAdmin,
                 Capability::ModerateStories,
                 Capability::EditAnyStory,
                 Capability::WriteStories,
                 Capability::PublishWithoutReview,
                 Capability::Bookmark,
             ],
-            self::Author => [Capability::WriteStories, Capability::Bookmark],
+            self::Author => [Capability::AccessAdmin, Capability::WriteStories, Capability::Bookmark],
             self::Reader => [Capability::Bookmark],
         };
     }

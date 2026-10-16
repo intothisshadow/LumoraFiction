@@ -19,6 +19,7 @@ namespace LumoraFiction\Models;
 
 enum Capability: string
 {
+    case AccessAdmin = 'access_admin';
     case ManageSite = 'manage_site';
     case ManageUsers = 'manage_users';
     case ModerateStories = 'moderate_stories';

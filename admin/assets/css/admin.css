@@ -1,0 +1,531 @@
+/* Lumora Fiction admin styles.
+   Colours are tokens on :root. Dark mode follows the system unless the person has chosen a mode,
+   which theme-init.js records as data-theme on <html> before the page is painted. */
+
+:root {
+    --bg: #f6f3ec;
+    --surface: #ffffff;
+    --surface-alt: #efeadf;
+    --text: #25211c;
+    --muted: #5d5548;
+    --accent: #7a3b1f;
+    --accent-text: #ffffff;
+    --border: #cfc6b6;
+    --focus: #1a5fb4;
+    --ok: #1d5b2a;
+    --ok-bg: #e6f4e8;
+    --warning: #6b4a00;
+    --warning-bg: #fff4d6;
+    --error: #a1261a;
+    --error-bg: #fbeceb;
+    --info: #1f4b7a;
+    --info-bg: #e8f0fa;
+    --sidebar-width: 15rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #17140f;
+        --surface: #221e17;
+        --surface-alt: #2c2720;
+        --text: #f1ece2;
+        --muted: #b9b0a0;
+        --accent: #e0a173;
+        --accent-text: #1c1209;
+        --border: #4a4234;
+        --focus: #8ab8ff;
+        --ok: #9bd7a6;
+        --ok-bg: #17301c;
+        --warning: #f2d58a;
+        --warning-bg: #3a2f10;
+        --error: #ff9f94;
+        --error-bg: #3a1c19;
+        --info: #a9c9f2;
+        --info-bg: #15283d;
+    }
+}
+
+:root[data-theme="dark"] {
+    --bg: #17140f;
+    --surface: #221e17;
+    --surface-alt: #2c2720;
+    --text: #f1ece2;
+    --muted: #b9b0a0;
+    --accent: #e0a173;
+    --accent-text: #1c1209;
+    --border: #4a4234;
+    --focus: #8ab8ff;
+    --ok: #9bd7a6;
+    --ok-bg: #17301c;
+    --warning: #f2d58a;
+    --warning-bg: #3a2f10;
+    --error: #ff9f94;
+    --error-bg: #3a1c19;
+    --info: #a9c9f2;
+    --info-bg: #15283d;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body.lf-admin {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+a {
+    color: var(--accent);
+}
+
+h1 {
+    margin: 0 0 1rem;
+    font: 1.7rem/1.25 Georgia, "Times New Roman", serif;
+}
+
+h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.1rem;
+}
+
+.lf-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.lf-skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    z-index: 20;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 2px solid var(--focus);
+}
+
+.lf-skip-link:focus {
+    top: 1rem;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex="-1"]:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+}
+
+/* Header */
+
+.lf-admin__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.lf-admin__brand {
+    margin: 0;
+    font-weight: bold;
+}
+
+.lf-admin__brand a {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.lf-admin__version {
+    margin-left: 0.5rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: normal;
+}
+
+.lf-admin__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+}
+
+.lf-admin__signout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 0;
+}
+
+.lf-admin__user {
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+/* Layout */
+
+.lf-admin__body {
+    display: flex;
+    flex: 1;
+    align-items: flex-start;
+}
+
+.lf-admin__nav {
+    flex: 0 0 var(--sidebar-width);
+    padding: 1.25rem;
+    border-right: 1px solid var(--border);
+    align-self: stretch;
+    background: var(--surface-alt);
+}
+
+.lf-admin__main {
+    flex: 1;
+    min-width: 0;
+    max-width: 62rem;
+    padding: 1.5rem 1.75rem 3rem;
+}
+
+.lf-admin__footer {
+    padding: 1rem 1.25rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+}
+
+.lf-admin__footer p {
+    margin: 0;
+}
+
+/* Menu */
+
+.lf-menu,
+.lf-menu__children {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-menu__item > a,
+.lf-menu__children a {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.3rem;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.lf-menu__item > a {
+    font-weight: bold;
+}
+
+.lf-menu__children {
+    margin: 0.1rem 0 0.5rem 0.75rem;
+}
+
+.lf-menu a:hover {
+    background: var(--surface);
+}
+
+.lf-menu a[aria-current="page"] {
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+/* Cards, text, messages */
+
+.lf-card {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+fieldset.lf-card legend {
+    padding: 0 0.4rem;
+    font-weight: bold;
+}
+
+.lf-lead {
+    margin-top: 0;
+    color: var(--muted);
+}
+
+.lf-hint {
+    margin: 0.2rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.lf-error {
+    margin: 0.25rem 0 0;
+    color: var(--error);
+    font-weight: bold;
+}
+
+.lf-notice {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    border-left: 4px solid currentColor;
+    border-radius: 0.3rem;
+}
+
+.lf-notice--success {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.lf-notice--warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.lf-notice--error {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+.lf-notice--info {
+    background: var(--info-bg);
+    color: var(--info);
+}
+
+.lf-notice ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.lf-notice a {
+    color: inherit;
+}
+
+.lf-notices {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-notices .lf-notice:last-child {
+    margin-bottom: 0;
+}
+
+.lf-activity {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.lf-activity time {
+    margin-left: 0.4rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* Tables */
+
+.lf-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.lf-table th,
+.lf-table td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.lf-table tbody th {
+    width: 38%;
+    font-weight: normal;
+    color: var(--muted);
+}
+
+.lf-table tr:last-child th,
+.lf-table tr:last-child td {
+    border-bottom: 0;
+}
+
+.lf-status {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0 0.45rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.lf-status--ok {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.lf-status--warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.lf-status--error {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+/* Forms and buttons */
+
+.lf-field {
+    margin-bottom: 1rem;
+}
+
+.lf-field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: bold;
+}
+
+.lf-field input[type="text"],
+.lf-field input[type="password"],
+.lf-field select {
+    width: 100%;
+    max-width: 28rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+}
+
+.lf-field--error select {
+    border: 2px solid var(--error);
+}
+
+.lf-choice {
+    margin-bottom: 0.9rem;
+}
+
+.lf-choice input {
+    margin-right: 0.5rem;
+}
+
+.lf-choice label {
+    font-weight: bold;
+}
+
+.lf-choice .lf-hint {
+    margin-left: 1.6rem;
+}
+
+.lf-button {
+    display: inline-block;
+    padding: 0.55rem 1.2rem;
+    border: 1px solid transparent;
+    border-radius: 0.4rem;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: bold;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.lf-button--quiet {
+    padding: 0.35rem 0.8rem;
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text);
+    font-weight: normal;
+}
+
+/* Sign-in and other pages without a menu */
+
+.lf-bare {
+    width: 100%;
+    max-width: 26rem;
+    margin: 4rem auto;
+    padding: 1.5rem 1.5rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+.lf-bare__brand {
+    margin: 0 0 0.5rem;
+    color: var(--accent);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.lf-bare .lf-field input[type="text"],
+.lf-bare .lf-field input[type="password"] {
+    max-width: none;
+}
+
+/* Small screens: the menu moves above the content and runs across the page. */
+
+@media (max-width: 48rem) {
+    .lf-admin__body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .lf-admin__nav {
+        flex: none;
+        padding: 0.5rem 1rem;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .lf-menu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 1rem;
+    }
+
+    .lf-menu__children {
+        display: none;
+    }
+
+    .lf-menu__item.is-open .lf-menu__children {
+        display: block;
+        margin-left: 0;
+    }
+
+    .lf-admin__main {
+        padding: 1rem;
+    }
+
+    .lf-table tbody th {
+        width: auto;
+    }
+
+    .lf-bare {
+        margin: 1.5rem 1rem;
+        width: auto;
+    }
+}
+
+@media print {
+    .lf-admin__nav,
+    .lf-admin__header .lf-admin__tools,
+    .lf-skip-link {
+        display: none;
+    }
+}

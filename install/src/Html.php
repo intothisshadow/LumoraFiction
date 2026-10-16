@@ -24,6 +24,6 @@ final class Html
      */
     public static function e(string $text): string
     {
-        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        return \LumoraFiction\Helpers\Html::e($text);
     }
 }
