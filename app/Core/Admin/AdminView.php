@@ -60,6 +60,16 @@ final class AdminView
     }
 
     /**
+     * A piece of a screen, such as the chapter editor, returned as trusted markup for another view to print.
+     *
+     * @param array<string, mixed> $data
+     */
+    public function fragment(string $view, array $data): string
+    {
+        return $this->include($view, $data);
+    }
+
+    /**
      * A screen with no menu and no signed-in user, such as the sign-in page.
      *
      * @param array<string, mixed> $data

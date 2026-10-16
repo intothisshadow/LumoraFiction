@@ -1,0 +1,57 @@
+/* The text area inside the visual editor. It is a separate page inside a frame, so it carries its own
+   colours. Alignment classes match the ones the public pages understand. */
+
+html {
+    color-scheme: light dark;
+}
+
+body {
+    margin: 0.75rem;
+    background: #ffffff;
+    color: #25211c;
+    font: 1.1rem/1.75 Georgia, "Times New Roman", serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #221e17;
+        color: #f1ece2;
+    }
+
+    a {
+        color: #e0a173;
+    }
+}
+
+p {
+    margin: 0 0 1em;
+}
+
+h2, h3, h4 {
+    margin: 1.5em 0 0.5em;
+    line-height: 1.25;
+}
+
+blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 3px solid #cfc6b6;
+}
+
+hr {
+    width: 30%;
+    margin: 1.5em auto;
+    border: 0;
+    border-top: 1px solid #cfc6b6;
+}
+
+pre,
+code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.95em;
+}
+
+.lf-align-left { text-align: left; }
+.lf-align-center { text-align: center; }
+.lf-align-right { text-align: right; }
+.lf-align-justify { text-align: justify; }

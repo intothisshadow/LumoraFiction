@@ -41,6 +41,7 @@ Open `/admin/` on your site and sign in with the login name (or email address) a
 
 - **Dashboard.** Shows anything that needs attention, such as the installer folder still being on the server, and, for administrators, who has joined and what has changed recently.
 - **Settings > Archive.** Choose whether the site publishes fanfiction, original fiction, or both; whether anyone can register; what role new accounts receive; whether new accounts must confirm their email address; and whether a new Author's first story waits for approval. The recommended settings are the defaults.
+- **Settings > Editor.** Choose the editor writers start with: Visual (a formatting toolbar), Markdown, HTML, or plain text. A chapter can be switched to another mode at any time without losing its formatting, and you can lock everyone to your choice. The editors are part of Lumora Fiction and need no internet connection.
 - **Maintenance > System Information.** Shows what your server offers and how the site is set up. **Download a snapshot** produces a file you can send when asking for help. It leaves out passwords, the secret key, the database name and table prefix, and the location of folders on the server.
 - **Too many failed attempts.** After five wrong passwords from one address, sign-in is paused for fifteen minutes.
 - **Light and dark.** The admin area follows your device's setting, and the button in the header switches it by hand.

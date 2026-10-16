@@ -30,6 +30,8 @@ final class AdminRoutes
         AuthController $auth,
         DashboardController $dashboard,
         ArchiveSettingsController $archive,
+        EditorSettingsController $editor,
+        ContentEditorController $content,
         SystemInformationController $systemInformation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
@@ -38,6 +40,10 @@ final class AdminRoutes
         $router->post('/admin/logout', $auth->logout(...), 'admin.logout');
         $router->get('/admin/settings/archive', $archive->show(...), 'admin.settings.archive');
         $router->post('/admin/settings/archive', $archive->update(...));
+        $router->get('/admin/settings/editor', $editor->show(...), 'admin.settings.editor');
+        $router->post('/admin/settings/editor', $editor->update(...));
+        $router->post('/admin/content/preview', $content->preview(...), 'admin.content.preview');
+        $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
         $router->get('/admin/maintenance/system-information', $systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
     }

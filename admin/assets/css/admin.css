@@ -453,6 +453,151 @@ fieldset.lf-card legend {
     font-weight: normal;
 }
 
+.lf-button--secondary {
+    border-color: var(--accent);
+    background: transparent;
+    color: var(--accent);
+}
+
+/* Chapter editor */
+
+.lf-editor {
+    margin: 0 0 1.5rem;
+}
+
+.lf-editor__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.lf-editor__modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.lf-editor__mode[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: bold;
+}
+
+.lf-editor__counts {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.lf-editor__label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: bold;
+}
+
+.lf-editor__textarea {
+    display: block;
+    width: 100%;
+    padding: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: var(--surface);
+    color: var(--text);
+    font: 1.05rem/1.7 Georgia, "Times New Roman", serif;
+}
+
+.lf-editor--html .lf-editor__textarea {
+    font: 0.95rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.lf-editor__status {
+    min-height: 1.5rem;
+    margin: 0.5rem 0;
+    color: var(--muted);
+}
+
+.lf-editor__status.is-error {
+    color: var(--error);
+    font-weight: bold;
+}
+
+.lf-editor__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.lf-editor__preview {
+    margin-top: 1.25rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--surface);
+}
+
+.lf-editor__preview-body {
+    max-width: 42rem;
+    font: 1.1rem/1.75 Georgia, "Times New Roman", serif;
+}
+
+.lf-editor__preview-body hr {
+    margin: 1.5rem auto;
+    width: 30%;
+    border: 0;
+    border-top: 1px solid var(--border);
+}
+
+.lf-editor__preview-body blockquote {
+    margin: 1rem 0;
+    padding-left: 1rem;
+    border-left: 3px solid var(--border);
+    color: var(--muted);
+}
+
+.lf-editor__preview-body .lf-align-center { text-align: center; }
+.lf-editor__preview-body .lf-align-right { text-align: right; }
+.lf-editor__preview-body .lf-align-justify { text-align: justify; }
+
+/* EasyMDE and TinyMCE bring their own chrome; these keep them in the admin colours. */
+
+.lf-editor .EasyMDEContainer .CodeMirror {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: 1.05rem/1.7 Georgia, "Times New Roman", serif;
+}
+
+.lf-editor .EasyMDEContainer .CodeMirror-cursor {
+    border-left-color: var(--text);
+}
+
+.lf-editor .editor-toolbar {
+    border-color: var(--border);
+    background: var(--surface-alt);
+}
+
+.lf-editor .editor-toolbar button.lf-editor__tool {
+    width: auto;
+    min-width: 2rem;
+    padding: 0 0.6rem;
+    color: var(--text);
+    font: 0.9rem/1.8 system-ui, sans-serif;
+}
+
+.lf-editor .editor-toolbar button.lf-editor__tool:hover,
+.lf-editor .editor-toolbar button.lf-editor__tool:focus-visible {
+    border-color: var(--border);
+    background: var(--surface);
+}
+
+.lf-editor .editor-toolbar i.separator {
+    border-color: var(--border);
+}
+
 /* Sign-in and other pages without a menu */
 
 .lf-bare {

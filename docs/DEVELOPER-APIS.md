@@ -30,6 +30,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | ------ | ----- | ------- |
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
+| `content_html` | `string` HTML, plus the `ContentFormat` | Adjust the final HTML of a chapter just before it is shown. The result is sanitised again, so a plugin cannot add scripts, images or other elements the allowlist refuses. |
 | `admin_dashboard_notices` | `list<array{variant: string, message: string}>`, plus the `Request` | Add a notice to the administrator's dashboard. `variant` is `error`, `warning`, `info` or `success`; the message is plain text and is escaped. |
 
 ```php
@@ -71,6 +72,8 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `security.session_lifetime` | `86400` | Seconds an idle session is kept. |
 | `archive.mode` | `both` | What the site publishes: `both`, `fanfiction`, or `original`. |
 | `publishing.hold_first_story` | `true` | Whether a new Author's first story waits for approval. |
+| `editor.default_mode` | `visual` | The editing mode writers start with: `visual`, `markdown`, `html` or `plain`. |
+| `editor.lock_to_default` | `false` | When `true`, everyone uses the default mode and per-user choices are ignored. |
 | `stories.allow_abandoned` | `false` | Whether a story may be marked abandoned. A story already marked abandoned can still be edited when this is off. |
 | `security.hsts` | `false` | Send `Strict-Transport-Security` over HTTPS. Once a browser has seen it, it refuses plain HTTP for the site for a year. |
 
@@ -86,6 +89,16 @@ Emailed links are built from the `site_url` value in `config/config.php`, never 
 - A story is visible to visitors only when it is published and has at least one published chapter. Build every public query from `StoryVisibility::publicCondition()` (or `StoryService::findPublicBySlug()` and `listPublic()`) so no screen applies a looser rule. A draft must never be returned by a public address.
 - Changes are written to the audit log as `story.create`, `story.update`, `story.work_status`, `story.submit`, `story.publish`, `story.unpublish`, `story.delete`, `chapter.create`, `chapter.update`, `chapter.reorder`, `chapter.publish`, `chapter.unpublish` and `chapter.delete`.
 - Story and chapter text is stored raw. Print it with `Html::e()`.
+
+## Chapter text and the editor
+
+`ContentRenderer::render($text, $format)` is the only way chapter text becomes HTML, and the only code that branches on `ContentFormat` (`Html`, `Markdown`, `Plain`). Every format ends in `HtmlSanitizer::clean()`, the single XSS boundary: an allowlist of text formatting, headings, lists, quotations, rules and links, with `http`, `https` and `mailto` addresses only, no images, tables, forms, ids or inline styles, and only `lf-` and `language-` class names. Print its result as trusted HTML and print everything else with `Html::e()`.
+
+- Markdown never passes raw HTML through. A trailing `{.left}`, `{.center}`, `{.right}` or `{.justify}` aligns a paragraph or heading, using the same `lf-align-*` classes the visual editor applies. Plain text is escaped and split into paragraphs and line breaks.
+- `ContentRenderer::convertFormat()` changes how a chapter is written without changing what it says, between Markdown and HTML. Plain text is never converted. `toPlainText()` gives excerpt text with no markup.
+- `EditorMode` (`Visual`, `Markdown`, `Html`, `Plain`) is what a writer picks; `Visual` and `Html` both store HTML. `EditorSettings::modeFor($userId, $storedFormat)` decides which mode the editor opens in, honouring the site default, the lock, and each writer's own choice (`setUserMode()`).
+- Screens place the editor with `ContentEditor::render($user, 'content', $text, $storedFormat)`, inside their own `<form>`. It prints a textarea, a hidden `content_format` field to save with the text, Save draft and Publish buttons (replaceable with the `actions` option), and loads its scripts and styles from `admin/assets/`. The form must be wrapped in CSRF protection as usual.
+- The editor script calls `POST /admin/content/preview` and `POST /admin/content/convert`. Both answer JSON, need the `WriteStories` capability, and take a single-use token that every answer replaces. They store nothing.
 
 ## Admin screens
 

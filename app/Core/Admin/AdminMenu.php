@@ -52,6 +52,7 @@ final class AdminMenu
                 'capability' => Capability::ManageSite,
                 'children' => [
                     ['slug' => 'settings-archive', 'label' => 'Archive', 'path' => 'settings/archive', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
                 ],
             ],
             [
