@@ -21,6 +21,7 @@ use LumoraFiction\Controllers\Admin\AdminRoutes;
 use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
 use LumoraFiction\Controllers\Admin\ContentEditorController;
 use LumoraFiction\Controllers\Admin\EditorSettingsController;
+use LumoraFiction\Controllers\Admin\TaxonomyController;
 use LumoraFiction\Core\Content\HtmlSanitizer;
 use LumoraFiction\Core\Content\MarkdownParser;
 use LumoraFiction\Controllers\Admin\AuthController;
@@ -51,6 +52,7 @@ use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
 
 /**
@@ -110,7 +112,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -167,6 +169,7 @@ final class Kernel
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit)),
             new EditorSettingsController($kernel->auth, $view, $flash, new EditorSettings($kernel->config, $kernel->database, $kernel->audit)),
             new ContentEditorController($kernel->auth, new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks)),
+            new TaxonomyController($kernel->auth, $view, $flash, new TaxonomyService($kernel->database, $kernel->config, $kernel->audit)),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
         );
     }

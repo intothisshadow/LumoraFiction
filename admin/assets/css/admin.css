@@ -459,6 +459,42 @@ fieldset.lf-card legend {
     color: var(--accent);
 }
 
+/* Classification */
+
+.lf-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem 1.25rem;
+    margin: 0 0 1rem;
+}
+
+.lf-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin: 1rem 0;
+}
+
+.lf-alias-list {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-alias-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.lf-inline-form {
+    display: inline;
+    margin: 0;
+}
+
 /* Chapter editor */
 
 .lf-editor {

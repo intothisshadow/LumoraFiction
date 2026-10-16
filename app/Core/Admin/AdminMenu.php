@@ -46,6 +46,13 @@ final class AdminMenu
                 'children' => [],
             ],
             [
+                'slug' => 'taxonomy',
+                'label' => 'Classification',
+                'path' => 'taxonomy',
+                'capability' => Capability::ManageSite,
+                'children' => [],
+            ],
+            [
                 'slug' => 'settings',
                 'label' => 'Settings',
                 'path' => 'settings/archive',

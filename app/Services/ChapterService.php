@@ -196,6 +196,7 @@ final class ChapterService
                 ['story' => $chapter->storyId, 'number' => $chapter->number],
             );
             $this->stories->refreshWordCount($chapter->storyId);
+            $this->stories->refreshTermCounts($chapter->storyId);
             $this->audit->record($actor->id, 'chapter.delete', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
         });
     }
@@ -370,6 +371,7 @@ final class ChapterService
                 ],
             );
             $this->touchStory($chapter->storyId);
+            $this->stories->refreshTermCounts($chapter->storyId);
             $this->audit->record($actor->id, $auditAction, 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'from' => $chapter->state->value, 'to' => $to->value], $ipAddress);
         });
 

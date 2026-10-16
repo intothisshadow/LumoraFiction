@@ -52,6 +52,7 @@ final class StoryService
         private readonly Database $database,
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
+        private readonly TaxonomyService $taxonomy,
     ) {
     }
 
@@ -136,10 +137,41 @@ final class StoryService
     }
 
     /**
+     * Sets the story's fandoms, characters, tags, rating and the rest; see TaxonomyService::assignToStory()
+     * for what the selection may contain.
+     *
+     * @param array<string, list<int|string>> $selection
+     * @throws StoryPermissionException
+     * @throws StoryValidationException
+     */
+    public function classify(User $actor, int $storyId, array $selection, string $ipAddress = ''): Story
+    {
+        $story = $this->manageable($actor, $storyId);
+
+        $this->database->transaction(function () use ($actor, $story, $selection, $ipAddress): void {
+            $this->taxonomy->assignToStory($actor, $story->id, $selection, $ipAddress);
+            $this->database->execute('UPDATE {prefix}stories SET updated_at = :updated WHERE id = :id', ['updated' => date('Y-m-d H:i:s'), 'id' => $story->id]);
+        });
+
+        return $this->mustFind($story->id);
+    }
+
+    /**
+     * Brings the public story counts of the story's terms back in step. The chapter service calls this
+     * when a chapter being published or removed changes whether the story is public.
+     */
+    public function refreshTermCounts(int $storyId): void
+    {
+        $this->taxonomy->refreshCountsForStory($storyId);
+    }
+
+    /**
      * Publishes the story straight away when the caller is trusted to, otherwise puts it in the
      * approval queue. A story already waiting for approval stays there when its own author asks again.
+     * Either way the story must already carry the classification the administrator requires.
      *
      * @throws StoryPermissionException
+     * @throws StoryValidationException when a required kind of classification is missing
      */
     public function publish(User $actor, int $storyId, string $ipAddress = ''): Story
     {
@@ -153,6 +185,12 @@ final class StoryService
 
         if (!$trusted && $story->state === PublicationState::Pending) {
             return $story;
+        }
+
+        $missing = $this->taxonomy->missingRequired($story->id);
+
+        if ($missing !== []) {
+            throw new StoryValidationException($missing);
         }
 
         return $this->transition(
@@ -183,7 +221,7 @@ final class StoryService
     }
 
     /**
-     * Removes the story and all its chapters together or not at all.
+     * Removes the story, its chapters and its classification links together or not at all.
      *
      * @throws StoryPermissionException
      */
@@ -192,6 +230,7 @@ final class StoryService
         $story = $this->manageable($actor, $storyId);
 
         $this->database->transaction(function () use ($actor, $story, $ipAddress): void {
+            $this->taxonomy->removeStoryLinks($story->id);
             $this->database->execute('DELETE FROM {prefix}chapters WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
             $this->audit->record($actor->id, 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
@@ -439,6 +478,7 @@ final class StoryService
                     'id' => $story->id,
                 ],
             );
+            $this->taxonomy->refreshCountsForStory($story->id);
             $this->audit->record($actor->id, $auditAction, 'story', (string) $story->id, ['from' => $story->state->value, 'to' => $to->value], $ipAddress);
         });
 

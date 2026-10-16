@@ -32,6 +32,7 @@ final class AdminRoutes
         ArchiveSettingsController $archive,
         EditorSettingsController $editor,
         ContentEditorController $content,
+        TaxonomyController $taxonomy,
         SystemInformationController $systemInformation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
@@ -44,7 +45,20 @@ final class AdminRoutes
         $router->post('/admin/settings/editor', $editor->update(...));
         $router->post('/admin/content/preview', $content->preview(...), 'admin.content.preview');
         $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
-        $router->get('/admin/maintenance/system-information', $systemInformation->show(...), 'admin.system-information');
+        $router->get('/admin/taxonomy', $taxonomy->overview(...), 'admin.taxonomy');
+        $router->post('/admin/taxonomy/required', $taxonomy->saveRequired(...), 'admin.taxonomy.required');
+        $router->get('/admin/taxonomy/term/{id}', $taxonomy->showEdit(...), 'admin.taxonomy.term');
+        $router->post('/admin/taxonomy/term/{id}', $taxonomy->update(...));
+        $router->post('/admin/taxonomy/term/{id}/aliases', $taxonomy->addAlias(...));
+        $router->get('/admin/taxonomy/term/{id}/merge', $taxonomy->showMerge(...));
+        $router->post('/admin/taxonomy/term/{id}/merge', $taxonomy->merge(...));
+        $router->get('/admin/taxonomy/term/{id}/delete', $taxonomy->showDelete(...));
+        $router->post('/admin/taxonomy/term/{id}/delete', $taxonomy->delete(...));
+        $router->post('/admin/taxonomy/alias/{id}/remove', $taxonomy->removeAlias(...));
+        $router->get('/admin/taxonomy/{type}', $taxonomy->list(...), 'admin.taxonomy.list');
+        $router->get('/admin/taxonomy/{type}/new', $taxonomy->showCreate(...));
+        $router->post('/admin/taxonomy/{type}/new', $taxonomy->create(...));
+        $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
     }
 }
