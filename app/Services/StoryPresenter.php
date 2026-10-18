@@ -113,6 +113,9 @@ final class StoryPresenter
             'status' => $story->workStatus->label(),
             'words' => number_format($story->wordCount),
             'language' => strtoupper($story->language),
+            // Empty until first published, so a theme can leave the line out with lf_has().
+            'published' => $story->publishedAt?->format('j F Y') ?? '',
+            'updated' => $story->updatedAt->format('j F Y'),
         ];
     }
 }

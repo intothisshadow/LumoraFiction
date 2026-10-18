@@ -262,3 +262,11 @@ The template tags are the boundary between a theme and the application. PHP cann
 ## The built-in theme
 
 When no theme is chosen, or the chosen one is missing or broken, a plain built-in theme draws the site. It is a complete, small example of the rules above and is a good place to start. It is never listed as an installed folder and cannot be replaced by a folder with the same name.
+| `story.published`, `story.updated` | Dates such as "2 January 2026". `published` is empty until the story is first published; check it with `lf_has('story.published')`. |
+## Bundled themes
+
+**Storybook** (`content/themes/storybook/`) is the default theme and the fuller example. It shows two patterns worth copying:
+
+- **Reader preferences without inline code.** A small script in `js/reader.js`, added from `functions.php` with the `lf_head` action, stores the reader's colour scheme, text size and reading width in the browser and sets `data-lf-scheme`, `data-lf-size` and `data-lf-width` on the root element. The stylesheet answers those attributes with custom properties, so no style or script is ever written into a template. Controls that need the script carry `lf-js-only` and stay hidden until the script has added `lf-js` to the root element, so the page works without scripts.
+- **Light and dark colours as tokens.** All colours are custom properties on `:root`, redefined under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-lf-scheme="light"])` and again under `:root[data-lf-scheme="dark"]`, so a reader's manual choice wins over their device setting.
+

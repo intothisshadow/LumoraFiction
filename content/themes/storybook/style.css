@@ -1,0 +1,887 @@
+/*
+Theme Name: Storybook
+Version: 1.0.0
+Author: Ariane
+Description: The default theme. Warm, readable and calm, with generous spacing, light and dark colours, and reader controls for text size and width.
+*/
+
+/* ==========================================================================
+   1. Design tokens
+   Colours are plain custom properties so a theme option or a child theme can
+   change one value and have it reach every component. Text pairs meet WCAG AA
+   (4.5:1), and control borders meet 3:1, in both colour schemes.
+   ========================================================================== */
+
+:root {
+    color-scheme: light dark;
+
+    --lf-bg: #fbf7f0;
+    --lf-surface: #f2eadd;
+    --lf-surface-strong: #e7dcc9;
+    --lf-text: #2b2420;
+    --lf-muted: #5f5348;
+    --lf-link: #8a3b12;
+    --lf-link-hover: #5f2608;
+    --lf-on-accent: #fffaf2;
+    --lf-border: #d8cbb4;
+    --lf-control-border: #8c7b66;
+    --lf-info-bg: #eef3f8;
+    --lf-info-border: #7f9ab8;
+
+    --lf-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --lf-font-story: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    --lf-story-font: var(--lf-font-story);
+
+    --lf-page-width: 62rem;
+    --lf-reading-width: 42rem;
+    --lf-reader-scale: 1;
+    --lf-radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-lf-scheme="light"]) {
+        --lf-bg: #1a1613;
+        --lf-surface: #241e1a;
+        --lf-surface-strong: #322a24;
+        --lf-text: #ebe3d8;
+        --lf-muted: #b8ac9c;
+        --lf-link: #eba873;
+        --lf-link-hover: #f6c9a1;
+        --lf-on-accent: #1a1613;
+        --lf-border: #43392f;
+        --lf-control-border: #94887a;
+        --lf-info-bg: #1b2733;
+        --lf-info-border: #46688a;
+    }
+}
+
+:root[data-lf-scheme="dark"] {
+    --lf-bg: #1a1613;
+    --lf-surface: #241e1a;
+    --lf-surface-strong: #322a24;
+    --lf-text: #ebe3d8;
+    --lf-muted: #b8ac9c;
+    --lf-link: #eba873;
+    --lf-link-hover: #f6c9a1;
+    --lf-on-accent: #1a1613;
+    --lf-border: #43392f;
+    --lf-control-border: #94887a;
+    --lf-info-bg: #1b2733;
+    --lf-info-border: #46688a;
+}
+
+:root[data-lf-scheme="light"] {
+    color-scheme: light;
+}
+
+:root[data-lf-scheme="dark"] {
+    color-scheme: dark;
+}
+
+/* The reader's choices, set by the theme's script and kept in the browser. */
+:root[data-lf-size="small"] { --lf-reader-scale: 0.9; }
+:root[data-lf-size="large"] { --lf-reader-scale: 1.15; }
+:root[data-lf-size="xlarge"] { --lf-reader-scale: 1.3; }
+:root[data-lf-width="narrow"] { --lf-reading-width: 34rem; }
+:root[data-lf-width="wide"] { --lf-reading-width: 54rem; }
+
+/* ==========================================================================
+   2. Base
+   ========================================================================== */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    font-family: var(--lf-font-ui);
+    font-size: 1rem;
+    line-height: 1.65;
+}
+
+h1, h2, h3 {
+    font-family: var(--lf-font-story);
+    line-height: 1.25;
+}
+
+a {
+    color: var(--lf-link);
+    text-underline-offset: 0.15em;
+}
+
+a:hover {
+    color: var(--lf-link-hover);
+}
+
+:focus-visible {
+    outline: 3px solid var(--lf-link);
+    outline-offset: 2px;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+.lf-screen-reader-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Controls need a script, so they stay out of sight until it has run. */
+.lf-js-only {
+    display: none;
+}
+
+.lf-js .lf-js-only {
+    display: revert;
+}
+
+/* ==========================================================================
+   3. Skip link, header, navigation and footer
+   ========================================================================== */
+
+.lf-skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    z-index: 10;
+    padding: 0.6rem 1rem;
+    background: var(--lf-surface-strong);
+    color: var(--lf-text);
+    border: 2px solid var(--lf-link);
+    border-radius: var(--lf-radius);
+}
+
+.lf-skip-link:focus {
+    top: 1rem;
+}
+
+.lf-site-header,
+.lf-main,
+.lf-site-footer__inner {
+    width: min(100% - 2rem, var(--lf-page-width));
+    margin-inline: auto;
+}
+
+.lf-site-header-wrap {
+    background: var(--lf-surface);
+    border-bottom: 1px solid var(--lf-border);
+}
+
+.lf-site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    padding-block: 1rem;
+}
+
+.lf-site-title {
+    margin: 0;
+    font-family: var(--lf-font-story);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.lf-site-title a {
+    color: var(--lf-text);
+    text-decoration: none;
+}
+
+.lf-site-title a:hover {
+    color: var(--lf-link);
+}
+
+.lf-site-header__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.25rem;
+}
+
+.lf-nav__list,
+.lf-pagination__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-nav__link {
+    display: inline-block;
+    padding-block: 0.25rem;
+    color: var(--lf-text);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+}
+
+.lf-nav__link:hover {
+    border-bottom-color: var(--lf-link);
+}
+
+.lf-nav__item--current .lf-nav__link {
+    font-weight: 700;
+    border-bottom-color: var(--lf-link);
+}
+
+.lf-main {
+    padding-block: 2rem 4rem;
+}
+
+.lf-site-footer {
+    border-top: 1px solid var(--lf-border);
+    background: var(--lf-surface);
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-site-footer__inner {
+    padding-block: 1.25rem 2rem;
+}
+
+.lf-site-footer__text {
+    margin: 0;
+}
+
+/* ==========================================================================
+   4. Forms and buttons
+   ========================================================================== */
+
+.lf-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.lf-field__label {
+    color: var(--lf-muted);
+}
+
+.lf-select {
+    min-height: 2.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font: inherit;
+}
+
+.lf-button {
+    display: inline-block;
+    padding: 0.55rem 1.25rem;
+    background: var(--lf-link);
+    color: var(--lf-on-accent);
+    border: 1px solid var(--lf-link);
+    border-radius: var(--lf-radius);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.lf-button:hover {
+    background: var(--lf-link-hover);
+    border-color: var(--lf-link-hover);
+    color: var(--lf-on-accent);
+}
+
+/* ==========================================================================
+   5. Notices and preview banner
+   ========================================================================== */
+
+.lf-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-notice--info {
+    background: var(--lf-info-bg);
+    border-color: var(--lf-info-border);
+}
+
+.lf-preview-banner {
+    width: min(100% - 2rem, var(--lf-page-width));
+    margin: 0.75rem auto;
+}
+
+/* ==========================================================================
+   6. Generic pages, home and 404
+   ========================================================================== */
+
+.lf-page,
+.lf-home,
+.lf-archive {
+    max-width: var(--lf-reading-width);
+    margin-inline: auto;
+}
+
+.lf-archive {
+    max-width: var(--lf-page-width);
+}
+
+.lf-page__title,
+.lf-archive__title {
+    margin: 0 0 0.75rem;
+    font-size: 2rem;
+}
+
+.lf-page__message,
+.lf-archive__description {
+    margin: 0 0 1.25rem;
+    color: var(--lf-muted);
+    font-size: 1.1rem;
+}
+
+.lf-archive__header {
+    margin-bottom: 1.5rem;
+}
+
+.lf-home__stories {
+    margin-top: 1rem;
+}
+
+.lf-story-list__item {
+    margin: 0;
+}
+
+.lf-page--not-found {
+    padding-block: 2rem;
+    text-align: center;
+}
+
+.lf-page__body {
+    font-family: var(--lf-font-story);
+    font-size: 1.125rem;
+    line-height: 1.8;
+}
+
+.lf-home__intro {
+    padding-block: 1.5rem 2rem;
+    text-align: center;
+}
+
+.lf-home__title {
+    margin: 0 0 0.5rem;
+    font-size: 2.5rem;
+}
+
+.lf-section-title {
+    margin: 2rem 0 1rem;
+    font-size: 1.35rem;
+}
+
+/* ==========================================================================
+   7. Story cards (home, listings, author pages)
+   ========================================================================== */
+
+.lf-story-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-story-card {
+    padding: 1.1rem 1.25rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-story-card__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+}
+
+.lf-story-card__title a {
+    color: var(--lf-text);
+    text-decoration: none;
+}
+
+.lf-story-card__title a:hover {
+    color: var(--lf-link);
+    text-decoration: underline;
+}
+
+.lf-story-card__byline,
+.lf-story-card__meta {
+    margin: 0 0 0.5rem;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-story-card__summary {
+    margin: 0;
+}
+
+/* ==========================================================================
+   8. Story page
+   ========================================================================== */
+
+.lf-story {
+    max-width: var(--lf-reading-width);
+    margin-inline: auto;
+}
+
+.lf-story__header {
+    margin-bottom: 1.5rem;
+}
+
+.lf-story__title {
+    margin: 0 0 0.25rem;
+    font-size: 2.1rem;
+}
+
+.lf-story__byline {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 1.1rem;
+}
+
+.lf-story__actions {
+    margin: 1.25rem 0 0;
+}
+
+/* Status, length and dates: label and value pairs that wrap into as many columns as fit. */
+.lf-story-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0 0 1.5rem;
+    padding: 0.9rem 1rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-story-meta__item {
+    margin: 0;
+}
+
+.lf-story-meta__label {
+    display: block;
+    color: var(--lf-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lf-story-meta__value {
+    display: block;
+    margin: 0;
+    font-weight: 600;
+}
+
+/* Rating, warnings, fandoms, characters and tags: one row per group, a link per term. */
+.lf-term-groups {
+    margin: 0 0 1.5rem;
+}
+
+.lf-term-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    padding-block: 0.6rem;
+    border-bottom: 1px solid var(--lf-border);
+}
+
+.lf-term-group__label {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.lf-term-group__terms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.lf-term-link {
+    display: inline-block;
+    padding: 0.1rem 0.7rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: 999px;
+    color: var(--lf-text);
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+a.lf-term-link {
+    color: var(--lf-link);
+}
+
+a.lf-term-link:hover {
+    background: var(--lf-surface-strong);
+    color: var(--lf-link-hover);
+}
+
+.lf-term-group--rating .lf-term-link,
+.lf-term-group--warning .lf-term-link {
+    background: var(--lf-surface-strong);
+    border-color: var(--lf-control-border);
+    font-weight: 600;
+}
+
+.lf-story__section {
+    margin-block: 1.75rem;
+}
+
+.lf-story__section-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.2rem;
+}
+
+.lf-story__section-text {
+    margin: 0;
+    font-family: var(--lf-font-story);
+    font-size: 1.05rem;
+    line-height: 1.7;
+    white-space: pre-line;
+}
+
+.lf-story__section--chapters {
+    margin-top: 2.25rem;
+}
+
+.lf-chapter-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--lf-border);
+}
+
+.lf-chapter-list__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    padding-block: 0.7rem;
+    border-bottom: 1px solid var(--lf-border);
+}
+
+.lf-chapter-list__number {
+    color: var(--lf-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.lf-chapter-list__link {
+    flex: 1 1 14rem;
+    font-family: var(--lf-font-story);
+    font-size: 1.1rem;
+}
+
+.lf-chapter-list__meta {
+    color: var(--lf-muted);
+    font-size: 0.85rem;
+}
+
+/* ==========================================================================
+   9. Chapter page and reader controls
+   ========================================================================== */
+
+.lf-chapter {
+    max-width: var(--lf-reading-width);
+    margin-inline: auto;
+}
+
+.lf-chapter__header {
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.lf-chapter__story {
+    margin: 0 0 0.25rem;
+    font-size: 0.95rem;
+}
+
+.lf-chapter__title {
+    margin: 0 0 0.25rem;
+    font-size: 2rem;
+}
+
+.lf-chapter__meta {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-reader-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    margin: 0 0 1.25rem;
+    padding: 0.6rem 1rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-chapter__notes {
+    margin: 1.25rem 0;
+    padding: 0.6rem 1rem;
+    background: var(--lf-surface);
+    border-left: 4px solid var(--lf-control-border);
+    border-radius: 0 var(--lf-radius) var(--lf-radius) 0;
+    font-size: 0.95rem;
+}
+
+.lf-chapter__notes p {
+    margin: 0;
+    white-space: pre-line;
+}
+
+.lf-chapter__text {
+    margin-block: 2rem;
+    font-family: var(--lf-story-font);
+    font-size: calc(1.125rem * var(--lf-reader-scale));
+    line-height: 1.85;
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.lf-chapter__text p {
+    margin: 0 0 1.1em;
+}
+
+.lf-chapter__text h2,
+.lf-chapter__text h3,
+.lf-chapter__text h4 {
+    margin: 1.8em 0 0.6em;
+}
+
+.lf-chapter__text blockquote {
+    margin: 1.2em 0;
+    padding-left: 1.2em;
+    border-left: 3px solid var(--lf-border);
+    color: var(--lf-muted);
+}
+
+.lf-chapter__text hr {
+    width: 30%;
+    margin: 2em auto;
+    border: 0;
+    border-top: 1px solid var(--lf-control-border);
+}
+
+.lf-chapter__text ul,
+.lf-chapter__text ol {
+    margin: 0 0 1.1em;
+    padding-left: 1.5em;
+}
+
+.lf-chapter__text pre {
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+    background: var(--lf-surface);
+    border-radius: var(--lf-radius);
+    font-size: 0.9em;
+}
+
+.lf-chapter__text table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.lf-chapter__text th,
+.lf-chapter__text td {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--lf-border);
+}
+
+.lf-chapter-nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin-block: 1.5rem;
+}
+
+.lf-chapter-nav__link {
+    display: block;
+    padding: 0.7rem 1rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    color: var(--lf-link);
+    text-decoration: none;
+}
+
+.lf-chapter-nav__link:hover {
+    background: var(--lf-surface-strong);
+    color: var(--lf-link-hover);
+}
+
+.lf-chapter-nav__hint {
+    display: block;
+    color: var(--lf-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lf-chapter-nav__link--index {
+    text-align: center;
+}
+
+.lf-chapter-nav__link--next {
+    text-align: right;
+}
+
+@media (min-width: 40rem) {
+    .lf-chapter-nav {
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+    }
+
+    .lf-chapter-nav__link--prev {
+        grid-column: 1;
+    }
+
+    .lf-chapter-nav__link--index {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .lf-chapter-nav__link--next {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .lf-term-group {
+        grid-template-columns: 9rem 1fr;
+        gap: 1rem;
+    }
+}
+
+/* ==========================================================================
+   10. Pagination
+   ========================================================================== */
+
+.lf-pagination {
+    margin-block: 2rem;
+}
+
+.lf-pagination__list {
+    justify-content: center;
+}
+
+.lf-pagination__link {
+    display: inline-block;
+    min-width: 2.25rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    text-align: center;
+    text-decoration: none;
+}
+
+.lf-pagination__item--current .lf-pagination__link {
+    background: var(--lf-link);
+    border-color: var(--lf-link);
+    color: var(--lf-on-accent);
+    font-weight: 700;
+}
+
+.lf-pagination__item--gap {
+    align-self: center;
+    color: var(--lf-muted);
+}
+
+/* ==========================================================================
+   11. Motion, forced colours and print
+   ========================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+    .lf-nav__link,
+    .lf-button,
+    .lf-term-link,
+    .lf-chapter-nav__link {
+        transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+}
+
+@media (forced-colors: active) {
+    .lf-term-link,
+    .lf-story-card,
+    .lf-chapter-nav__link {
+        border: 1px solid CanvasText;
+    }
+}
+
+@media print {
+    :root {
+        --lf-bg: #ffffff;
+        --lf-text: #000000;
+        --lf-muted: #333333;
+    }
+
+    body {
+        background: #ffffff;
+        color: #000000;
+    }
+
+    .lf-skip-link,
+    .lf-site-header-wrap,
+    .lf-site-footer,
+    .lf-preview-banner,
+    .lf-reader-controls,
+    .lf-chapter-nav,
+    .lf-pagination,
+    .lf-js-only {
+        display: none !important;
+    }
+
+    .lf-main {
+        width: 100%;
+        padding: 0;
+    }
+
+    .lf-chapter,
+    .lf-story {
+        max-width: none;
+    }
+
+    .lf-chapter__text {
+        font-size: 12pt;
+        line-height: 1.5;
+        orphans: 3;
+        widows: 3;
+    }
+
+    a {
+        color: #000000;
+        text-decoration: none;
+    }
+}
