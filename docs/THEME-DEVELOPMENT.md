@@ -150,13 +150,15 @@ Never print a value from `lf_items()` without `lf_e()`.
 | Name | Contents |
 | ---- | -------- |
 | `story.title`, `story.author`, `story.summary`, `story.notes`, `story.disclaimer` | Text. The author is the display name. |
+| `story.author_url` | The address of the author's page. Empty on a preview, so check it with `lf_has('story.author_url')` and print the name as plain text when it is empty. |
 | `story.status` | Where the story stands, such as "Ongoing". |
 | `story.words` | The word count, formatted. |
 | `story.language` | The language code, upper-case. |
 | `story.published`, `story.updated` | Dates such as "2 January 2026". `published` is empty until the story is first published; check it with `lf_has('story.published')`. |
 | `story.url` | The address of the story. |
-| `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. |
+| `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. Only the kinds of term the archive mode allows are listed. |
 | `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
+| `chapter` | Only on a finished story that has a single readable chapter, where the story page is also the place to read it. It holds the same fields as on a chapter page (`chapter.html`, `chapter.notes`, and so on). When `lf_has('chapter.html')` is true, print the text under the details and leave out the chapter list and the start-reading link. |
 
 ### Chapter (`chapter`)
 
@@ -164,6 +166,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | ---- | -------- |
 | `story.title`, `story.url` and the other story fields above | The story the chapter belongs to. |
 | `chapter.number`, `chapter.title`, `chapter.words`, `chapter.notes` | Text. A chapter without a title gets "Chapter N". |
+| `chapter.position`, `chapter.total` | Where the chapter stands among the chapters a reader can open, counting from one, and how many there are. Both are empty on a preview, so check `lf_has('chapter.total')`. A chapter that is hidden leaves no gap, so `position` can differ from `number`. |
 | `chapter.html` | The chapter's text, already sanitised. Print it with `lf_field('chapter.html')`. |
 | `previous`, `next` | `{title, url}`, or nothing at the ends of the story. Check with `lf_has('previous.url')`. |
 
@@ -172,9 +175,22 @@ Never print a value from `lf_items()` without `lf_e()`.
 | View | Data |
 | ---- | ---- |
 | `404` | `message`. |
-| `home` | None yet. |
+| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. |
+| `author` | The list data below. The page title is "Stories by" and the author's display name. |
+| `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |
 
-A view with a list of results also receives `pagination`: `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. Later views add their own data here as they are built.
+A story card is `{title, url, author, author_url, summary, status, words, updated}`. Print the values with `lf_e()`, and leave the author as plain text when `author_url` is empty.
+
+A view with a list of stories receives:
+
+| Name | Contents |
+| ---- | -------- |
+| `stories` | A list of story cards for this page. |
+| `total` | How many public stories the list holds, formatted. |
+| `sorts` | The ways to order the list, each `{label, url, current}`. Show them as links and mark the current one in a way that does not rely on colour alone. |
+| `pagination` | `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. |
+
+Later views add their own data here as they are built.
 
 ## Hooks for features
 

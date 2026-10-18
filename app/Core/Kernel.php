@@ -55,8 +55,12 @@ use LumoraFiction\Core\Security\TokenService;
 use LumoraFiction\Core\Theme\StaffNavigation;
 use LumoraFiction\Core\Theme\ThemeCatalog;
 use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Controllers\ArchiveController;
 use LumoraFiction\Controllers\PublicController;
+use LumoraFiction\Core\Http\PublicUrl;
+use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\ArchiveSettings;
+use LumoraFiction\Services\PublicArchive;
 use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
@@ -169,8 +173,15 @@ final class Kernel
 
         (new StaffNavigation($auth))->register($hooks);
 
-        self::registerPublic($kernel, $themeOptions);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions);
+        // The public pages and the admin screens work on the same services, so each is built once.
+        $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
+        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks);
+        $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
+        $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
+        $presenter = new StoryPresenter();
+
+        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -182,30 +193,46 @@ final class Kernel
     /**
      * The public site's own addresses. Plugins add theirs through routes_register, after these.
      */
-    private static function registerPublic(self $kernel, ThemeOptions $themeOptions): void
+    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter): void
     {
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
+        $archive = new ArchiveController(
+            $kernel->themes,
+            $stories,
+            $chapters,
+            $taxonomy,
+            $kernel->users,
+            new PublicArchive($kernel->database, $stories),
+            $presenter,
+            $renderer,
+            $kernel->auth,
+            $kernel->config,
+        );
 
-        $kernel->router->get('/', $public->home(...), 'home');
+        $kernel->router->get('/', $archive->home(...), 'home');
         $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
         $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
+
+        $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
+        $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
+        $kernel->router->get(PublicUrl::AUTHOR, $archive->author(...), 'author');
+
+        // One route per kind of term, so an address under any other first segment is never read as a term.
+        foreach (TermType::cases() as $type) {
+            $kernel->router->get(PublicUrl::termPattern($type), static fn (array $params, Request $request): Response => $archive->term($type, $params, $request), 'term.' . $type->value);
+        }
     }
 
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter): void
     {
         $flash = new FlashMessages($kernel->sessions);
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
         $editorSettings = new EditorSettings($kernel->config, $kernel->database, $kernel->audit);
-        $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
-        $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
-        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks);
-        $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
         $editor = new ContentEditor($view, $editorSettings, $version);
-        $presenter = new StoryPresenter();
 
         AdminRoutes::register(
             $kernel->router,
@@ -283,10 +310,12 @@ final class Kernel
         $title = $status === 405 ? 'Method not allowed' : 'Page not found';
         $message = $status === 405
             ? 'That action is not available for this address.'
-            : 'The page you are looking for does not exist.';
+            : ThemeRenderer::NOT_FOUND_MESSAGE;
 
         try {
-            $response = $this->themes->render('404', ['message' => $message], $status, ['title' => $title, 'noindex' => true]);
+            $response = $status === 405
+                ? $this->themes->render('404', ['message' => $message], $status, ['title' => $title, 'noindex' => true])
+                : $this->themes->notFound();
         } catch (\Throwable $exception) {
             $this->errors->report($exception);
 

@@ -360,8 +360,64 @@ img {
     margin-bottom: 1.5rem;
 }
 
+.lf-archive__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.lf-archive__count {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 0.95rem;
+}
+
+/* The ways to order a list: a row of links, the current one marked by more than colour. */
+.lf-sort {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    font-size: 0.95rem;
+}
+
+.lf-sort__label {
+    color: var(--lf-muted);
+}
+
+.lf-sort__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-sort__link {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    text-decoration: none;
+}
+
+.lf-sort__item--current .lf-sort__link {
+    background: var(--lf-link);
+    border-color: var(--lf-link);
+    color: var(--lf-on-accent);
+    font-weight: 700;
+}
+
 .lf-home__stories {
     margin-top: 1rem;
+}
+
+.lf-home__stories--updated {
+    margin-top: 2.5rem;
 }
 
 .lf-story-list__item {
@@ -461,6 +517,11 @@ img {
     margin: 0;
     color: var(--lf-muted);
     font-size: 1.1rem;
+}
+
+/* A finished one-chapter story is read on its own page, below the details. */
+.lf-story__section--text {
+    margin-top: 2rem;
 }
 
 .lf-story__actions {
@@ -859,6 +920,7 @@ a.lf-term-link:hover {
     .lf-reader-controls,
     .lf-chapter-nav,
     .lf-pagination,
+    .lf-sort,
     .lf-js-only {
         display: none !important;
     }

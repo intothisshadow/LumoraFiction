@@ -198,6 +198,19 @@ a:focus-visible {
     margin-block: 1.5rem;
 }
 
+.lf-story-list {
+    padding-left: 1.25rem;
+}
+
+.lf-story-list__item {
+    margin-block: 0.5rem;
+}
+
+.lf-story-list__meta,
+.lf-archive__sort {
+    color: var(--lf-fb-muted);
+}
+
 @media print {
     .lf-skip-link,
     .lf-site-header,

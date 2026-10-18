@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 use LumoraFiction\Helpers\Html;
 
-/** @var array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool} $values */
+/** @var array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool} $values */
 /** @var array<string, string> $errors */
 /** @var array<string, string> $modes */
 /** @var list<array{value: string, label: string}> $roles */
@@ -91,6 +91,16 @@ $modeHints = [
             <input type="checkbox" id="hold_first_story" name="hold_first_story" value="1"<?= $values['hold_first_story'] ? ' checked' : '' ?> aria-describedby="hold_first_story_hint">
             <label for="hold_first_story">A new Author's first story waits for approval</label>
             <p class="lf-hint" id="hold_first_story_hint">Recommended. An editor reviews the first story before it appears, so a brand new account cannot publish spam straight away. Later stories are not held.</p>
+        </div>
+    </fieldset>
+
+    <fieldset class="lf-card">
+        <legend>Reading</legend>
+
+        <div class="lf-choice">
+            <input type="checkbox" id="require_signin" name="require_signin" value="1"<?= $values['require_signin'] ? ' checked' : '' ?> aria-describedby="require_signin_hint">
+            <label for="require_signin">Visitors must sign in to read</label>
+            <p class="lf-hint" id="require_signin_hint">When this is on, anyone who is not signed in is sent to the sign-in page instead of seeing stories. Leave it off for an open archive.</p>
         </div>
     </fieldset>
 

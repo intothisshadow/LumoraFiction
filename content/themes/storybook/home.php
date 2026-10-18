@@ -27,9 +27,20 @@ lf_get_header();
 
     <?php if (lf_has('stories')): ?>
         <section class="lf-home__stories" aria-labelledby="lf-home-stories-title">
-            <h2 class="lf-section-title" id="lf-home-stories-title">Recent stories</h2>
+            <h2 class="lf-section-title" id="lf-home-stories-title">Recently published</h2>
             <ol class="lf-story-list">
                 <?php foreach (lf_items('stories') as $card): ?>
+                    <li class="lf-story-list__item"><?php lf_part('story-card', ['story' => $card]); ?></li>
+                <?php endforeach; ?>
+            </ol>
+        </section>
+    <?php endif; ?>
+
+    <?php if (lf_has('updated_stories')): ?>
+        <section class="lf-home__stories lf-home__stories--updated" aria-labelledby="lf-home-updated-title">
+            <h2 class="lf-section-title" id="lf-home-updated-title">Recently updated</h2>
+            <ol class="lf-story-list">
+                <?php foreach (lf_items('updated_stories') as $card): ?>
                     <li class="lf-story-list__item"><?php lf_part('story-card', ['story' => $card]); ?></li>
                 <?php endforeach; ?>
             </ol>

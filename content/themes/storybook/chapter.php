@@ -19,9 +19,9 @@ lf_get_header();
 ?>
 <article class="lf-chapter">
     <header class="lf-chapter__header">
-        <p class="lf-chapter__story"><a href="<?php lf_field('story.url'); ?>"><?php lf_field('story.title'); ?></a> &middot; by <?php lf_field('story.author'); ?></p>
+        <p class="lf-chapter__story"><a href="<?php lf_field('story.url'); ?>"><?php lf_field('story.title'); ?></a> &middot; by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
         <h1 class="lf-chapter__title"><?php lf_field('chapter.title'); ?></h1>
-        <p class="lf-chapter__meta">Chapter <?php lf_field('chapter.number'); ?> &middot; <?php lf_field('chapter.words'); ?> words</p>
+        <p class="lf-chapter__meta"><?php if (lf_has('chapter.total')): ?>Chapter <?php lf_field('chapter.position'); ?> of <?php lf_field('chapter.total'); ?><?php else: ?>Chapter <?php lf_field('chapter.number'); ?><?php endif; ?> &middot; <?php lf_field('chapter.words'); ?> words</p>
     </header>
 
     <?php lf_part('chapter-nav', ['label' => 'Chapters, top']); ?>

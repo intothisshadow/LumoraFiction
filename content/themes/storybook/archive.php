@@ -26,6 +26,21 @@ lf_get_header();
     </header>
 
     <?php if (lf_has('stories')): ?>
+        <div class="lf-archive__toolbar">
+            <?php if (lf_has('total')): ?>
+                <p class="lf-archive__count">Stories: <?php lf_field('total'); ?></p>
+            <?php endif; ?>
+            <?php if (lf_has('sorts')): ?>
+                <nav class="lf-sort" aria-label="Sort stories">
+                    <span class="lf-sort__label">Sort by</span>
+                    <ul class="lf-sort__list">
+                        <?php foreach (lf_items('sorts') as $sort): ?>
+                            <li class="lf-sort__item<?= lf_e(($sort['current'] ?? false) === true ? ' lf-sort__item--current' : '') ?>"><a class="lf-sort__link" href="<?= lf_e($sort['url'] ?? '') ?>"<?= ($sort['current'] ?? false) === true ? ' aria-current="true"' : '' ?>><?= lf_e($sort['label'] ?? '') ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </nav>
+            <?php endif; ?>
+        </div>
         <ol class="lf-story-list">
             <?php foreach (lf_items('stories') as $card): ?>
                 <li class="lf-story-list__item"><?php lf_part('story-card', ['story' => $card]); ?></li>

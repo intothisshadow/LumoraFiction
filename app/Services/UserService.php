@@ -203,6 +203,39 @@ final class UserService
     }
 
     /**
+     * The public name and address segment of each account, for bylines on a page of listings. Nothing else about
+     * an account is returned.
+     *
+     * @param list<int> $ids
+     * @return array<int, array{display_name: string, slug: string}> account id => public profile
+     */
+    public function publicProfiles(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $params = [];
+
+        foreach ($ids as $index => $id) {
+            $params['id' . $index] = $id;
+        }
+
+        $profiles = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT id, display_name, slug FROM {prefix}users WHERE id IN (' . implode(', ', array_map(static fn (string $key): string => ':' . $key, array_keys($params))) . ')',
+            $params,
+        ) as $row) {
+            $profiles[(int) $row['id']] = ['display_name' => (string) $row['display_name'], 'slug' => (string) $row['slug']];
+        }
+
+        return $profiles;
+    }
+
+    /**
      * Returns the account only when the password matches. The password hash is always checked, even
      * when no account was found (against a throwaway hash), so a missing account takes as long to
      * reject as a wrong password and the response time does not reveal which accounts exist.

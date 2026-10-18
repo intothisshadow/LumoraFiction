@@ -35,6 +35,8 @@ final class ThemeRenderer
 {
     public const DEFAULT_THEME = 'storybook';
 
+    public const NOT_FOUND_MESSAGE = 'The page you are looking for does not exist.';
+
     /**
      * For each view, the templates tried in order. A theme supplies as many as it likes; index is the only one it needs.
      */
@@ -173,6 +175,15 @@ final class ThemeRenderer
         $headers = ($page['noindex'] ?? false) ? ['X-Robots-Tag' => 'noindex, nofollow'] : [];
 
         return Response::html($html, $status, $headers);
+    }
+
+    /**
+     * The page for an address that leads nowhere. A story that is not public is answered with exactly this page, so
+     * a visitor cannot tell it from one that never existed.
+     */
+    public function notFound(): Response
+    {
+        return $this->render('404', ['message' => self::NOT_FOUND_MESSAGE], 404, ['title' => 'Page not found', 'noindex' => true]);
     }
 
     /**

@@ -162,15 +162,17 @@ Register routes from a `routes_register` callback:
 
 ```php
 add_action('routes_register', function (\LumoraFiction\Core\Http\Router $router): void {
-    $router->get('/story/{id}', function (array $params): void {
-        echo 'Story ' . htmlspecialchars($params['id'], ENT_QUOTES, 'UTF-8');
-    }, 'story');
+    $router->get('/reading-list/{id}', function (array $params): void {
+        echo 'List ' . htmlspecialchars($params['id'], ENT_QUOTES, 'UTF-8');
+    }, 'reading-list');
 });
 ```
+
+- The first route that matches wins, and core registers its own addresses before `routes_register` runs, so a plugin cannot take over one of them. Core owns `/story/...`, `/author/...`, `/admin/...`, `/theme-options.css`, `/theme-fallback.css`, and one first segment for each kind of term: `/fandom`, `/character`, `/relationship`, `/genre`, `/tag`, `/category`, `/rating`, `/warning` and `/relationship-category`.
 
 - `{name}` matches one path segment. `{name*}` matches across slashes; register greedy routes last.
 - Handlers receive the captured parameters as an array of strings, and the `Request`. Treat both as untrusted input.
 - A handler may return a `Response` (`Response::html()`, `Response::redirect()`, `Response::download()`) or print its own output. `Response::redirect()` only accepts a path on this site.
 - Read cookies, form values, and the visitor's address from the `Request`, never from the PHP superglobals. `Request::ip()` ignores forwarding headers because anyone can forge them.
-- A route can be named, and `$router->urlFor('story', ['id' => 7])` returns its path. The path does not include the install's base directory.
+- A route can be named, and `$router->urlFor('reading-list', ['id' => 7])` returns its path. The path does not include the install's base directory.
 - Paths containing control characters, invalid UTF-8, or `.` and `..` segments never match a route.

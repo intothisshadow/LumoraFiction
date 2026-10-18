@@ -1,7 +1,7 @@
 <?php
 
 /**
- * The public site's own pages: the home page and the two stylesheets the theme layer generates.
+ * The two stylesheets the theme layer generates, which are not part of the archive itself.
  *
  * @package LumoraFiction
  * @subpackage Controllers
@@ -29,14 +29,6 @@ final class PublicController
         private readonly ThemeOptions $options,
         private readonly string $fallbackStylesheet,
     ) {
-    }
-
-    /**
-     * @param array<string, string> $params
-     */
-    public function home(array $params, Request $request): Response
-    {
-        return $this->themes->render('home');
     }
 
     /**

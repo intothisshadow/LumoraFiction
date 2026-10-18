@@ -545,6 +545,18 @@ final class StoryService
     }
 
     /**
+     * Turns rows selected from the stories table (alias s, all columns) into stories, for the listing queries that
+     * live outside this class.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @return list<Story>
+     */
+    public function fromRows(array $rows): array
+    {
+        return $this->hydrateAll($rows);
+    }
+
+    /**
      * Sets the story's total to the sum over its chapters. Called by the chapter service after any change.
      */
     public function refreshWordCount(int $storyId): void

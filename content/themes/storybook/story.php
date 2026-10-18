@@ -23,8 +23,8 @@ $groups = lf_items('term_groups');
 <article class="lf-story">
     <header class="lf-story__header">
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
-        <p class="lf-story__byline">by <?php lf_field('story.author'); ?></p>
-        <?php if ($chapters !== [] && isset($chapters[0]['url'])): ?>
+        <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
+        <?php if ($chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html')): ?>
             <p class="lf-story__actions"><a class="lf-button" href="<?= lf_e($chapters[0]['url']) ?>">Start reading</a></p>
         <?php endif; ?>
     </header>
@@ -60,6 +60,16 @@ $groups = lf_items('term_groups');
         <?php endif; ?>
     <?php endforeach; ?>
 
+    <?php if (lf_has('chapter.html')): ?>
+        <?php // A finished one-chapter story is read on this page, so there is no list of chapters to open. ?>
+        <section class="lf-story__section lf-story__section--text" aria-label="The story">
+            <?php lf_part('reader-controls'); ?>
+            <?php if (lf_has('chapter.notes')): ?>
+                <aside class="lf-chapter__notes" aria-label="Author&rsquo;s notes"><p><?php lf_field('chapter.notes'); ?></p></aside>
+            <?php endif; ?>
+            <div class="lf-chapter__text"><?php lf_field('chapter.html'); ?></div>
+        </section>
+    <?php else: ?>
     <section class="lf-story__section lf-story__section--chapters">
         <h2 class="lf-story__section-title">Chapters</h2>
         <?php if ($chapters === []): ?>
@@ -75,6 +85,7 @@ $groups = lf_items('term_groups');
             </ol>
         <?php endif; ?>
     </section>
+    <?php endif; ?>
 </article>
 <?php
 lf_get_footer();
