@@ -279,6 +279,51 @@ final class UserService
     }
 
     /**
+     * Changes the public name. The slug stays as it is, because addresses that already point at the account must keep working.
+     *
+     * @return string|null a plain-language problem, or null when the name was changed
+     */
+    public function changeDisplayName(User $user, string $displayName): ?string
+    {
+        $displayName = AccountRules::normalizeDisplayName($displayName);
+        $problem = AccountRules::displayNameProblem($displayName) ?? AccountRules::distinctnessProblem($user->loginName, $displayName);
+
+        if ($problem !== null) {
+            return $problem;
+        }
+
+        $this->database->execute(
+            'UPDATE {prefix}users SET display_name = :name, updated_at = :updated WHERE id = :id',
+            ['name' => $displayName, 'updated' => date('Y-m-d H:i:s'), 'id' => $user->id],
+        );
+
+        return null;
+    }
+
+    /**
+     * Replaces the address and forgets that the old one was confirmed. The caller has already checked the format.
+     *
+     * @throws DuplicateAccountException when another account has the address
+     */
+    public function updateEmail(int $userId, string $email): void
+    {
+        try {
+            $this->database->execute(
+                'UPDATE {prefix}users SET email = :email, email_verified_at = NULL, updated_at = :updated WHERE id = :id',
+                ['email' => AccountRules::normalizeEmail($email), 'updated' => date('Y-m-d H:i:s'), 'id' => $userId],
+            );
+        } catch (PDOException $exception) {
+            $key = $this->duplicateKey($exception);
+
+            if ($key === null) {
+                throw $exception;
+            }
+
+            throw new DuplicateAccountException($key);
+        }
+    }
+
+    /**
      * Records that the person controls the address. A pending account becomes active; a suspended
      * account stays suspended.
      */

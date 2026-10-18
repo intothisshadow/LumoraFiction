@@ -32,6 +32,30 @@ final class PublicUrl
 
     public const AUTHOR = '/author/{slug}';
 
+    public const SIGN_IN = '/account/sign-in';
+
+    public const SIGN_OUT = '/account/sign-out';
+
+    public const REGISTER = '/account/register';
+
+    public const VERIFY = '/account/verify/{token}';
+
+    public const RESEND = '/account/resend';
+
+    public const FORGOT = '/account/forgot';
+
+    public const RESET = '/account/reset/{token}';
+
+    public const PROFILE = '/account/profile';
+
+    /**
+     * The address of an account page, such as account('sign-in') or account('profile/email').
+     */
+    public static function account(string $page): string
+    {
+        return BasePath::get() . '/account/' . $page;
+    }
+
     public static function story(string $slug): string
     {
         return BasePath::get() . '/story/' . rawurlencode($slug);

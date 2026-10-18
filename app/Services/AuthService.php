@@ -343,6 +343,83 @@ final class AuthService
         return null;
     }
 
+    /**
+     * Changes a signed-in person's password after they prove they know the current one. Every other session ends,
+     * because it began before the change; this one is started again so the person stays signed in.
+     *
+     * @return string|null a plain-language problem, or null when the password was changed
+     */
+    public function changePassword(User $user, string $currentPassword, string $newPassword, string $ipAddress): ?string
+    {
+        $problem = $this->confirmPassword($user, $currentPassword, $ipAddress)
+            ?? $this->passwords->violation($newPassword, [$user->loginName, $user->displayName, $user->email]);
+
+        if ($problem !== null) {
+            return $problem;
+        }
+
+        $this->users->updatePassword($user->id, $newPassword);
+        $this->tokens->invalidateForUser($user->id, self::PURPOSE_PASSWORD_RESET);
+
+        $this->beginSession($this->users->findById($user->id) ?? $user);
+
+        return null;
+    }
+
+    /**
+     * Changes the address after the person proves they know the password. The old address is told, so a stolen
+     * session cannot quietly move an account somewhere its owner will not hear about.
+     *
+     * @return string|null a plain-language problem, or null when the address was changed
+     */
+    public function changeEmail(User $user, string $currentPassword, string $email, string $ipAddress): ?string
+    {
+        $email = AccountRules::normalizeEmail($email);
+        $problem = AccountRules::emailProblem($email) ?? $this->confirmPassword($user, $currentPassword, $ipAddress);
+
+        if ($problem !== null) {
+            return $problem;
+        }
+
+        if ($email === $user->email) {
+            return 'That is already the address on this account.';
+        }
+
+        try {
+            $this->users->updateEmail($user->id, $email);
+        } catch (DuplicateAccountException) {
+            return 'That email address cannot be used.';
+        }
+
+        $this->send(
+            $user,
+            'The email address on your ' . $this->siteName . ' account was changed',
+            "Hello {$user->displayName},\n\nThe email address on your account on {$this->siteName} was just changed. "
+            . "If you did this, no action is needed.\n\nIf you did not, reset your password from the sign-in page right away.\n",
+        );
+
+        return null;
+    }
+
+    /**
+     * Checks a password the person typed to authorise a change to their own account. Wrong guesses count towards
+     * the same lockout as the sign-in form, so a stolen session cannot be used to guess the password.
+     */
+    private function confirmPassword(User $user, string $password, string $ipAddress): ?string
+    {
+        if ($this->throttle->secondsUntilUnlocked($ipAddress) > 0) {
+            return 'Too many failed attempts. Please try again later.';
+        }
+
+        if ($this->users->verifyCredentials($user->loginName, $password)?->id !== $user->id) {
+            $this->throttle->recordFailure($ipAddress);
+
+            return 'Your current password is not correct.';
+        }
+
+        return null;
+    }
+
     private function beginSession(User $user): void
     {
         $this->sessions->start();

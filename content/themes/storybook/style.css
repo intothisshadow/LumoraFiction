@@ -27,6 +27,11 @@ Description: The default theme. Warm, readable and calm, with generous spacing, 
     --lf-control-border: #8c7b66;
     --lf-info-bg: #eef3f8;
     --lf-info-border: #7f9ab8;
+    --lf-success-bg: #eef5ec;
+    --lf-success-border: #6f9a68;
+    --lf-danger: #9b1c1c;
+    --lf-danger-bg: #fbeceb;
+    --lf-danger-border: #c46a64;
 
     --lf-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --lf-font-story: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
@@ -52,6 +57,11 @@ Description: The default theme. Warm, readable and calm, with generous spacing, 
         --lf-control-border: #94887a;
         --lf-info-bg: #1b2733;
         --lf-info-border: #46688a;
+        --lf-success-bg: #1a2a1a;
+        --lf-success-border: #4f7d49;
+        --lf-danger: #f2a09a;
+        --lf-danger-bg: #331a19;
+        --lf-danger-border: #94433d;
     }
 }
 
@@ -68,6 +78,11 @@ Description: The default theme. Warm, readable and calm, with generous spacing, 
     --lf-control-border: #94887a;
     --lf-info-bg: #1b2733;
     --lf-info-border: #46688a;
+    --lf-success-bg: #1a2a1a;
+    --lf-success-border: #4f7d49;
+    --lf-danger: #f2a09a;
+    --lf-danger-bg: #331a19;
+    --lf-danger-border: #94433d;
 }
 
 :root[data-lf-scheme="light"] {
@@ -307,6 +322,82 @@ img {
     color: var(--lf-on-accent);
 }
 
+/* Account forms: one block per form, labels above the controls. */
+
+.lf-account {
+    max-width: 34rem;
+}
+
+.lf-account__intro {
+    color: var(--lf-muted);
+}
+
+.lf-account__links {
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-account__link-item {
+    margin: 0 0 0.4rem;
+}
+
+.lf-form {
+    margin: 0 0 1.75rem;
+    padding: 1rem 1.25rem 0.5rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-form__heading {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+}
+
+.lf-form__field {
+    margin: 0 0 1rem;
+}
+
+.lf-form__label {
+    display: block;
+    margin: 0 0 0.25rem;
+    font-weight: 600;
+}
+
+.lf-form__input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.4rem 0.6rem;
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font: inherit;
+}
+
+.lf-form__input[aria-invalid="true"] {
+    border-color: var(--lf-danger);
+}
+
+.lf-form__hint {
+    margin: 0.25rem 0 0;
+    color: var(--lf-muted);
+    font-size: 0.875rem;
+}
+
+.lf-form__error {
+    margin: 0.25rem 0 0;
+    color: var(--lf-danger);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.lf-form__actions {
+    margin: 0 0 1rem;
+}
+
 /* ==========================================================================
    5. Notices and preview banner
    ========================================================================== */
@@ -321,6 +412,17 @@ img {
 .lf-notice--info {
     background: var(--lf-info-bg);
     border-color: var(--lf-info-border);
+}
+
+.lf-notice--success {
+    background: var(--lf-success-bg);
+    border-color: var(--lf-success-border);
+}
+
+.lf-notice--warning,
+.lf-notice--error {
+    background: var(--lf-danger-bg);
+    border-color: var(--lf-danger-border);
 }
 
 .lf-preview-banner {

@@ -48,6 +48,7 @@ Each view tries its templates in this order and uses the first one the theme has
 | `archive` | `archive.php`, `index.php` |
 | `search` | `search.php`, `archive.php`, `index.php` |
 | `page` | `page.php`, `index.php` |
+| `account` | `account.php`, `page.php`, `index.php` |
 | `404` | `404.php`, `index.php` |
 
 A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
@@ -189,6 +190,21 @@ A view with a list of stories receives:
 | `total` | How many public stories the list holds, formatted. |
 | `sorts` | The ways to order the list, each `{label, url, current}`. Show them as links and mark the current one in a way that does not rely on colour alone. |
 | `pagination` | `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. |
+
+### Account pages (`account`)
+
+Sign-in, registration, email confirmation, password reset and the profile are all the `account` view, told apart by the variant: `sign-in`, `register`, `resend`, `forgot`, `reset`, `profile` and `message` (a page that only reports a result). A theme can draw every one of them with a single `account.php`, or give one page its own look with `account-{variant}.php`. A theme that has no `account.php`, or no `account-form` part, uses the built-in theme's, so the pages always work.
+
+| Name | Contents |
+| ---- | -------- |
+| `intro` | A sentence of introduction, or empty. |
+| `notices` | Messages to show, each `{type, text}` where the type is `success`, `info`, `warning` or `error`. Give errors `role="alert"` and the rest `role="status"`. |
+| `forms` | The forms on the page, each a bundled description. Hand each one to `lf_part('account-form', ['form' => $form])` and let the part draw it. |
+| `links` | Links to other account pages, each `{label, url}`. |
+
+A form is `{action, csrf_token, submit, heading, fields, errors}`. The part prints the hidden `csrf_token` field itself, which every form must carry. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
+
+Do not change the field names or the form's `action`: the account controller reads them.
 
 Later views add their own data here as they are built.
 

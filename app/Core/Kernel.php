@@ -55,7 +55,9 @@ use LumoraFiction\Core\Security\TokenService;
 use LumoraFiction\Core\Theme\StaffNavigation;
 use LumoraFiction\Core\Theme\ThemeCatalog;
 use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Controllers\AccountController;
 use LumoraFiction\Controllers\ArchiveController;
+use LumoraFiction\Core\Theme\AccountNavigation;
 use LumoraFiction\Controllers\PublicController;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\TermType;
@@ -179,9 +181,11 @@ final class Kernel
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $presenter = new StoryPresenter();
+        $flash = new FlashMessages($sessions);
+        $editorSettings = new EditorSettings($config, $database, $audit);
 
-        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter);
+        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -193,8 +197,11 @@ final class Kernel
     /**
      * The public site's own addresses. Plugins add theirs through routes_register, after these.
      */
-    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter): void
+    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings): void
     {
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit);
+        (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
+
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
         $archive = new ArchiveController(
             $kernel->themes,
@@ -213,6 +220,24 @@ final class Kernel
         $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
         $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
 
+        $kernel->router->get(PublicUrl::SIGN_IN, $account->showSignIn(...), 'account.sign_in');
+        $kernel->router->post(PublicUrl::SIGN_IN, $account->signIn(...), 'account.sign_in.submit');
+        $kernel->router->post(PublicUrl::SIGN_OUT, $account->signOut(...), 'account.sign_out');
+        $kernel->router->get(PublicUrl::REGISTER, $account->showRegister(...), 'account.register');
+        $kernel->router->post(PublicUrl::REGISTER, $account->register(...), 'account.register.submit');
+        $kernel->router->get(PublicUrl::VERIFY, $account->verify(...), 'account.verify');
+        $kernel->router->get(PublicUrl::RESEND, $account->showResend(...), 'account.resend');
+        $kernel->router->post(PublicUrl::RESEND, $account->resend(...), 'account.resend.submit');
+        $kernel->router->get(PublicUrl::FORGOT, $account->showForgot(...), 'account.forgot');
+        $kernel->router->post(PublicUrl::FORGOT, $account->forgot(...), 'account.forgot.submit');
+        $kernel->router->get(PublicUrl::RESET, $account->showReset(...), 'account.reset');
+        $kernel->router->post(PublicUrl::RESET, $account->reset(...), 'account.reset.submit');
+        $kernel->router->get(PublicUrl::PROFILE, $account->profile(...), 'account.profile');
+        $kernel->router->post(PublicUrl::PROFILE . '/name', $account->updateName(...), 'account.profile.name');
+        $kernel->router->post(PublicUrl::PROFILE . '/email', $account->updateEmail(...), 'account.profile.email');
+        $kernel->router->post(PublicUrl::PROFILE . '/password', $account->updatePassword(...), 'account.profile.password');
+        $kernel->router->post(PublicUrl::PROFILE . '/editor', $account->updateEditor(...), 'account.profile.editor');
+
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
         $kernel->router->get(PublicUrl::AUTHOR, $archive->author(...), 'author');
@@ -226,12 +251,10 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings): void
     {
-        $flash = new FlashMessages($kernel->sessions);
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
-        $editorSettings = new EditorSettings($kernel->config, $kernel->database, $kernel->audit);
         $editor = new ContentEditor($view, $editorSettings, $version);
 
         AdminRoutes::register(

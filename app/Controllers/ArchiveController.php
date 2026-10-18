@@ -246,7 +246,7 @@ final class ArchiveController
      */
     private function signInUrl(): string
     {
-        return AdminUrl::to('login');
+        return PublicUrl::account('sign-in');
     }
 
     /**

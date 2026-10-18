@@ -48,6 +48,7 @@ final class ThemeRenderer
         'archive' => ['archive', 'index'],
         'search' => ['search', 'archive', 'index'],
         'page' => ['page', 'index'],
+        'account' => ['account', 'page', 'index'],
         '404' => ['404', 'index'],
     ];
 

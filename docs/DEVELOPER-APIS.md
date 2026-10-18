@@ -36,7 +36,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `lf_scripts` | `array<string, string>` handle => path | Add scripts to every public page, loaded with `defer`. Same rule for paths. |
 | `lf_body_class` | `list<string>`, plus the view | Add classes to the body of a public page. Names that are not plain class names are dropped. |
 | `lf_document_title` | `string`, plus the view | Change the whole `<title>` of a public page. The result is escaped. |
-| `lf_navigation_items` | list of `{label, url, current?}` | Add items to the public main menu. An entry whose address is not a path on this site is dropped. |
+| `lf_navigation_items` | list of `{label, url, current?}` | Add items to the public main menu. An entry whose address is not a path on this site is dropped. Core adds Sign in and Register for visitors, Account for signed-in members, and Admin for staff. |
 | `theme_option_fields` | list of field definitions | Declare the options of the active theme. See `THEME-DEVELOPMENT.md`. |
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
