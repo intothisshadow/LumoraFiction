@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Models\SearchQuery;
 use LumoraFiction\Models\Story;
 
 /**
@@ -27,6 +28,9 @@ use LumoraFiction\Models\Story;
 final class PublicArchive
 {
     public const PAGE_SIZE = 20;
+
+    /** The most matches a search counts or pages through; a narrower search is the way to see more. */
+    public const SEARCH_LIMIT = 1000;
 
     public const DEFAULT_SORT = 'updated';
 
@@ -102,6 +106,101 @@ final class PublicArchive
             . ' ORDER BY ' . self::ORDER[self::sortOrDefault($sort)] . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
             ['term' => $termId],
         ));
+    }
+
+    /**
+     * @return list<Story>
+     */
+    public function search(SearchQuery $query, int $limit, int $offset): array
+    {
+        [$where, $params] = $this->searchCondition($query);
+
+        return $this->stories->fromRows($this->database->fetchAll(
+            'SELECT s.* FROM {prefix}stories s WHERE ' . $where
+            . ' ORDER BY ' . self::ORDER[self::sortOrDefault($query->sort)] . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, min(self::SEARCH_LIMIT, $offset)),
+            $params,
+        ));
+    }
+
+    /**
+     * The number of matches, stopping at SEARCH_LIMIT. Counting further would cost a full scan on a large archive
+     * for a number nobody reads, and pages past the cap are never offered.
+     */
+    public function countSearch(SearchQuery $query): int
+    {
+        [$where, $params] = $this->searchCondition($query);
+
+        return (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM (SELECT 1 FROM {prefix}stories s WHERE ' . $where . ' LIMIT ' . (self::SEARCH_LIMIT + 1) . ') matches',
+            $params,
+        );
+    }
+
+    /**
+     * The languages public stories are written in, for the language filter.
+     *
+     * @return list<string>
+     */
+    public function languages(): array
+    {
+        $rows = $this->database->fetchAll(
+            'SELECT DISTINCT s.language FROM {prefix}stories s WHERE ' . StoryVisibility::publicCondition('s') . ' ORDER BY s.language LIMIT 100',
+        );
+
+        return array_values(array_map(static fn (array $row): string => (string) $row['language'], $rows));
+    }
+
+    /**
+     * Every clause is a bound parameter; the visibility rule comes first and cannot be loosened by any filter.
+     *
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function searchCondition(SearchQuery $query): array
+    {
+        $where = [StoryVisibility::publicCondition('s')];
+        $params = [];
+
+        foreach ($query->words as $index => $word) {
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
+            $where[] = "(s.title LIKE :w{$index}_title OR s.summary LIKE :w{$index}_summary"
+                . " OR EXISTS (SELECT 1 FROM {prefix}users wu WHERE wu.id = s.owner_id AND wu.display_name LIKE :w{$index}_author)"
+                . " OR EXISTS (SELECT 1 FROM {prefix}story_terms wst JOIN {prefix}terms wt ON wt.id = wst.term_id"
+                . " WHERE wst.story_id = s.id AND wt.type = 'tag' AND wt.name LIKE :w{$index}_tag))";
+
+            foreach (['title', 'summary', 'author', 'tag'] as $field) {
+                $params["w{$index}_{$field}"] = $like;
+            }
+        }
+
+        $position = 0;
+
+        foreach ($query->termIds as $termId) {
+            $where[] = "EXISTS (SELECT 1 FROM {prefix}story_terms ft{$position} WHERE ft{$position}.story_id = s.id AND ft{$position}.term_id = :term{$position})";
+            $params["term{$position}"] = $termId;
+            $position++;
+        }
+
+        if ($query->status !== null) {
+            $where[] = 's.work_status = :work_status';
+            $params['work_status'] = $query->status->value;
+        }
+
+        if ($query->language !== '') {
+            $where[] = 's.language = :language';
+            $params['language'] = $query->language;
+        }
+
+        if ($query->minWords !== null) {
+            $where[] = 's.word_count >= :min_words';
+            $params['min_words'] = $query->minWords;
+        }
+
+        if ($query->maxWords !== null) {
+            $where[] = 's.word_count <= :max_words';
+            $params['max_words'] = $query->maxWords;
+        }
+
+        return [implode(' AND ', $where), $params];
     }
 
     /**

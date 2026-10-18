@@ -22,6 +22,7 @@ use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Errors\ErrorHandler;
 use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\BasePath;
+use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Services\ThemeOptions;
 use Throwable;
@@ -275,7 +276,10 @@ final class ThemeRenderer
     private function navigation(string $view): array
     {
         $home = BasePath::get() . '/';
-        $items = $this->hooks->applyFilters('lf_navigation_items', [['label' => 'Home', 'url' => $home, 'current' => $view === 'home']]);
+        $items = $this->hooks->applyFilters('lf_navigation_items', [
+            ['label' => 'Home', 'url' => $home, 'current' => $view === 'home'],
+            ['label' => 'Search', 'url' => BasePath::get() . PublicUrl::SEARCH, 'current' => $view === 'search'],
+        ]);
         $clean = [];
 
         foreach (is_array($items) ? $items : [] as $item) {

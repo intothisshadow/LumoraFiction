@@ -32,6 +32,8 @@ final class PublicUrl
 
     public const AUTHOR = '/author/{slug}';
 
+    public const SEARCH = '/search';
+
     public const SIGN_IN = '/account/sign-in';
 
     public const SIGN_OUT = '/account/sign-out';
@@ -54,6 +56,18 @@ final class PublicUrl
     public static function account(string $page): string
     {
         return BasePath::get() . '/account/' . $page;
+    }
+
+    /**
+     * The search page with the given values, leaving out the empty ones so the address stays short.
+     *
+     * @param array<string, string|int|null> $values
+     */
+    public static function search(array $values = []): string
+    {
+        $values = array_filter($values, static fn (string|int|null $value): bool => $value !== null && $value !== '');
+
+        return BasePath::get() . self::SEARCH . ($values === [] ? '' : '?' . http_build_query($values, '', '&', PHP_QUERY_RFC3986));
     }
 
     public static function story(string $slug): string

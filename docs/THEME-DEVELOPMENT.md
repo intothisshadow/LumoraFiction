@@ -206,6 +206,17 @@ A form is `{action, csrf_token, submit, heading, fields, errors}`. The part prin
 
 Do not change the field names or the form's `action`: the account controller reads them.
 
+### Search (`search`)
+
+The search page tries `search.php`, then `archive.php`, then `index.php`. A theme that has no `search.php` falls back to `archive.php`, which has no form, so a theme should supply one (the built-in theme draws a form of its own if a theme has none). It receives the story-list data above, except that the page has no `sorts` (sorting is a field of the form) and `total` can read "More than 1,000", because a search counts no further than that and offers no page past the thousandth result.
+
+| Name | Contents |
+| ---- | -------- |
+| `forms` | A list holding the one search form, `{action, submit, reset_url, filtered, fields}`. It is a plain `GET` form with no `csrf_token`. Hand it to a part such as `search-form`. A field is `{id, name, label, type, value, hint, options}`; the type is `search`, `text`, `number` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()` and do not change the field names: the page reads them from the address. `filtered` is true while anything narrows the search, which is the time to open a disclosure of filters and to show **Clear search**. |
+| `filters` | What the search is narrowed by, each `{label, remove_url}`. Show them as links that remove just that filter. |
+| `notices` | Messages, each `{type, text}`. A search that is too long, too wide, or made only of one-letter words is refused and explained here instead of run. |
+| `searched` | True when words or filters are in use. Use it to say "no stories match" instead of "no stories yet". |
+
 Later views add their own data here as they are built.
 
 ## Hooks for features

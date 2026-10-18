@@ -34,6 +34,8 @@ use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\SearchPresenter;
+use LumoraFiction\Services\SearchQueryParser;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
@@ -64,7 +66,49 @@ final class ArchiveController
         private readonly ContentRenderer $renderer,
         private readonly AuthService $auth,
         private readonly Configuration $config,
+        private readonly SearchQueryParser $searchParser,
+        private readonly SearchPresenter $searchPresenter,
     ) {
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function search(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($request): Response {
+            ['query' => $query, 'notice' => $notice] = $this->searchParser->parse($request->query);
+
+            // A refused search runs nothing, so it shows no stories rather than the whole archive.
+            $matches = $notice === '' ? $this->archive->countSearch($query) : 0;
+            $capped = $matches > PublicArchive::SEARCH_LIMIT;
+            $total = min($matches, PublicArchive::SEARCH_LIMIT);
+            $pages = max(1, (int) ceil($total / PublicArchive::PAGE_SIZE));
+            $requested = $request->queryValue('page');
+            $page = $requested === null ? 1 : (preg_match('/^[1-9][0-9]{0,8}\z/', $requested) === 1 ? (int) $requested : 0);
+
+            if ($page < 1 || $page > $pages) {
+                return $this->themes->notFound();
+            }
+
+            $stories = $total === 0 ? [] : $this->archive->search($query, PublicArchive::PAGE_SIZE, ($page - 1) * PublicArchive::PAGE_SIZE);
+            $profiles = $this->users->publicProfiles(array_map(static fn (Story $story): int => $story->ownerId, $stories));
+
+            return $this->themes->render('search', [
+                'title' => 'Search',
+                'total' => ($capped ? 'More than ' : '') . number_format($total),
+                'stories' => $this->cards($stories, $profiles),
+                'forms' => [$this->searchPresenter->form($query)],
+                'filters' => $this->searchPresenter->active($query),
+                'notices' => $notice === '' ? [] : [['type' => 'warning', 'text' => $notice]],
+                'searched' => $query->isNarrowed(),
+                'pagination' => [
+                    'page' => $page,
+                    'pages' => $pages,
+                    'url' => $this->searchPresenter->pageUrl($query),
+                ],
+            ], 200, ['title' => 'Search', 'noindex' => $query->isNarrowed()]);
+        });
     }
 
     /**

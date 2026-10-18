@@ -218,6 +218,15 @@ a:focus-visible {
     margin: 0 0 1rem;
 }
 
+.lf-filters__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
 .lf-button {
     display: inline-block;
     padding: 0.5rem 1.1rem;

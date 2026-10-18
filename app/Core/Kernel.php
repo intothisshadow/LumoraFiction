@@ -63,6 +63,8 @@ use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\ArchiveSettings;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\SearchPresenter;
+use LumoraFiction\Services\SearchQueryParser;
 use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
@@ -203,20 +205,25 @@ final class Kernel
         (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
 
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
+        $publicArchive = new PublicArchive($kernel->database, $stories);
+        $searchParser = new SearchQueryParser($taxonomy);
         $archive = new ArchiveController(
             $kernel->themes,
             $stories,
             $chapters,
             $taxonomy,
             $kernel->users,
-            new PublicArchive($kernel->database, $stories),
+            $publicArchive,
             $presenter,
             $renderer,
             $kernel->auth,
             $kernel->config,
+            $searchParser,
+            new SearchPresenter($taxonomy, $searchParser, $publicArchive),
         );
 
         $kernel->router->get('/', $archive->home(...), 'home');
+        $kernel->router->get(PublicUrl::SEARCH, $archive->search(...), 'search');
         $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
         $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
 

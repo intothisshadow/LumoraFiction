@@ -514,6 +514,67 @@ img {
     font-weight: 700;
 }
 
+/* Search: the form keeps the filters in a disclosure, and each filter in use is a link that removes it. */
+
+.lf-search-form {
+    max-width: none;
+}
+
+.lf-search-form__field {
+    margin: 0 0 1rem;
+}
+
+.lf-search-form__more {
+    margin: 0 0 0.5rem;
+}
+
+.lf-search-form__summary {
+    margin: 0 0 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.lf-search-form__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0 1.25rem;
+}
+
+.lf-search-form__reset {
+    margin-inline-start: 1rem;
+}
+
+.lf-filters {
+    margin: 0 0 1.25rem;
+}
+
+.lf-filters__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-filters__item {
+    margin: 0;
+}
+
+.lf-filters__link {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    font-size: 0.95rem;
+    text-decoration: none;
+}
+
+.lf-filters__remove {
+    margin-inline-start: 0.25rem;
+    color: var(--lf-muted);
+}
+
 .lf-home__stories {
     margin-top: 1rem;
 }
@@ -1023,6 +1084,7 @@ a.lf-term-link:hover {
     .lf-chapter-nav,
     .lf-pagination,
     .lf-sort,
+    .lf-search-form,
     .lf-js-only {
         display: none !important;
     }
