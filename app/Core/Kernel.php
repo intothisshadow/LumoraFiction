@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Core;
 
 use LumoraFiction\Controllers\Admin\AdminRoutes;
+use LumoraFiction\Controllers\Admin\AppearanceController;
 use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
 use LumoraFiction\Controllers\Admin\ChapterController;
 use LumoraFiction\Controllers\Admin\ContentEditorController;
@@ -51,14 +52,20 @@ use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Core\Security\SecurityHeaders;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Core\Theme\ThemeCatalog;
+use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Controllers\PublicController;
 use LumoraFiction\Services\ArchiveSettings;
 use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
+use LumoraFiction\Services\ThemeOptions;
+use LumoraFiction\Services\ThemeSettings;
 use LumoraFiction\Services\UserService;
 
 /**
@@ -77,6 +84,7 @@ final class Kernel
         public readonly UserService $users,
         public readonly AuthService $auth,
         public readonly AuditLogService $audit,
+        public readonly ThemeRenderer $themes,
         private readonly bool $isHttps = false,
     ) {
     }
@@ -118,7 +126,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -146,9 +154,20 @@ final class Kernel
 
         $audit = new AuditLogService($database);
 
-        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $isHttps);
+        // The template tags are plain functions so a theme can call them; they only forward to ThemeContext.
+        require_once __DIR__ . '/../Helpers/template-tags.php';
 
-        self::registerAdmin($kernel, $root);
+        /** @var array{version: string} $version */
+        $version = require $root . '/version.php';
+
+        $themeCatalog = new ThemeCatalog($root . '/content/themes', __DIR__ . '/Theme/fallback');
+        $themeOptions = new ThemeOptions($config, $hooks, $audit);
+        $themes = new ThemeRenderer($themeCatalog, $config, $hooks, $themeOptions, $errors, $version['version']);
+
+        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps);
+
+        self::registerPublic($kernel, $themeOptions);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -158,22 +177,32 @@ final class Kernel
     }
 
     /**
+     * The public site's own addresses. Plugins add theirs through routes_register, after these.
+     */
+    private static function registerPublic(self $kernel, ThemeOptions $themeOptions): void
+    {
+        $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
+
+        $kernel->router->get('/', $public->home(...), 'home');
+        $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
+        $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
+    }
+
+    /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions): void
     {
-        /** @var array{version: string} $version */
-        $version = require $root . '/version.php';
-
         $flash = new FlashMessages($kernel->sessions);
-        $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version['version']);
+        $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
         $editorSettings = new EditorSettings($kernel->config, $kernel->database, $kernel->audit);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
         $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
-        $editor = new ContentEditor($view, $editorSettings, $version['version']);
+        $editor = new ContentEditor($view, $editorSettings, $version);
+        $presenter = new StoryPresenter();
 
         AdminRoutes::register(
             $kernel->router,
@@ -183,9 +212,10 @@ final class Kernel
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
-            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users),
-            new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter),
+            new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
+            new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit), $themeOptions),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
         );
     }
@@ -211,17 +241,7 @@ final class Kernel
             return;
         }
 
-        if (!headers_sent()) {
-            http_response_code($resolution->status);
-
-            if ($resolution->status === 405) {
-                header('Allow: ' . implode(', ', $resolution->allowedMethods));
-            }
-
-            header('Content-Type: text/html; charset=utf-8');
-        }
-
-        $this->renderStatusPage($resolution->status);
+        $this->statusResponse($resolution->status, $resolution->allowedMethods)->send();
     }
 
     /**
@@ -249,15 +269,32 @@ final class Kernel
         SecurityHeaders::send($this->responseHeaders());
     }
 
-    private function renderStatusPage(int $status): void
+    /**
+     * The page for an address that matched nothing, or matched with another method. The active theme draws it;
+     * if the theme layer itself fails, a bare page is sent so a visitor never sees an error for a missing page.
+     *
+     * @param list<string> $allowedMethods
+     */
+    private function statusResponse(int $status, array $allowedMethods): Response
     {
         $title = $status === 405 ? 'Method not allowed' : 'Page not found';
         $message = $status === 405
             ? 'That action is not available for this address.'
             : 'The page you are looking for does not exist.';
 
-        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
-            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<title>' . $title . '</title></head><body><h1>' . $title . '</h1><p>' . $message . '</p></body></html>';
+        try {
+            $response = $this->themes->render('404', ['message' => $message], $status, ['title' => $title, 'noindex' => true]);
+        } catch (\Throwable $exception) {
+            $this->errors->report($exception);
+
+            $response = Response::html(
+                '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+                . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+                . '<title>' . $title . '</title></head><body><h1>' . $title . '</h1><p>' . $message . '</p></body></html>',
+                $status,
+            );
+        }
+
+        return $status === 405 ? $response->withHeader('Allow', implode(', ', $allowedMethods)) : $response;
     }
 }

@@ -1,0 +1,209 @@
+/*
+Theme Name: Built-in theme
+Version: 1.0
+Author: Lumora Fiction
+Description: A plain theme that keeps the site readable when no other theme is available.
+*/
+
+:root {
+    color-scheme: light dark;
+    --lf-fb-bg: #ffffff;
+    --lf-fb-text: #1d1d1f;
+    --lf-fb-muted: #5b5b61;
+    --lf-fb-link: #0b57a4;
+    --lf-fb-border: #d4d4d8;
+    --lf-fb-surface: #f5f5f7;
+    --lf-fb-info-bg: #e8f1fb;
+    --lf-fb-info-border: #9cc2ea;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --lf-fb-bg: #17171a;
+        --lf-fb-text: #ececf0;
+        --lf-fb-muted: #a8a8b3;
+        --lf-fb-link: #8fbcf0;
+        --lf-fb-border: #3a3a42;
+        --lf-fb-surface: #202025;
+        --lf-fb-info-bg: #1b2a3b;
+        --lf-fb-info-border: #3d6694;
+    }
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--lf-fb-bg);
+    color: var(--lf-fb-text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+}
+
+a {
+    color: var(--lf-fb-link);
+}
+
+a:focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+}
+
+.lf-skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    padding: 0.5rem 1rem;
+    background: var(--lf-fb-surface);
+    color: var(--lf-fb-text);
+    border: 1px solid var(--lf-fb-border);
+}
+
+.lf-skip-link:focus {
+    top: 1rem;
+}
+
+.lf-site-header,
+.lf-main,
+.lf-site-footer {
+    width: min(100% - 2rem, 46rem);
+    margin-inline: auto;
+}
+
+.lf-site-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--lf-fb-border);
+}
+
+.lf-site-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.lf-nav__list,
+.lf-pagination__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-nav__item--current .lf-nav__link {
+    font-weight: 700;
+}
+
+.lf-main {
+    padding-block: 1.5rem 3rem;
+}
+
+.lf-site-footer {
+    padding-block: 1rem 2rem;
+    border-top: 1px solid var(--lf-fb-border);
+    color: var(--lf-fb-muted);
+    font-size: 0.875rem;
+}
+
+.lf-notice {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--lf-fb-border);
+    border-radius: 4px;
+}
+
+.lf-notice--info {
+    background: var(--lf-fb-info-bg);
+    border-color: var(--lf-fb-info-border);
+}
+
+.lf-preview-banner {
+    width: min(100% - 2rem, 46rem);
+    margin: 0.75rem auto;
+}
+
+.lf-page__title,
+.lf-story__title,
+.lf-chapter__title {
+    margin-block: 0 0.5rem;
+    line-height: 1.25;
+}
+
+.lf-story__byline,
+.lf-story__meta,
+.lf-chapter__meta,
+.lf-chapter__story,
+.lf-chapter-list__meta {
+    margin: 0 0 0.25rem;
+    color: var(--lf-fb-muted);
+}
+
+.lf-story__terms {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 1rem 0;
+}
+
+.lf-story__term-label {
+    font-weight: 700;
+}
+
+.lf-story__term-list {
+    margin: 0;
+}
+
+.lf-story__section-title {
+    margin-block: 1.5rem 0.5rem;
+    font-size: 1.1rem;
+}
+
+.lf-chapter-list {
+    padding-left: 1.25rem;
+}
+
+.lf-chapter-list__item {
+    margin-block: 0.25rem;
+}
+
+.lf-chapter__notes {
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    background: var(--lf-fb-surface);
+    border-left: 4px solid var(--lf-fb-border);
+}
+
+.lf-chapter__text {
+    margin-block: 1.5rem;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.125rem;
+    line-height: 1.8;
+}
+
+.lf-chapter__nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.lf-pagination {
+    margin-block: 1.5rem;
+}
+
+@media print {
+    .lf-skip-link,
+    .lf-site-header,
+    .lf-site-footer,
+    .lf-chapter__nav,
+    .lf-preview-banner {
+        display: none;
+    }
+}

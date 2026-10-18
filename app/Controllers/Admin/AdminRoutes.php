@@ -36,6 +36,7 @@ final class AdminRoutes
         StoryController $stories,
         ChapterController $chapters,
         ReviewController $review,
+        AppearanceController $appearance,
         SystemInformationController $systemInformation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
@@ -89,6 +90,10 @@ final class AdminRoutes
         $router->post('/admin/review/{id}/approve', $review->approve(...));
         $router->get('/admin/review/{id}/reject', $review->showReject(...));
         $router->post('/admin/review/{id}/reject', $review->reject(...));
+        $router->get('/admin/appearance', $appearance->themes(...), 'admin.appearance');
+        $router->post('/admin/appearance/activate', $appearance->activate(...), 'admin.appearance.activate');
+        $router->get('/admin/appearance/options', $appearance->showOptions(...), 'admin.appearance.options');
+        $router->post('/admin/appearance/options', $appearance->saveOptions(...));
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
     }

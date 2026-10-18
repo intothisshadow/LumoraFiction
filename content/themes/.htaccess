@@ -1,0 +1,7 @@
+# Theme templates are included by the application and never meant to be requested on their own;
+# only a theme's stylesheet, scripts, images and fonts are served to browsers.
+<FilesMatch "\.(php|phtml|phar|php[0-9]*|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes -ExecCGI

@@ -65,6 +65,16 @@ final class AdminMenu
                 'children' => [],
             ],
             [
+                'slug' => 'appearance',
+                'label' => 'Appearance',
+                'path' => 'appearance',
+                'capability' => Capability::ManageSite,
+                'children' => [
+                    ['slug' => 'appearance-themes', 'label' => 'Themes', 'path' => 'appearance', 'capability' => Capability::ManageSite],
+                    ['slug' => 'appearance-options', 'label' => 'Theme options', 'path' => 'appearance/options', 'capability' => Capability::ManageSite],
+                ],
+            ],
+            [
                 'slug' => 'settings',
                 'label' => 'Settings',
                 'path' => 'settings/archive',

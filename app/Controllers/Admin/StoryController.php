@@ -23,7 +23,9 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
+use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Models\Term;
@@ -33,6 +35,7 @@ use LumoraFiction\Models\WorkStatus;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\StoryPermissionException;
+use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\StoryValidationException;
 use LumoraFiction\Services\TaxonomyService;
@@ -66,6 +69,8 @@ final class StoryController extends WriterController
         private readonly ChapterService $chapters,
         private readonly TaxonomyService $taxonomy,
         private readonly UserService $users,
+        private readonly ThemeRenderer $themes,
+        private readonly StoryPresenter $presenter,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -331,14 +336,22 @@ final class StoryController extends WriterController
             return $this->missing('That story is not available.');
         }
 
-        return $this->view->render('story-preview', [
-            'story' => $story,
-            'owner' => $this->users->displayNames([$story->ownerId])[$story->ownerId] ?? '',
-            'terms' => $this->taxonomy->termsForStory($story->id),
-            'chapters' => $this->chapters->listForWriter($user, $story->id),
-            'editUrl' => AdminUrl::to(self::PATH . '/' . $story->id),
-            'chapterPreviewUrl' => AdminUrl::to('chapters'),
-        ], $user, 'Preview: ' . $story->title, self::PATH, $this->flash->pull($request->cookies));
+        $data = $this->presenter->story(
+            $story,
+            $this->users->displayNames([$story->ownerId])[$story->ownerId] ?? '',
+            $this->taxonomy->termsForStory($story->id),
+            $this->chapters->listForWriter($user, $story->id),
+            AdminUrl::to(self::PATH . '/' . $story->id . '/preview'),
+            static fn (Chapter $chapter): string => AdminUrl::to('chapters/' . $chapter->id . '/preview'),
+            true,
+        );
+
+        // A preview is the page readers will get, so it goes through the active theme; it is private and never indexed.
+        return $this->themes->render('story', $data, 200, [
+            'title' => $story->title,
+            'noindex' => true,
+            'preview' => ['label' => strtolower($story->state->label()), 'edit_url' => AdminUrl::to(self::PATH . '/' . $story->id)],
+        ])->withHeader('Cache-Control', 'private, no-store');
     }
 
     private function listScreen(Request $request, string $scope): Response

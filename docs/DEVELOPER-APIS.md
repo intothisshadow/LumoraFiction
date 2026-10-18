@@ -24,11 +24,20 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `routes_register` | `Router $router` | While the application starts, before any request is matched. Register routes here. |
 | `kernel_booted` | `Kernel $kernel` | When the core services are ready. |
 | `story_state_changed` | `Story $story`, `PublicationState $from`, `User $actor`, `string $reason` | After a story's publication state has changed and been saved: submitted, published, approved, sent back, withdrawn or unpublished. `$story` is the story as it is now and `$from` its earlier state. `$reason` is the reviewer's note when a story is sent back or taken down in bulk, and an empty string otherwise. Use it to notify people; a callback that fails cannot undo the change. |
+| `lf_head` | `string $view` | While a public page prints its `<head>`, after the stylesheets. Print markup the page needs there. |
+| `lf_body_open` | `string $view` | Right after the opening `<body>` of a public page. |
+| `lf_footer` | `string $view` | Just before the closing `</body>` of a public page, after queued scripts. |
 
 ## Filters
 
 | Filter | Value | Purpose |
 | ------ | ----- | ------- |
+| `lf_styles` | `array<string, string>` handle => path | Add stylesheets to every public page. Paths must start with a single `/`; anything else is dropped. |
+| `lf_scripts` | `array<string, string>` handle => path | Add scripts to every public page, loaded with `defer`. Same rule for paths. |
+| `lf_body_class` | `list<string>`, plus the view | Add classes to the body of a public page. Names that are not plain class names are dropped. |
+| `lf_document_title` | `string`, plus the view | Change the whole `<title>` of a public page. The result is escaped. |
+| `lf_navigation_items` | list of `{label, url, current?}` | Add items to the public main menu. An entry whose address is not a path on this site is dropped. |
+| `theme_option_fields` | list of field definitions | Declare the options of the active theme. See `THEME-DEVELOPMENT.md`. |
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
 | `content_html` | `string` HTML, plus the `ContentFormat` | Adjust the final HTML of a chapter just before it is shown. The result is sanitised again, so a plugin cannot add scripts, images or other elements the allowlist refuses. |
@@ -119,6 +128,17 @@ Emailed links are built from the `site_url` value in `config/config.php`, never 
 - `EditorMode` (`Visual`, `Markdown`, `Html`, `Plain`) is what a writer picks; `Visual` and `Html` both store HTML. `EditorSettings::modeFor($userId, $storedFormat)` decides which mode the editor opens in, honouring the site default, the lock, and each writer's own choice (`setUserMode()`).
 - Screens place the editor with `ContentEditor::render($user, 'content', $text, $storedFormat)`, inside their own `<form>`. It prints a textarea, a hidden `content_format` field to save with the text, Save draft and Publish buttons (replaceable with the `actions` option), and loads its scripts and styles from `admin/assets/`. The form must be wrapped in CSRF protection as usual.
 - The editor script calls `POST /admin/content/preview` and `POST /admin/content/convert`. Both answer JSON, need the `WriteStories` capability, and take a single-use token that every answer replaces. They store nothing.
+
+## Public pages and themes
+
+Public pages are drawn by the active theme. How to write a theme, every template tag, and the data each view receives are in `THEME-DEVELOPMENT.md`; this section is for code that produces a page.
+
+- Build the page's data as one array of plain values and call `ThemeRenderer::render(string $view, array $data = [], int $status = 200, array $page = []): Response`. The views are `home`, `story`, `chapter`, `author`, `archive`, `search`, `page` and `404`. `$page` may hold `title` (the page title without the site name), `noindex` (adds a robots meta tag and header), `variant` (a more specific template to try first) and `preview` (`['label' => ..., 'edit_url' => ...]`, which adds the preview notice).
+- Strings in the data are always escaped when a theme prints them. Wrap text that has already passed through the content pipeline in `Core\Theme\SafeHtml`; nothing else is printed as markup.
+- `StoryPresenter` builds the data for a story page and a chapter page. A preview and the public pages use it, so both hand a theme the same shape. Add a field there and it reaches every theme. It deliberately holds no owner id, rejection reason or login name.
+- The renderer is on the kernel as `$kernel->themes`. `$kernel->themes->activeTheme()` returns the theme in use (the built-in one when the chosen theme is missing) and `bootTheme()` runs its `functions.php` once. If a theme fails while drawing a page the renderer logs the error and draws the page again with the built-in theme.
+- A response from a preview or any page that shows non-public text should carry `Cache-Control: private, no-store`; the renderer does not add caching headers of its own.
+- The public addresses the theme layer registers are `/` (the home page), `/theme-options.css` (the stylesheet made from the active theme's options, empty until something is chosen) and `/theme-fallback.css` (the built-in theme's stylesheet).
 
 ## Admin screens
 

@@ -24,6 +24,8 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Theme\SafeHtml;
+use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\ContentFormat;
 use LumoraFiction\Models\PublicationState;
@@ -33,8 +35,10 @@ use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\StoryPermissionException;
+use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\StoryValidationException;
+use LumoraFiction\Services\UserService;
 
 /**
  * Permission follows the story, and the services decide it. A chapter or story that does not exist and one
@@ -56,6 +60,9 @@ final class ChapterController extends WriterController
         private readonly ChapterService $chapters,
         private readonly ContentEditor $editor,
         private readonly ContentRenderer $renderer,
+        private readonly UserService $users,
+        private readonly ThemeRenderer $themes,
+        private readonly StoryPresenter $presenter,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -332,16 +339,22 @@ final class ChapterController extends WriterController
             }
         }
 
-        return $this->view->render('chapter-preview', [
-            'story' => $story,
-            'chapter' => $chapter,
-            'html' => $this->renderer->render($chapter->content, $chapter->format),
-            'previous' => $previous,
-            'next' => $next,
-            'editUrl' => AdminUrl::to('chapters/' . $chapter->id),
-            'storyPreviewUrl' => AdminUrl::to(self::PATH . '/' . $story->id . '/preview'),
-            'chapterPreviewUrl' => AdminUrl::to('chapters'),
-        ], $user, 'Preview: ' . ($chapter->title !== '' ? $chapter->title : 'Chapter ' . $chapter->number), self::PATH, $this->flash->pull($request->cookies));
+        $data = $this->presenter->chapter(
+            $story,
+            $this->users->displayNames([$story->ownerId])[$story->ownerId] ?? '',
+            $chapter,
+            new SafeHtml($this->renderer->render($chapter->content, $chapter->format)),
+            $previous,
+            $next,
+            AdminUrl::to(self::PATH . '/' . $story->id . '/preview'),
+            static fn (Chapter $other): string => AdminUrl::to('chapters/' . $other->id . '/preview'),
+        );
+
+        return $this->themes->render('chapter', $data, 200, [
+            'title' => $this->presenter->chapterTitle($chapter) . ' — ' . $story->title,
+            'noindex' => true,
+            'preview' => ['label' => strtolower($chapter->state->label()), 'edit_url' => AdminUrl::to('chapters/' . $chapter->id)],
+        ])->withHeader('Cache-Control', 'private, no-store');
     }
 
     /**

@@ -736,62 +736,53 @@ fieldset.lf-card legend {
     padding-left: 1.2rem;
 }
 
-.lf-preview-banner {
-    margin-bottom: 1.25rem;
-}
+/* Appearance */
 
-.lf-reader {
-    max-width: 42rem;
-    margin: 0 auto 2rem;
-    padding: 1.5rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    font: 1.05rem/1.8 Georgia, "Times New Roman", serif;
-}
-
-.lf-reader__title {
-    margin: 0 0 0.25rem;
-    font-size: 1.6rem;
-}
-
-.lf-reader__byline,
-.lf-reader__meta {
-    margin: 0 0 0.5rem;
-    color: var(--muted);
-    font: 0.9rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-.lf-reader__terms dt {
-    margin-top: 0.5rem;
-    font-weight: bold;
-}
-
-.lf-reader__terms dd {
-    margin: 0;
-}
-
-.lf-reader__chapters {
-    padding-left: 1.4rem;
-}
-
-.lf-reader__notes {
-    margin: 0 0 1.25rem;
-    padding: 0.5rem 1rem;
-    border-left: 3px solid var(--border);
-    color: var(--muted);
-    font-size: 0.95rem;
-}
-
-.lf-reader__text p {
-    margin: 0 0 1em;
-}
-
-.lf-reader__nav {
-    display: flex;
-    justify-content: space-between;
+.lf-theme-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
     gap: 1rem;
-    margin-top: 1.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-theme-card {
+    margin-bottom: 0;
+}
+
+.lf-theme-card--active {
+    border-color: var(--accent);
+    border-width: 2px;
+}
+
+.lf-theme-card__name {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+}
+
+.lf-badge {
+    display: inline-block;
+    padding: 0.05rem 0.5rem;
+    background: var(--accent);
+    color: var(--accent-text);
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: normal;
+    vertical-align: middle;
+}
+
+.lf-choice--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 1rem;
+}
+
+.lf-field .lf-choice--inline label {
+    display: inline;
+    margin: 0;
+    font-weight: normal;
 }
 
 /* Sign-in and other pages without a menu */
@@ -861,10 +852,6 @@ fieldset.lf-card legend {
     .lf-chapter-table {
         display: block;
         overflow-x: auto;
-    }
-
-    .lf-reader {
-        padding: 1rem;
     }
 
     .lf-bare {

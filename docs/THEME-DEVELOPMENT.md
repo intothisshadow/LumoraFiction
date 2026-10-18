@@ -1,0 +1,264 @@
+# Theme Development
+
+Reference for theme authors. It describes only what exists today and is updated whenever a template tag, a template rule, or a theme option changes.
+
+A theme is a folder of ordinary PHP templates and a stylesheet. There are no blocks, no `theme.json`, and no build step. A theme only draws pages: it never talks to the database, the request, or the configuration, and it never contains logic the application depends on.
+
+## A theme's files
+
+Put the theme in its own folder under `content/themes/`. The folder name is the theme's identifier: lower-case letters, digits and hyphens, starting with a letter.
+
+| File | Required | Purpose |
+| ---- | -------- | ------- |
+| `style.css` | Yes | The theme's stylesheet. Its first comment holds the theme's details (see below). |
+| `index.php` | Yes | The template every view falls back to. |
+| `header.php`, `footer.php`, `sidebar.php` | No | Pieces included with `lf_get_header()`, `lf_get_footer()` and `lf_get_sidebar()`. A piece the theme does not have is taken from the built-in theme. |
+| `home.php`, `story.php`, `chapter.php`, `author.php`, `archive.php`, `search.php`, `page.php`, `404.php` | No | Templates for one view each (see the hierarchy below). |
+| `single.php` | No | Shared by `story` and `chapter` when the theme has no template of its own for them. |
+| `parts/*.php` | No | Pieces included with `lf_part()`. |
+| `functions.php` | No | Runs once per request before the first template. Use it only to register hooks and declare theme options. |
+
+The theme's PHP files are included by the application. The web server refuses to serve them directly; only the stylesheet, scripts, images and fonts in the folder are sent to browsers.
+
+### The stylesheet header
+
+The first comment in `style.css` is read, never executed:
+
+```css
+/*
+Theme Name: Storybook
+Version: 1.0.0
+Author: Ariane
+Description: Warm, readable, generous spacing.
+*/
+```
+
+`Theme Name` and `Version` are required. The version must look like a version (`1`, `1.2`, `1.2.3`, `2.0-beta.1`). A folder without a valid header, or without `index.php`, is not offered as a theme. The names `Author` and `Description` are optional and are shown on the Appearance screen, escaped.
+
+## The template hierarchy
+
+Each view tries its templates in this order and uses the first one the theme has:
+
+| View | Tried in order |
+| ---- | -------------- |
+| `home` | `home.php`, `index.php` |
+| `story` | `story.php`, `single.php`, `index.php` |
+| `chapter` | `chapter.php`, `single.php`, `index.php` |
+| `author` | `author.php`, `archive.php`, `index.php` |
+| `archive` | `archive.php`, `index.php` |
+| `search` | `search.php`, `archive.php`, `index.php` |
+| `page` | `page.php`, `index.php` |
+| `404` | `404.php`, `index.php` |
+
+A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
+
+If the chosen theme is missing, cannot be read, or fails while drawing a page (an exception, a syntax error, a call to a function that does not exist), the problem is written to the error log and the page is drawn again by the built-in theme. Whatever the broken template had already printed is thrown away. A visitor never sees a half-drawn page.
+
+## A page, start to finish
+
+```php
+<?php lf_get_header(); ?>
+
+<article class="lf-story">
+    <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
+    <p class="lf-story__byline">by <?php lf_field('story.author'); ?></p>
+
+    <?php if (lf_has('story.summary')): ?>
+        <p><?php lf_field('story.summary'); ?></p>
+    <?php endif; ?>
+
+    <ol>
+        <?php foreach (lf_items('chapters') as $chapter): ?>
+            <li><a href="<?= lf_e($chapter['url']) ?>"><?= lf_e($chapter['title']) ?></a></li>
+        <?php endforeach; ?>
+    </ol>
+</article>
+
+<?php lf_get_footer(); ?>
+```
+
+A header usually looks like this:
+
+```php
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<?php lf_head(); ?>
+</head>
+<body class="<?php lf_body_class(); ?>">
+<?php lf_body_open(); ?>
+<header><a href="<?php lf_site_url(); ?>"><?php lf_site_name(); ?></a> <?php lf_navigation(); ?></header>
+<main id="lf-main">
+```
+
+and a footer ends with `</main>`, then `<?php lf_footer(); ?>`, then `</body></html>`.
+
+## Template tags
+
+Tags that print, print escaped text. A tag that returns a value returns it already escaped. Called when no page is being drawn, every tag does nothing.
+
+### Page structure
+
+| Tag | Purpose |
+| --- | ------- |
+| `lf_head()` | Everything inside `<head>`: character set, viewport, the title, a noindex notice when needed, the theme's own stylesheet, stylesheets that features add, the theme options stylesheet, and the `lf_head` action. A theme does not link its own stylesheet. |
+| `lf_body_open()` | Right after `<body>`: the preview notice on a preview, and the `lf_body_open` action. |
+| `lf_footer()` | Just before `</body>`: scripts that features add and the `lf_footer` action. |
+| `lf_body_class()` | The classes for `<body>`: `lf-view-{view}`, plus `lf-is-preview` on a preview. |
+| `lf_get_header()`, `lf_get_footer()`, `lf_get_sidebar()` | Include `header.php`, `footer.php` or `sidebar.php`, from the theme or else from the built-in theme. |
+| `lf_part(string $name, array $data = [])` | Include `parts/{name}.php`. The keys of `$data` become the variables of the part, so pass one array and let the part unpack it. A name may only hold lower-case letters, digits and hyphens. |
+| `lf_navigation(string $label = 'Main')` | The main menu as a list of links in a `nav` element. |
+| `lf_pagination()` | Previous and next links with a window of page numbers. Prints nothing when there is one page. |
+| `lf_is(string $view): bool` | Whether the page is the given view. |
+
+### Site facts and addresses
+
+| Tag | Purpose |
+| --- | ------- |
+| `lf_site_name()` | The site's name. |
+| `lf_title()` | The title of this page, without the site name. |
+| `lf_site_url(string $path = '')` | An address on this site, with the install's base directory. Anything that could name another site is dropped. |
+| `lf_theme_url(string $path = '')` | The address of a file in the theme's folder, such as `lf_theme_url('img/logo.svg')`. |
+| `lf_asset_url(string $path)` | The address of a file in the shared `assets/` folder, with a version for cache busting. |
+
+### The page's data
+
+The application hands each page its data as one array of plain values. Read it by dotted name:
+
+| Tag | Purpose |
+| --- | ------- |
+| `lf_field(string $path)` | Print a value, escaped. Numbers are printed as they are. A value the application marked as sanitised markup, such as a chapter's text, is printed as markup. |
+| `lf_value(string $path): string` | The same, returned, for building an attribute. |
+| `lf_has(string $path): bool` | Whether there is a non-empty value. |
+| `lf_items(string $path): array` | The entries of a list, to loop over. The values inside are **not** escaped: print them with `lf_e()`. |
+| `lf_term_links(string $path, string $separator = ', ')` | A list of `{name, url}` entries as links. An entry with no address is printed as plain text. |
+| `lf_e(mixed $value): string` | Escape a value for HTML text or a quoted attribute. |
+
+Never print a value from `lf_items()` without `lf_e()`.
+
+### Theme options
+
+| Tag | Purpose |
+| --- | ------- |
+| `lf_option(string $key)` | Print the value of one of the theme's options. |
+| `lf_option_enabled(string $key): bool` | Whether a checkbox option is on. |
+
+## The data each view receives
+
+### Story (`story`)
+
+| Name | Contents |
+| ---- | -------- |
+| `story.title`, `story.author`, `story.summary`, `story.notes`, `story.disclaimer` | Text. The author is the display name. |
+| `story.status` | Where the story stands, such as "Ongoing". |
+| `story.words` | The word count, formatted. |
+| `story.language` | The language code, upper-case. |
+| `story.url` | The address of the story. |
+| `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. |
+| `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
+
+### Chapter (`chapter`)
+
+| Name | Contents |
+| ---- | -------- |
+| `story.title`, `story.url` and the other story fields above | The story the chapter belongs to. |
+| `chapter.number`, `chapter.title`, `chapter.words`, `chapter.notes` | Text. A chapter without a title gets "Chapter N". |
+| `chapter.html` | The chapter's text, already sanitised. Print it with `lf_field('chapter.html')`. |
+| `previous`, `next` | `{title, url}`, or nothing at the ends of the story. Check with `lf_has('previous.url')`. |
+
+### Other views
+
+| View | Data |
+| ---- | ---- |
+| `404` | `message`. |
+| `home` | None yet. |
+
+A view with a list of results also receives `pagination`: `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. Later views add their own data here as they are built.
+
+## Hooks for features
+
+A feature adds what it needs in one place, and every theme gets it.
+
+| Hook | Kind | Purpose |
+| ---- | ---- | ------- |
+| `lf_head` | Action, receives the view | Print markup inside `<head>`. |
+| `lf_body_open` | Action, receives the view | Print markup right after `<body>`. |
+| `lf_footer` | Action, receives the view | Print markup before `</body>`. |
+| `lf_styles` | Filter, `array<handle, path>` | Add stylesheets. |
+| `lf_scripts` | Filter, `array<handle, path>` | Add scripts, loaded with `defer`. |
+| `lf_body_class` | Filter, `list<string>` | Add classes to `<body>`. |
+| `lf_document_title` | Filter, `string` | Change the whole `<title>`. |
+| `lf_navigation_items` | Filter, list of `{label, url, current?}` | Add items to the main menu. |
+| `theme_option_fields` | Filter, list of field definitions | Declare theme options (see below). |
+
+Stylesheets and scripts must be paths on this site, starting with a single `/`. Anything else is ignored, so the Content-Security-Policy, which allows only this site's own files, keeps meaning what it says. A theme that needs more calls the `csp_directives` filter and takes responsibility for it.
+
+```php
+add_filter('lf_styles', function (array $styles): array {
+    $styles['my-feature'] = '/content/plugins/my-feature/style.css';
+
+    return $styles;
+});
+```
+
+## Theme options
+
+Declare options in `functions.php`. They appear on **Appearance > Theme options** and are read in templates with `lf_option()`.
+
+```php
+add_filter('theme_option_fields', function (array $fields): array {
+    $fields[] = [
+        'key' => 'accent',
+        'label' => 'Accent colour',
+        'type' => 'color',
+        'css_variable' => '--lf-accent',
+        'hint' => 'Used for links and buttons.',
+    ];
+    $fields[] = [
+        'key' => 'width',
+        'label' => 'Reading width',
+        'type' => 'select',
+        'css_variable' => '--lf-reading-width',
+        'choices' => ['38rem' => 'Narrow', '46rem' => 'Medium', '60rem' => 'Wide'],
+    ];
+    $fields[] = ['key' => 'show_sidebar', 'label' => 'Show the sidebar', 'type' => 'checkbox'];
+
+    return $fields;
+});
+```
+
+| Key | Meaning |
+| --- | ------- |
+| `key` | Lower-case letters, digits and underscores, starting with a letter. |
+| `label` | The label on the screen. |
+| `type` | `color` (a `#rrggbb` value), `select`, or `checkbox`. |
+| `choices` | For `select`: value => label. |
+| `css_variable` | Optional, for `color` and `select`: a custom property such as `--lf-accent`. |
+| `default` | The starting value, for options without a CSS variable. |
+| `hint` | Help text under the field. |
+
+**An option with a CSS variable never has a default of its own.** It starts as "use the theme's own value", and nothing is written to the stylesheet until an administrator picks something. The options stylesheet loads after the theme's, so a default would silently replace the design you chose. Put your real default in `style.css`, and let the variable override it only when chosen:
+
+```css
+:root { --lf-accent: #7a3b1f; }
+a { color: var(--lf-accent); }
+```
+
+Select values for an option with a CSS variable may only use letters, digits and `. % , ( ) _ -` and spaces, because they are written into a stylesheet.
+
+## What belongs in a theme and what does not
+
+A theme is presentation only. If an experienced theme author could not safely rewrite a file from a blank page using only this document, something in it belongs in core.
+
+- Do not define functions in a theme file for anything the application depends on: no security checks, no token handling, no sanitising, no hashing.
+- Do not copy markup that depends on a feature being switched on. The application fires an action at the right place (`lf_body_open`, `lf_footer`) and the feature prints its own markup there.
+- Do not copy shared scripts or images into each theme. Shared files belong in the top-level `assets/` folder and are addressed with `lf_asset_url()`.
+- Do not read the database, configuration, request, cookies or session. A template receives the data its view defines, and nothing else.
+- Do not use inline `style` attributes, inline `<style>` blocks, or inline scripts. The Content-Security-Policy refuses them.
+- Class names use the `lf-` prefix, so another theme can restyle every part without editing a template.
+
+The template tags are the boundary between a theme and the application. PHP cannot stop a theme that deliberately reaches around them, so only install themes you trust.
+
+## The built-in theme
+
+When no theme is chosen, or the chosen one is missing or broken, a plain built-in theme draws the site. It is a complete, small example of the rules above and is a good place to start. It is never listed as an installed folder and cannot be replaced by a folder with the same name.
