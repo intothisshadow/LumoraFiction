@@ -52,6 +52,7 @@ use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Core\Security\SecurityHeaders;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Core\Theme\StaffNavigation;
 use LumoraFiction\Core\Theme\ThemeCatalog;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Controllers\PublicController;
@@ -165,6 +166,8 @@ final class Kernel
         $themes = new ThemeRenderer($themeCatalog, $config, $hooks, $themeOptions, $errors, $version['version']);
 
         $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps);
+
+        (new StaffNavigation($auth))->register($hooks);
 
         self::registerPublic($kernel, $themeOptions);
         self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions);

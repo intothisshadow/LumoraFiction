@@ -31,6 +31,14 @@ final class AdminUrl
     }
 
     /**
+     * The address of the public home page, so the admin can link to the site it manages.
+     */
+    public static function site(): string
+    {
+        return BasePath::get() . '/';
+    }
+
+    /**
      * The address of a file under admin/assets/, with a version so a browser fetches a changed file.
      */
     public static function asset(string $path, string $version = ''): string

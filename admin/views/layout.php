@@ -46,6 +46,7 @@ use LumoraFiction\Models\User;
         <p class="lf-admin__brand"><a href="<?= Html::e(AdminUrl::to()) ?>"><?= Html::e($siteName) ?></a> <span class="lf-admin__version">Lumora Fiction <?= Html::e($version) ?></span></p>
 
         <div class="lf-admin__tools">
+            <a class="lf-button lf-button--quiet lf-admin__site-link" href="<?= Html::e(AdminUrl::site()) ?>">View site</a>
             <button type="button" class="lf-button lf-button--quiet" data-lf-theme-toggle aria-pressed="false" hidden>Dark mode</button>
 
             <form class="lf-admin__signout" method="post" action="<?= Html::e(AdminUrl::to('logout')) ?>">

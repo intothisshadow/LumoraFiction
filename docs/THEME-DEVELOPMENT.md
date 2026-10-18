@@ -153,6 +153,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `story.status` | Where the story stands, such as "Ongoing". |
 | `story.words` | The word count, formatted. |
 | `story.language` | The language code, upper-case. |
+| `story.published`, `story.updated` | Dates such as "2 January 2026". `published` is empty until the story is first published; check it with `lf_has('story.published')`. |
 | `story.url` | The address of the story. |
 | `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. |
 | `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
@@ -188,7 +189,7 @@ A feature adds what it needs in one place, and every theme gets it.
 | `lf_scripts` | Filter, `array<handle, path>` | Add scripts, loaded with `defer`. |
 | `lf_body_class` | Filter, `list<string>` | Add classes to `<body>`. |
 | `lf_document_title` | Filter, `string` | Change the whole `<title>`. |
-| `lf_navigation_items` | Filter, list of `{label, url, current?}` | Add items to the main menu. |
+| `lf_navigation_items` | Filter, list of `{label, url, current?}` | Add items to the main menu. Core uses it to append an **Admin** item for signed-in people who may use the admin area, so `lf_navigation()` can show one more item for staff than for readers; a theme needs no code for it and must not hide or reorder it by who is signed in. |
 | `theme_option_fields` | Filter, list of field definitions | Declare theme options (see below). |
 
 Stylesheets and scripts must be paths on this site, starting with a single `/`. Anything else is ignored, so the Content-Security-Policy, which allows only this site's own files, keeps meaning what it says. A theme that needs more calls the `csp_directives` filter and takes responsibility for it.
@@ -259,10 +260,6 @@ A theme is presentation only. If an experienced theme author could not safely re
 
 The template tags are the boundary between a theme and the application. PHP cannot stop a theme that deliberately reaches around them, so only install themes you trust.
 
-## The built-in theme
-
-When no theme is chosen, or the chosen one is missing or broken, a plain built-in theme draws the site. It is a complete, small example of the rules above and is a good place to start. It is never listed as an installed folder and cannot be replaced by a folder with the same name.
-| `story.published`, `story.updated` | Dates such as "2 January 2026". `published` is empty until the story is first published; check it with `lf_has('story.published')`. |
 ## Bundled themes
 
 **Storybook** (`content/themes/storybook/`) is the default theme and the fuller example. It shows two patterns worth copying:
@@ -270,3 +267,6 @@ When no theme is chosen, or the chosen one is missing or broken, a plain built-i
 - **Reader preferences without inline code.** A small script in `js/reader.js`, added from `functions.php` with the `lf_head` action, stores the reader's colour scheme, text size and reading width in the browser and sets `data-lf-scheme`, `data-lf-size` and `data-lf-width` on the root element. The stylesheet answers those attributes with custom properties, so no style or script is ever written into a template. Controls that need the script carry `lf-js-only` and stay hidden until the script has added `lf-js` to the root element, so the page works without scripts.
 - **Light and dark colours as tokens.** All colours are custom properties on `:root`, redefined under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-lf-scheme="light"])` and again under `:root[data-lf-scheme="dark"]`, so a reader's manual choice wins over their device setting.
 
+## The built-in theme
+
+When no theme is chosen, or the chosen one is missing or broken, a plain built-in theme draws the site. It is a complete, small example of the rules above and is a good place to start. It is never listed as an installed folder and cannot be replaced by a folder with the same name.

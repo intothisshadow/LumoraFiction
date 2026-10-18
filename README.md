@@ -49,6 +49,7 @@ Open `/admin/` on your site and sign in with the login name (or email address) a
 - **Maintenance > System Information.** Shows what your server offers and how the site is set up. **Download a snapshot** produces a file you can send when asking for help. It leaves out passwords, the secret key, the database name and table prefix, and the location of folders on the server.
 - **Too many failed attempts.** After five wrong passwords from one address, sign-in is paused for fifteen minutes.
 - **Light and dark.** The admin area follows your device's setting, and the button in the header switches it by hand.
+- **Moving between the site and the admin.** While you are signed in as an Author, Editor or Administrator, the site's main menu shows an **Admin** link, and the admin header has a **View site** link back to the home page. Readers and visitors never see the Admin link.
 
 ## License
 
