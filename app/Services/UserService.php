@@ -360,6 +360,66 @@ final class UserService
         return ['total' => array_sum($byStatus), 'by_role' => $byRole, 'by_status' => $byStatus];
     }
 
+    /**
+     * Accounts for an administrator's list, newest first. A search matches the display name or the email address; the
+     * login name is never searched, so it cannot be found by guessing.
+     *
+     * @param array{search?: string, role?: string, status?: string} $filters
+     * @return list<User>
+     */
+    public function search(array $filters, int $limit, int $offset): array
+    {
+        [$where, $params] = $this->searchCondition($filters);
+
+        return array_map(
+            fn (array $row): User => $this->hydrate($row),
+            $this->database->fetchAll(
+                'SELECT * FROM {prefix}users WHERE ' . $where . ' ORDER BY created_at DESC, id DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+                $params,
+            ),
+        );
+    }
+
+    /**
+     * @param array{search?: string, role?: string, status?: string} $filters
+     */
+    public function countMatching(array $filters): int
+    {
+        [$where, $params] = $this->searchCondition($filters);
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}users WHERE ' . $where, $params);
+    }
+
+    /**
+     * @param array{search?: string, role?: string, status?: string} $filters
+     * @return array{0: string, 1: array<string, string>}
+     */
+    private function searchCondition(array $filters): array
+    {
+        $where = ['1 = 1'];
+        $params = [];
+        $search = trim($filters['search'] ?? '');
+
+        if ($search !== '') {
+            // Distinct names because the server prepares statements itself and cannot reuse one. LIKE already treats a
+            // backslash as its escape character, so a typed % or _ is matched as itself.
+            $where[] = '(display_name LIKE :search_name OR email LIKE :search_email)';
+            $params['search_name'] = $params['search_email'] = '%' . addcslashes($search, '%_\\') . '%';
+        }
+
+        if (UserRole::tryFrom($filters['role'] ?? '') !== null) {
+            $where[] = 'role = :role';
+            $params['role'] = $filters['role'];
+        }
+
+        if (UserStatus::tryFrom($filters['status'] ?? '') !== null) {
+            $where[] = 'status = :status';
+            $params['status'] = $filters['status'];
+        }
+
+        return [implode(' AND ', $where), $params];
+    }
+
     public function setStatus(int $userId, UserStatus $status): void
     {
         $this->database->execute(

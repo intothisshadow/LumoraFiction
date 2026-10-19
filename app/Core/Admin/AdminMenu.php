@@ -58,6 +58,13 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'users',
+                'label' => 'Users',
+                'path' => 'users',
+                'capability' => Capability::ManageUsers,
+                'children' => [],
+            ],
+            [
                 'slug' => 'taxonomy',
                 'label' => 'Classification',
                 'path' => 'taxonomy',

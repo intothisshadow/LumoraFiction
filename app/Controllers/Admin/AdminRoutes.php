@@ -36,6 +36,7 @@ final class AdminRoutes
         StoryController $stories,
         ChapterController $chapters,
         ReviewController $review,
+        UsersController $users,
         AppearanceController $appearance,
         SystemInformationController $systemInformation,
     ): void {
@@ -90,6 +91,14 @@ final class AdminRoutes
         $router->post('/admin/review/{id}/approve', $review->approve(...));
         $router->get('/admin/review/{id}/reject', $review->showReject(...));
         $router->post('/admin/review/{id}/reject', $review->reject(...));
+        $router->get('/admin/users', $users->index(...), 'admin.users');
+        $router->get('/admin/users/{id}', $users->show(...), 'admin.users.show');
+        $router->post('/admin/users/{id}/role', $users->changeRole(...));
+        $router->post('/admin/users/{id}/publishing', $users->setPublishing(...));
+        $router->get('/admin/users/{id}/suspend', $users->showSuspend(...));
+        $router->post('/admin/users/{id}/suspend', $users->suspend(...));
+        $router->get('/admin/users/{id}/reinstate', $users->showReinstate(...));
+        $router->post('/admin/users/{id}/reinstate', $users->reinstate(...));
         $router->get('/admin/appearance', $appearance->themes(...), 'admin.appearance');
         $router->post('/admin/appearance/activate', $appearance->activate(...), 'admin.appearance.activate');
         $router->get('/admin/appearance/options', $appearance->showOptions(...), 'admin.appearance.options');

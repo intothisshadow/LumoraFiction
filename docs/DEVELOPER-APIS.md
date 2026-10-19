@@ -24,6 +24,9 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `routes_register` | `Router $router` | While the application starts, before any request is matched. Register routes here. |
 | `kernel_booted` | `Kernel $kernel` | When the core services are ready. |
 | `story_state_changed` | `Story $story`, `PublicationState $from`, `User $actor`, `string $reason` | After a story's publication state has changed and been saved: submitted, published, approved, sent back, withdrawn or unpublished. `$story` is the story as it is now and `$from` its earlier state. `$reason` is the reviewer's note when a story is sent back or taken down in bulk, and an empty string otherwise. Use it to notify people; a callback that fails cannot undo the change. |
+| `user_role_changed` | `User $user`, `UserRole $from`, `User $actor`, `string $reason` | After an administrator has changed an account's role and it has been saved. `$user` is the account as it is now, and `$reason` is empty when none was given. |
+| `user_status_changed` | `User $user`, `UserStatus $from`, `User $actor`, `string $reason` | After an administrator has suspended or reinstated an account. `$from` is the status the account had before; read the new one from `$user`. |
+| `user_publishing_override_changed` | `User $user`, `?PublishingOverride $from`, `User $actor` | After an administrator has changed how an author's stories are published. `$from` is null when the author followed the site setting. |
 | `lf_head` | `string $view` | While a public page prints its `<head>`, after the stylesheets. Print markup the page needs there. |
 | `lf_body_open` | `string $view` | Right after the opening `<body>` of a public page. |
 | `lf_footer` | `string $view` | Just before the closing `</body>` of a public page, after queued scripts. |
@@ -69,6 +72,7 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 
 - A capability says what a role may do in general. Whether someone may change one particular story (ownership) is checked separately by the code that loads the story.
 - A suspended or unconfirmed account holds no capabilities.
+- Changes an administrator makes to other people's accounts go through `UserAdminService` (`changeRole()`, `suspend()`, `reinstate()`, `setPublishingRights()`, and `list()` and `count()` for the Users screen), never straight through `UserService::setRole()` or `setStatus()`, which do no checking. The service refuses anyone who may not manage users, any change to one's own role or status, and any change that would leave the site without an active administrator, writes the audit log, and fires the three actions above. It throws `UserAdminException` with a message that is safe to show. Suspending can take the account's stories out of view first; reinstating returns an account whose address was never confirmed to pending when the site requires confirmation.
 - `User::publicProfile()` returns the only fields that may appear in public output: the display name and the slug. The login name and email address are private; never print them on a page, in a feed, or in an error message.
 
 ### Settings read by the account code

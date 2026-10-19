@@ -26,6 +26,8 @@ use LumoraFiction\Controllers\Admin\EditorSettingsController;
 use LumoraFiction\Controllers\Admin\ReviewController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
+use LumoraFiction\Controllers\Admin\UsersController;
+use LumoraFiction\Services\UserAdminService;
 use LumoraFiction\Core\Content\HtmlSanitizer;
 use LumoraFiction\Core\Content\MarkdownParser;
 use LumoraFiction\Controllers\Admin\AuthController;
@@ -294,6 +296,7 @@ final class Kernel
             new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
+            new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config),
             new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit), $themeOptions),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
         );
