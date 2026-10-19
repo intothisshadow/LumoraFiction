@@ -18,10 +18,15 @@ declare(strict_types=1);
 lf_get_header();
 ?>
 <article class="lf-story">
+    <?php lf_part('notices'); ?>
     <header class="lf-story__header">
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <p class="lf-story__byline">by <?php lf_field('story.author'); ?></p>
         <p class="lf-story__meta"><?php lf_field('story.status'); ?> &middot; <?php lf_field('story.words'); ?> words &middot; <?php lf_field('story.language'); ?></p>
+        <?php if (lf_has('continue.url')): ?>
+            <p class="lf-story__actions"><a href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>
+        <?php endif; ?>
+        <?php lf_part('bookmark-buttons'); ?>
     </header>
 
     <?php $groups = lf_items('term_groups'); ?>

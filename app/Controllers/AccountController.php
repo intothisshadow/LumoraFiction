@@ -33,6 +33,7 @@ use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\EditorSettings;
 use LumoraFiction\Services\LoginOutcome;
+use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\UserService;
 
 /**
@@ -53,6 +54,7 @@ final class AccountController
         private readonly FlashMessages $flash,
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
+        private readonly ReaderPreferences $readerPreferences,
     ) {
     }
 
@@ -465,6 +467,42 @@ final class AccountController
     }
 
     /**
+     * Saves the reading preferences from the profile form, or from the reader script, which sends them as it changes
+     * them and is answered with a fresh token for its next change.
+     *
+     * @param array<string, string> $params
+     */
+    public function updateReading(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+        $script = $request->input('script') === '1';
+
+        if ($user === null) {
+            return $script ? Response::plain('', 401)->withHeader('Cache-Control', 'no-store') : $this->mustSignIn();
+        }
+
+        if (!$this->validToken($request, 'reader_preferences')) {
+            return $script
+                ? Response::plain('', 400)->withHeader('Cache-Control', 'no-store')
+                : $this->profilePage($request, $user, ['reading' => ['summary' => self::EXPIRED]], 400);
+        }
+
+        $this->readerPreferences->save($user->id, [
+            'scheme' => $request->input('scheme'),
+            'size' => $request->input('size'),
+            'width' => $request->input('width'),
+        ]);
+
+        if ($script) {
+            return Response::plain(json_encode(['token' => Csrf::token('reader_preferences')], JSON_THROW_ON_ERROR), 200)->withHeader('Cache-Control', 'no-store');
+        }
+
+        $this->flash->add('success', 'Your reading preferences have been saved.');
+
+        return Response::redirect(PublicUrl::account('profile'), 303);
+    }
+
+    /**
      * @param array<string, array{summary?: string, values?: array<string, string>}> $problems the problem and the typed values of the form that failed
      */
     private function profilePage(Request $request, User $user, array $problems = [], int $status = 200): Response
@@ -500,9 +538,29 @@ final class AccountController
             ], 'Editing', $summary('editor'));
         }
 
+        $saved = $this->readerPreferences->forUser($user->id);
+        $readingFields = [];
+
+        foreach ([
+            'scheme' => 'Colours',
+            'size' => 'Text size',
+            'width' => 'Reading width',
+        ] as $name => $label) {
+            $options = [];
+
+            foreach (ReaderPreferences::CHOICES[$name] as $choice) {
+                $options[] = ['value' => $choice, 'label' => ReaderPreferences::LABELS[$name][$choice], 'selected' => ($saved[$name] ?? ReaderPreferences::CHOICES[$name][0]) === $choice];
+            }
+
+            $readingFields[] = $this->field($name, $label, 'select', '', '', $name === 'scheme' ? 'These follow you to any device you sign in on.' : '', '', $options);
+        }
+
+        $forms[] = $this->form('reader_preferences', PublicUrl::account('profile/reading'), 'Save reading preferences', $readingFields, 'Reading', $summary('reading'));
         $forms[] = $this->form('account_sign_out', PublicUrl::account('sign-out'), 'Sign out', [], 'Sign out');
 
-        return $this->page($request, 'Your account', 'profile', $forms, $status, [], []);
+        $shortcuts = $user->can(Capability::Bookmark) ? [['label' => 'My bookmarks', 'url' => PublicUrl::account('bookmarks')]] : [];
+
+        return $this->page($request, 'Your account', 'profile', $forms, $status, [], [], false, '', $shortcuts);
     }
 
     private function editorChoiceAvailable(User $user): bool
@@ -591,8 +649,9 @@ final class AccountController
      * @param list<array<string, mixed>> $forms
      * @param list<array{type: string, text: string}> $notices
      * @param list<array{label: string, url: string}> $links
+     * @param list<array{label: string, url: string}> $shortcuts links drawn above the forms, for pages a signed-in member uses
      */
-    private function page(Request $request, string $title, string $variant, array $forms, int $status, array $notices, array $links, bool $secretLink = false, string $intro = ''): Response
+    private function page(Request $request, string $title, string $variant, array $forms, int $status, array $notices, array $links, bool $secretLink = false, string $intro = '', array $shortcuts = []): Response
     {
         foreach ($this->flash->pull($request->cookies) as $message) {
             $notices[] = ['type' => $message['type'], 'text' => $message['message']];
@@ -603,6 +662,7 @@ final class AccountController
             'notices' => $notices,
             'forms' => $forms,
             'links' => $links,
+            'shortcuts' => $shortcuts,
         ], $status, ['title' => $title, 'noindex' => true, 'variant' => $variant]);
 
         // Every page here is private to one visitor. A page reached through an emailed link also must not pass that

@@ -263,6 +263,8 @@ final class ChapterService
 
         $this->database->transaction(function () use ($actor, $chapter, $ipAddress): void {
             $this->database->execute('DELETE FROM {prefix}chapters WHERE id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}bookmarks WHERE chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}reading_progress WHERE chapter_id = :id', ['id' => $chapter->id]);
             $this->database->execute(
                 'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number ORDER BY number ASC',
                 ['story' => $chapter->storyId, 'number' => $chapter->number],

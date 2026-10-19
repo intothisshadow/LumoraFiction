@@ -387,6 +387,8 @@ final class StoryService
         $this->database->transaction(function () use ($actor, $story, $ipAddress): void {
             $this->taxonomy->removeStoryLinks($story->id);
             $this->database->execute('DELETE FROM {prefix}chapters WHERE story_id = :id', ['id' => $story->id]);
+            $this->database->execute('DELETE FROM {prefix}bookmarks WHERE story_id = :id', ['id' => $story->id]);
+            $this->database->execute('DELETE FROM {prefix}reading_progress WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
             $this->audit->record($actor->id, 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
         });

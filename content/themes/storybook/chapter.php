@@ -18,6 +18,7 @@ declare(strict_types=1);
 lf_get_header();
 ?>
 <article class="lf-chapter">
+    <?php lf_part('notices'); ?>
     <header class="lf-chapter__header">
         <p class="lf-chapter__story"><a href="<?php lf_field('story.url'); ?>"><?php lf_field('story.title'); ?></a> &middot; by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
         <h1 class="lf-chapter__title"><?php lf_field('chapter.title'); ?></h1>
@@ -25,6 +26,7 @@ lf_get_header();
     </header>
 
     <?php lf_part('chapter-nav', ['label' => 'Chapters, top']); ?>
+    <?php lf_part('bookmark-buttons'); ?>
     <?php lf_part('reader-controls'); ?>
 
     <?php if (lf_has('chapter.notes')): ?>

@@ -50,6 +50,7 @@ final class ThemeRenderer
         'search' => ['search', 'archive', 'index'],
         'page' => ['page', 'index'],
         'account' => ['account', 'page', 'index'],
+        'bookmarks' => ['bookmarks', 'archive', 'index'],
         '404' => ['404', 'index'],
     ];
 

@@ -20,6 +20,7 @@ namespace LumoraFiction\Controllers;
 use Closure;
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Configuration;
+use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -29,11 +30,14 @@ use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
+use LumoraFiction\Models\User;
 use LumoraFiction\Models\WorkStatus;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\ReadingProgressService;
 use LumoraFiction\Services\SearchPresenter;
 use LumoraFiction\Services\SearchQueryParser;
 use LumoraFiction\Services\StoryPermissionException;
@@ -52,6 +56,9 @@ final class ArchiveController
     /** How many stories each list on the home page shows. */
     private const HOME_COUNT = 8;
 
+    /** How many "continue reading" links the home page shows. */
+    private const CONTINUE_COUNT = 3;
+
     /** Pages beyond this are refused outright, so a huge number in an address cannot become a huge database offset. */
     private const MAX_PAGE = 10000;
 
@@ -68,6 +75,9 @@ final class ArchiveController
         private readonly Configuration $config,
         private readonly SearchQueryParser $searchParser,
         private readonly SearchPresenter $searchPresenter,
+        private readonly BookmarkPresenter $bookmarkPresenter,
+        private readonly ReadingProgressService $progress,
+        private readonly FlashMessages $flash,
     ) {
     }
 
@@ -121,9 +131,23 @@ final class ArchiveController
             $updated = $this->archive->recent('updated', self::HOME_COUNT);
             $profiles = $this->users->publicProfiles(array_map(static fn (Story $story): int => $story->ownerId, [...$published, ...$updated]));
 
+            // Only a signed-in reader has a place to continue from; a guest is never recorded.
+            $user = $this->auth->user();
+            $continue = [];
+
+            foreach ($user === null ? [] : $this->progress->recent($user, self::CONTINUE_COUNT) as $entry) {
+                $continue[] = [
+                    'story' => $entry['story']->title,
+                    'story_url' => PublicUrl::story($entry['story']->slug),
+                    'title' => $this->chapterLabel($entry['number'], $entry['title']),
+                    'url' => PublicUrl::chapter($entry['story']->slug, $entry['number']),
+                ];
+            }
+
             return $this->themes->render('home', [
                 'stories' => $this->cards($published, $profiles),
                 'updated_stories' => $this->cards($updated, $profiles),
+                'continue_reading' => $continue,
             ]);
         });
     }
@@ -133,7 +157,7 @@ final class ArchiveController
      */
     public function story(array $params, Request $request): Response
     {
-        return $this->guarded(function () use ($params): Response {
+        return $this->guarded(function () use ($params, $request): Response {
             $slug = $params['slug'] ?? '';
             $story = $this->stories->findPublicBySlug($slug);
 
@@ -157,9 +181,27 @@ final class ArchiveController
                 $authorUrl,
             );
 
+            $user = $this->auth->user();
+            $readsHere = count($chapters) === 1 && $story->workStatus === WorkStatus::Completed;
+
             // A finished story told in one chapter reads straight away, with its details above the text.
-            if (count($chapters) === 1 && $story->workStatus === WorkStatus::Completed) {
+            if ($readsHere) {
                 $data['chapter'] = $this->chapterData($story, $profile['display_name'], $authorUrl, $chapters, 0)['chapter'];
+
+                if ($user !== null) {
+                    $this->progress->record($user, $story->id, $chapters[0]->id);
+                }
+            }
+
+            $data += $this->readerData($user, $story, null, $request->cookies);
+
+            // A place to continue from means nothing on a page that already holds the whole text.
+            if ($user !== null && !$readsHere) {
+                $left = $this->progress->forStory($user, $story->id);
+                $data['continue'] = $left === null ? null : [
+                    'title' => $this->chapterLabel($left['number'], $left['title']),
+                    'url' => PublicUrl::chapter($story->slug, $left['number']),
+                ];
             }
 
             return $this->themes->render('story', $data, 200, ['title' => $story->title]);
@@ -171,7 +213,7 @@ final class ArchiveController
      */
     public function chapter(array $params, Request $request): Response
     {
-        return $this->guarded(function () use ($params): Response {
+        return $this->guarded(function () use ($params, $request): Response {
             $slug = $params['slug'] ?? '';
             $number = $params['number'] ?? '';
 
@@ -197,6 +239,14 @@ final class ArchiveController
             }
 
             $data = $this->chapterData($story, $profile['display_name'], $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']), $chapters, $index);
+
+            $user = $this->auth->user();
+
+            if ($user !== null) {
+                $this->progress->record($user, $story->id, $chapter->id);
+            }
+
+            $data += $this->readerData($user, $story, $chapter, $request->cookies);
 
             return $this->themes->render('chapter', $data, 200, ['title' => $this->presenter->chapterTitle($chapter) . ' — ' . $story->title]);
         });
@@ -275,7 +325,10 @@ final class ArchiveController
     private function guarded(Closure $page): Response
     {
         if ($this->config->setting('reading.require_signin') !== true) {
-            return $page();
+            $response = $page();
+
+            // A page built for a signed-in reader carries their bookmarks and place, so no shared cache may keep it.
+            return $this->auth->check() ? $response->withHeader('Cache-Control', 'private, no-store') : $response;
         }
 
         if (!$this->auth->check()) {
@@ -321,6 +374,34 @@ final class ArchiveController
         }
 
         return Response::redirect($preview, 302)->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /**
+     * What a story or chapter page shows only to a signed-in reader: the bookmark buttons and any message about the
+     * last action. A guest gets empty lists, so a theme can draw them unconditionally.
+     *
+     * @param array<string, mixed> $cookies the request's cookies
+     * @return array{bookmarks: list<array<string, mixed>>, notices: list<array{type: string, text: string}>, continue: array{title: string, url: string}|null}
+     */
+    private function readerData(?User $user, Story $story, ?Chapter $chapter, array $cookies): array
+    {
+        $notices = [];
+
+        // Messages are pulled only for a signed-in reader, so a guest's pending sign-out notice is never taken here.
+        foreach ($user === null ? [] : $this->flash->pull($cookies) as $message) {
+            $notices[] = ['type' => $message['type'], 'text' => $message['message']];
+        }
+
+        return [
+            'bookmarks' => $this->bookmarkPresenter->buttons($user, $story->id, $chapter?->number, $chapter?->id),
+            'notices' => $notices,
+            'continue' => null,
+        ];
+    }
+
+    private function chapterLabel(int $number, string $title): string
+    {
+        return $title !== '' ? $title : 'Chapter ' . $number;
     }
 
     /**

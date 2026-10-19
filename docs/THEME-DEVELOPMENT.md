@@ -49,6 +49,7 @@ Each view tries its templates in this order and uses the first one the theme has
 | `search` | `search.php`, `archive.php`, `index.php` |
 | `page` | `page.php`, `index.php` |
 | `account` | `account.php`, `page.php`, `index.php` |
+| `bookmarks` | `bookmarks.php`, `archive.php`, `index.php` |
 | `404` | `404.php`, `index.php` |
 
 A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
@@ -160,6 +161,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. Only the kinds of term the archive mode allows are listed. |
 | `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
 | `chapter` | Only on a finished story that has a single readable chapter, where the story page is also the place to read it. It holds the same fields as on a chapter page (`chapter.html`, `chapter.notes`, and so on). When `lf_has('chapter.html')` is true, print the text under the details and leave out the chapter list and the start-reading link. |
+| `bookmarks`, `notices`, `continue` | The reader features below. `continue` is `{title, url}` for a signed-in reader who has started the story, and nothing otherwise; check it with `lf_has('continue.url')`. |
 
 ### Chapter (`chapter`)
 
@@ -170,13 +172,14 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `chapter.position`, `chapter.total` | Where the chapter stands among the chapters a reader can open, counting from one, and how many there are. Both are empty on a preview, so check `lf_has('chapter.total')`. A chapter that is hidden leaves no gap, so `position` can differ from `number`. |
 | `chapter.html` | The chapter's text, already sanitised. Print it with `lf_field('chapter.html')`. |
 | `previous`, `next` | `{title, url}`, or nothing at the ends of the story. Check with `lf_has('previous.url')`. |
+| `bookmarks`, `notices` | The reader features below. |
 
 ### Other views
 
 | View | Data |
 | ---- | ---- |
 | `404` | `message`. |
-| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. |
+| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. `continue_reading` lists up to three places a signed-in reader left off, each `{story, story_url, title, url}`, and is empty for guests. |
 | `author` | The list data below. The page title is "Stories by" and the author's display name. |
 | `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |
 
@@ -200,7 +203,8 @@ Sign-in, registration, email confirmation, password reset and the profile are al
 | `intro` | A sentence of introduction, or empty. |
 | `notices` | Messages to show, each `{type, text}` where the type is `success`, `info`, `warning` or `error`. Give errors `role="alert"` and the rest `role="status"`. |
 | `forms` | The forms on the page, each a bundled description. Hand each one to `lf_part('account-form', ['form' => $form])` and let the part draw it. |
-| `links` | Links to other account pages, each `{label, url}`. |
+| `links` | Links to other account pages, each `{label, url}`, drawn below the forms. |
+| `shortcuts` | Links a signed-in member uses often, such as **My bookmarks** on the profile page, each `{label, url}`. Draw them above the forms. Empty on every other page. |
 
 A form is `{action, csrf_token, submit, heading, fields, errors}`. The part prints the hidden `csrf_token` field itself, which every form must carry. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
 
@@ -216,6 +220,20 @@ The search page tries `search.php`, then `archive.php`, then `index.php`. A them
 | `filters` | What the search is narrowed by, each `{label, remove_url}`. Show them as links that remove just that filter. |
 | `notices` | Messages, each `{type, text}`. A search that is too long, too wide, or made only of one-letter words is refused and explained here instead of run. |
 | `searched` | True when words or filters are in use. Use it to say "no stories match" instead of "no stories yet". |
+
+### Reader features: bookmarks, progress and preferences
+
+Signed-in readers can bookmark a story or a chapter, continue where they left off, and keep their reading choices in their account. Every action is a plain form with a token, so it works without scripts, and a theme never learns who is signed in: a guest simply receives empty lists.
+
+| Name | Contents |
+| ---- | -------- |
+| `bookmarks` | On a story or chapter page, the buttons to draw, each `{scope, saved, label, form}`. `scope` is `story` or `chapter`, and `saved` says whether the reader already has the bookmark (the form then removes it). Empty for guests. Draw each with `lf_part('bookmark-form', ['form' => $button['form'], 'saved' => $button['saved']])`, or draw the whole group with a `bookmark-buttons` part. |
+| `notices` | On a story or chapter page, what to tell the reader about their last action, each `{type, text}`. Empty for guests, and drawn once. |
+| `form` | A bookmark form is `{action, csrf_token, submit, hidden}`. Print a `csrf_token` field and one hidden input for each `hidden` entry, and do not change any name or value: the controller reads them. |
+
+The **bookmarks** page (`bookmarks.php`, falling back to `archive.php`) receives the story-list data, with `notices`, and each story card also carries `chapter_title` and `chapter_url` (empty when the whole story is bookmarked) and `remove`, a bookmark form to draw next to the card. A theme without `bookmarks.php` still shows the list through `archive.php`, but with no way to remove a bookmark, so supply one.
+
+A signed-in reader's saved colour scheme, text size and reading width reach a theme's script as three `<meta>` tags that core writes into the head, before the theme's own `lf_head` output: `lf-reader-prefs` (a JSON object of the saved choices, empty when none), `lf-reader-save` (the address to post a change to) and `lf-reader-token` (a token that works once). A script that stores its own preferences, like Storybook's `js/reader.js`, applies the saved choices first and posts `csrf_token`, `script=1`, `scheme`, `size` and `width` to that address after each change; the reply is JSON holding the token for the next change. The accepted values are `system`, `light`, `dark` for `scheme`; `default`, `small`, `large`, `xlarge` for `size`; and `default`, `narrow`, `wide` for `width`. A theme that ignores the tags still works, and readers can set the same choices on their account page.
 
 Later views add their own data here as they are built.
 

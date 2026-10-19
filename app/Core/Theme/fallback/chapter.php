@@ -18,11 +18,14 @@ declare(strict_types=1);
 lf_get_header();
 ?>
 <article class="lf-chapter">
+    <?php lf_part('notices'); ?>
     <header class="lf-chapter__header">
         <p class="lf-chapter__story"><a href="<?php lf_field('story.url'); ?>"><?php lf_field('story.title'); ?></a></p>
         <h1 class="lf-chapter__title"><?php lf_field('chapter.title'); ?></h1>
         <p class="lf-chapter__meta">Chapter <?php lf_field('chapter.number'); ?> &middot; <?php lf_field('chapter.words'); ?> words</p>
     </header>
+
+    <?php lf_part('bookmark-buttons'); ?>
 
     <?php if (lf_has('chapter.notes')): ?>
         <aside class="lf-chapter__notes" aria-label="Author&rsquo;s notes"><p><?php lf_field('chapter.notes'); ?></p></aside>

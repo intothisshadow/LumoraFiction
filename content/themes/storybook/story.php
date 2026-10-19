@@ -21,12 +21,17 @@ $chapters = lf_items('chapters');
 $groups = lf_items('term_groups');
 ?>
 <article class="lf-story">
+    <?php lf_part('notices'); ?>
     <header class="lf-story__header">
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
         <?php if ($chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html')): ?>
             <p class="lf-story__actions"><a class="lf-button" href="<?= lf_e($chapters[0]['url']) ?>">Start reading</a></p>
         <?php endif; ?>
+        <?php if (lf_has('continue.url')): ?>
+            <p class="lf-story__actions"><a class="lf-button" href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>
+        <?php endif; ?>
+        <?php lf_part('bookmark-buttons'); ?>
     </header>
 
     <dl class="lf-story-meta">

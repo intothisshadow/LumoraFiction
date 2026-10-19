@@ -58,11 +58,17 @@ use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Controllers\AccountController;
 use LumoraFiction\Controllers\ArchiveController;
 use LumoraFiction\Core\Theme\AccountNavigation;
+use LumoraFiction\Core\Theme\ReaderHead;
 use LumoraFiction\Controllers\PublicController;
+use LumoraFiction\Controllers\ReaderController;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\ArchiveSettings;
+use LumoraFiction\Services\BookmarkPresenter;
+use LumoraFiction\Services\BookmarkService;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\ReaderPreferences;
+use LumoraFiction\Services\ReadingProgressService;
 use LumoraFiction\Services\SearchPresenter;
 use LumoraFiction\Services\SearchQueryParser;
 use LumoraFiction\Services\EditorSettings;
@@ -201,8 +207,13 @@ final class Kernel
      */
     private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings): void
     {
-        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit);
+        $readerPreferences = new ReaderPreferences($kernel->database);
+        $bookmarks = new BookmarkService($kernel->database, $stories);
+        $bookmarkPresenter = new BookmarkPresenter($bookmarks);
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences);
+        $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash);
         (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
+        (new ReaderHead($kernel->auth, $readerPreferences))->register($kernel->hooks);
 
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
         $publicArchive = new PublicArchive($kernel->database, $stories);
@@ -220,6 +231,9 @@ final class Kernel
             $kernel->config,
             $searchParser,
             new SearchPresenter($taxonomy, $searchParser, $publicArchive),
+            $bookmarkPresenter,
+            new ReadingProgressService($kernel->database, $stories),
+            $flash,
         );
 
         $kernel->router->get('/', $archive->home(...), 'home');
@@ -244,6 +258,11 @@ final class Kernel
         $kernel->router->post(PublicUrl::PROFILE . '/email', $account->updateEmail(...), 'account.profile.email');
         $kernel->router->post(PublicUrl::PROFILE . '/password', $account->updatePassword(...), 'account.profile.password');
         $kernel->router->post(PublicUrl::PROFILE . '/editor', $account->updateEditor(...), 'account.profile.editor');
+        $kernel->router->post(PublicUrl::READING, $account->updateReading(...), 'account.profile.reading');
+
+        $kernel->router->get(PublicUrl::BOOKMARKS, $reader->list(...), 'account.bookmarks');
+        $kernel->router->post(PublicUrl::BOOKMARK_ADD, $reader->add(...), 'account.bookmarks.add');
+        $kernel->router->post(PublicUrl::BOOKMARK_REMOVE, $reader->remove(...), 'account.bookmarks.remove');
 
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');

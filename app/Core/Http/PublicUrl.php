@@ -50,6 +50,14 @@ final class PublicUrl
 
     public const PROFILE = '/account/profile';
 
+    public const READING = '/account/profile/reading';
+
+    public const BOOKMARKS = '/account/bookmarks';
+
+    public const BOOKMARK_ADD = '/account/bookmarks/add';
+
+    public const BOOKMARK_REMOVE = '/account/bookmarks/remove';
+
     /**
      * The address of an account page, such as account('sign-in') or account('profile/email').
      */

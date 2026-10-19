@@ -322,8 +322,29 @@ a:focus-visible {
 }
 
 .lf-story-list__meta,
-.lf-archive__sort {
+.lf-archive__sort,
+.lf-continue__chapter {
     color: var(--lf-fb-muted);
+}
+
+.lf-bookmarks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-block: 1rem;
+}
+
+.lf-bookmark-form {
+    display: inline-block;
+    margin: 0;
+}
+
+.lf-continue {
+    padding-left: 1.25rem;
+}
+
+.lf-continue__item {
+    margin-block: 0.4rem;
 }
 
 @media print {

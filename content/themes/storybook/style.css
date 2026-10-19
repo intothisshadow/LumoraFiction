@@ -1043,6 +1043,66 @@ a.lf-term-link:hover {
     color: var(--lf-muted);
 }
 
+/* Bookmarks and continue reading: the buttons on a story or chapter, the home page shortcut and the bookmark list. */
+
+.lf-bookmarks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    margin: 1rem 0 0;
+}
+
+.lf-bookmark-form {
+    margin: 0;
+}
+
+.lf-bookmark-form__button {
+    background: var(--lf-surface);
+    color: var(--lf-link);
+}
+
+.lf-bookmark-form--saved .lf-bookmark-form__button {
+    background: transparent;
+    color: var(--lf-muted);
+    border-color: var(--lf-control-border);
+}
+
+.lf-chapter .lf-bookmarks {
+    justify-content: center;
+    margin: 0 0 1.25rem;
+}
+
+.lf-continue {
+    margin: 0 0 2rem;
+}
+
+.lf-continue__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-continue__item {
+    margin: 0 0 0.4rem;
+}
+
+.lf-continue__link {
+    font-weight: 600;
+}
+
+.lf-continue__chapter {
+    color: var(--lf-muted);
+}
+
+.lf-bookmark-item .lf-bookmark-form {
+    margin-top: 0.5rem;
+}
+
+.lf-bookmark-item__chapter {
+    margin: 0.25rem 0 0;
+    font-size: 0.95rem;
+}
+
 /* ==========================================================================
    11. Motion, forced colours and print
    ========================================================================== */

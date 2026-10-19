@@ -26,6 +26,14 @@ lf_get_header();
     <?php foreach (lf_items('notices') as $notice): ?>
         <p class="lf-notice lf-notice--<?= lf_e($notice['type'] ?? 'info') ?>" role="<?= ($notice['type'] ?? '') === 'error' ? 'alert' : 'status' ?>"><?= lf_e($notice['text'] ?? '') ?></p>
     <?php endforeach; ?>
+    <?php $shortcuts = lf_items('shortcuts'); ?>
+    <?php if ($shortcuts !== []): ?>
+        <ul class="lf-account__links">
+            <?php foreach ($shortcuts as $link): ?>
+                <li class="lf-account__link-item"><a href="<?= lf_e($link['url'] ?? '') ?>"><?= lf_e($link['label'] ?? '') ?></a></li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
     <?php foreach (lf_items('forms') as $form): ?>
         <?php lf_part('account-form', ['form' => $form]); ?>
     <?php endforeach; ?>

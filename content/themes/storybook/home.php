@@ -25,6 +25,17 @@ lf_get_header();
         <?php endif; ?>
     </div>
 
+    <?php if (lf_has('continue_reading')): ?>
+        <section class="lf-continue" aria-labelledby="lf-continue-title">
+            <h2 class="lf-section-title" id="lf-continue-title">Continue reading</h2>
+            <ul class="lf-continue__list">
+                <?php foreach (lf_items('continue_reading') as $entry): ?>
+                    <li class="lf-continue__item"><a class="lf-continue__link" href="<?= lf_e($entry['url'] ?? '') ?>"><?= lf_e($entry['story'] ?? '') ?></a> <span class="lf-continue__chapter"><?= lf_e($entry['title'] ?? '') ?></span></li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
+
     <?php if (lf_has('stories')): ?>
         <section class="lf-home__stories" aria-labelledby="lf-home-stories-title">
             <h2 class="lf-section-title" id="lf-home-stories-title">Recently published</h2>
