@@ -34,8 +34,6 @@ use PDOException;
  */
 final class UserService
 {
-    private const SLUG_ATTEMPTS = 5;
-
     private static ?string $dummyHash = null;
 
     public function __construct(
@@ -108,10 +106,11 @@ final class UserService
             throw new InvalidArgumentException($problem);
         }
 
-        for ($attempt = 0; $attempt < self::SLUG_ATTEMPTS; $attempt++) {
-            $slug = $this->uniqueSlug($displayName, $loginName, $attempt > 0);
-            $now = date('Y-m-d H:i:s');
+        $now = date('Y-m-d H:i:s');
 
+        // The public address is the account's id followed by its display name, so two people with one name never
+        // need a counter. The id is only known after the insert, hence the throwaway first value.
+        $save = function () use ($loginName, $displayName, $email, $password, $role, $status, $now): int {
             try {
                 $id = (int) $this->database->insertGetId(
                     'INSERT INTO {prefix}users (login_name, display_name, slug, email, password_hash, password_changed_at, role, status, created_at, updated_at)
@@ -119,7 +118,7 @@ final class UserService
                     [
                         'login_name' => $loginName,
                         'display_name' => $displayName,
-                        'slug' => $slug,
+                        'slug' => 'new-' . bin2hex(random_bytes(8)),
                         'email' => $email,
                         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
                         'changed' => $now,
@@ -132,11 +131,6 @@ final class UserService
             } catch (PDOException $exception) {
                 $key = $this->duplicateKey($exception);
 
-                if ($key === 'slug') {
-                    // Another account took this slug between the check and the insert; pick again.
-                    continue;
-                }
-
                 if ($key !== null) {
                     throw new DuplicateAccountException($key);
                 }
@@ -144,10 +138,14 @@ final class UserService
                 throw $exception;
             }
 
-            return $this->findById($id) ?? throw new \RuntimeException('The new account could not be read back.');
-        }
+            $this->database->execute('UPDATE {prefix}users SET slug = :slug WHERE id = :id', ['slug' => $this->publicSlug($id, $displayName, $loginName), 'id' => $id]);
 
-        throw new \RuntimeException('Could not allocate a unique slug.');
+            return $id;
+        };
+
+        $id = $this->database->pdo()->inTransaction() ? $save() : (int) $this->database->transaction($save);
+
+        return $this->findById($id) ?? throw new \RuntimeException('The new account could not be read back.');
     }
 
     public function findById(int $id): ?User
@@ -415,28 +413,19 @@ final class UserService
      * The slug comes from the display name, with a number added when it is taken, reserved, or
      * identical to the login name (the login name must stay distinct from everything public).
      */
-    private function uniqueSlug(string $displayName, string $loginName, bool $randomSuffix): string
+    /**
+     * The id keeps every address distinct from every other account's. A slug that is already taken, which only an
+     * account from before ids were used can cause, or that equals the private login name, gets a random ending.
+     */
+    private function publicSlug(int $id, string $displayName, string $loginName): string
     {
-        $base = Slug::fromText($displayName);
+        $slug = $id . '-' . Slug::fromText($displayName);
 
-        // After losing a race for a slug, a random suffix avoids racing for the next number as well.
-        if ($randomSuffix) {
-            return $base . '-' . bin2hex(random_bytes(3));
+        if (strtolower($slug) === strtolower($loginName) || $this->findBySlug($slug) !== null) {
+            $slug .= '-' . bin2hex(random_bytes(3));
         }
 
-        for ($number = 1; $number < 1000; $number++) {
-            $candidate = $number === 1 ? $base : $base . '-' . $number;
-
-            if (
-                !Slug::isReserved($candidate)
-                && strtolower($candidate) !== strtolower($loginName)
-                && $this->findBySlug($candidate) === null
-            ) {
-                return $candidate;
-            }
-        }
-
-        return $base . '-' . bin2hex(random_bytes(4));
+        return $slug;
     }
 
     private function duplicateKey(PDOException $exception): ?string

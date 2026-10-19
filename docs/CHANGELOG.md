@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Story addresses now start with the story's number, such as `/story/42-lost`, so two stories with the same title each get their own clean address instead of a numbered copy like `lost-2`. A story's address never changes, even when it is renamed.
+- Story and author addresses now start with a number, such as `/story/42-lost` and `/author/7-ann-author`, so two stories with the same title, or two authors with the same display name, each get their own clean address instead of a numbered copy like `lost-2`. An address never changes, even when the title or name is edited. Accounts created before this keep the plain address they had.
 
 - Search: a **Search** page in the main menu finds stories by words from the title, summary, author name or tags (every word must match), and narrows them by rating, archive warning, genre, category, fandom, tag, status, language and a range of word counts, all combinable and all switched off or on with the archive mode. Results sort by recent update, publication date, title or length. The filters in use are listed above the results, each a link that removes it. Searching works without scripts, only public stories are ever searched or counted, search text is limited in length and number of words (a search over the limit is refused with an explanation instead of run), at most a thousand matches are counted or paged through, and search pages carry a noindex header. The Storybook theme and the built-in theme draw the page.
 
