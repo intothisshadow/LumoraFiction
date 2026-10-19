@@ -29,7 +29,6 @@ use LumoraFiction\Models\Story;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\WorkStatus;
-use PDOException;
 
 /**
  * Every decision about who may change a story is made here, never in a controller or a view. A story
@@ -49,9 +48,8 @@ final class StoryService
 
     public const REASON_MAX = 1000;
 
-    private const SLUG_BASE_MAX = 100;
-
-    private const SLUG_ATTEMPTS = 5;
+    /** The slug column holds 120 characters: room for a ten-digit id, the hyphen and the title words. */
+    private const SLUG_WORDS_MAX = 100;
 
     public function __construct(
         private readonly Database $database,
@@ -704,53 +702,33 @@ final class StoryService
      */
     private function insert(int $ownerId, array $values, string $now): int
     {
-        $base = Slug::fromText($values['title'], self::SLUG_BASE_MAX, 'story');
+        $words = Slug::fromText($values['title'], self::SLUG_WORDS_MAX, 'story');
 
-        for ($attempt = 0; $attempt < self::SLUG_ATTEMPTS; $attempt++) {
-            // After losing a race for a slug, a random suffix avoids racing for the next number as well.
-            $slug = $attempt === 0 ? $this->freeSlug($base) : $base . '-' . bin2hex(random_bytes(3));
+        // The address is the story's id followed by its title words, so two stories with one title never collide
+        // and never need a counter. The id is only known after the insert, hence the throwaway first value; the
+        // caller's transaction covers both statements.
+        $id = (int) $this->database->insertGetId(
+            'INSERT INTO {prefix}stories (owner_id, title, slug, summary, notes, disclaimer, language, work_status,
+             publication_state, word_count, published_at, created_at, updated_at)
+             VALUES (:owner, :title, :slug, :summary, :notes, :disclaimer, :language, :work_status, :state, 0, NULL, :created, :updated)',
+            [
+                'owner' => $ownerId,
+                'title' => $values['title'],
+                'slug' => 'new-' . bin2hex(random_bytes(8)),
+                'summary' => $values['summary'],
+                'notes' => $values['notes'],
+                'disclaimer' => $values['disclaimer'],
+                'language' => $values['language'],
+                'work_status' => $values['work_status'],
+                'state' => PublicationState::Draft->value,
+                'created' => $now,
+                'updated' => $now,
+            ],
+        );
 
-            try {
-                return (int) $this->database->insertGetId(
-                    'INSERT INTO {prefix}stories (owner_id, title, slug, summary, notes, disclaimer, language, work_status,
-                     publication_state, word_count, published_at, created_at, updated_at)
-                     VALUES (:owner, :title, :slug, :summary, :notes, :disclaimer, :language, :work_status, :state, 0, NULL, :created, :updated)',
-                    [
-                        'owner' => $ownerId,
-                        'title' => $values['title'],
-                        'slug' => $slug,
-                        'summary' => $values['summary'],
-                        'notes' => $values['notes'],
-                        'disclaimer' => $values['disclaimer'],
-                        'language' => $values['language'],
-                        'work_status' => $values['work_status'],
-                        'state' => PublicationState::Draft->value,
-                        'created' => $now,
-                        'updated' => $now,
-                    ],
-                );
-            } catch (PDOException $exception) {
-                if (($exception->errorInfo[1] ?? null) !== 1062) {
-                    throw $exception;
-                }
-            }
-        }
+        $this->database->execute('UPDATE {prefix}stories SET slug = :slug WHERE id = :id', ['slug' => $id . '-' . $words, 'id' => $id]);
 
-        // Five collisions in a row means something other than chance is wrong; do not loop forever.
-        throw new PDOException('Could not find a free story address.');
-    }
-
-    private function freeSlug(string $base): string
-    {
-        for ($number = 1; $number < 1000; $number++) {
-            $candidate = $number === 1 ? $base : $base . '-' . $number;
-
-            if (!Slug::isReserved($candidate) && $this->findBySlug($candidate) === null) {
-                return $candidate;
-            }
-        }
-
-        return $base . '-' . bin2hex(random_bytes(4));
+        return $id;
     }
 
     /**
