@@ -68,6 +68,7 @@ final class ContentEditor
             'scripts' => [
                 AdminUrl::asset('vendor/tinymce/tinymce.min.js', $this->assetVersion),
                 AdminUrl::asset('vendor/easymde/easymde.min.js', $this->assetVersion),
+                AdminUrl::asset('js/paste-clean.js', $this->assetVersion),
                 AdminUrl::asset('js/content-editor.js', $this->assetVersion),
             ],
             'styles' => [AdminUrl::asset('vendor/easymde/easymde.min.css', $this->assetVersion)],

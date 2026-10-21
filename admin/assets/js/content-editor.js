@@ -207,6 +207,12 @@
             remove_script_host: false,
             entity_encoding: 'raw',
             paste_data_images: false,
+            /* Runs before the paste is filtered, while Google Docs' italic, bold and underline are still styles. */
+            paste_preprocess: function (editor, args) {
+                if (window.LumoraPaste && typeof args.content === 'string') {
+                    args.content = window.LumoraPaste.normalise(args.content);
+                }
+            },
             link_title: false,
             target_list: false,
             browser_spellcheck: true,
@@ -260,6 +266,18 @@
 
         this.markdown.codemirror.on('change', function () {
             self.changed();
+        });
+
+        /* Without this only the clipboard's plain text arrives, and every italic and bold mark is lost. */
+        this.markdown.codemirror.on('paste', function (cm, event) {
+            var data = event.clipboardData;
+            var html = data ? data.getData('text/html') : '';
+            var converted = html && window.LumoraPaste ? window.LumoraPaste.toMarkdown(html) : null;
+
+            if (converted !== null) {
+                event.preventDefault();
+                cm.replaceSelection(converted);
+            }
         });
     };
 

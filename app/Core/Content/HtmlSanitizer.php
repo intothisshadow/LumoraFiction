@@ -86,6 +86,14 @@ final class HtmlSanitizer
         // part that is read back, silently dropping the author's text. Divs are not allowed anyway.
         $html = (string) preg_replace('~</\s*div\b[^>]*>~i', '', $html);
 
+        // Word's downlevel markers ("<![if !supportLists]>") are read as text by libxml2 and would print on
+        // the page. The comment form ("<!--[if IE]>...<![endif]-->") is left alone: it is dropped as a
+        // comment, and cutting its closing marker would turn the rest of the text into one.
+        $html = (string) preg_replace(['~<!\[if\s[^\]]*\]>~i', '~<!\[endif\]>(?!-->)~i'], '', $html);
+
+        // libxml2 drops a namespace prefix, so Word's "<o:p>" would parse as a second, nested paragraph.
+        $html = (string) preg_replace('~</?o:p\b[^>]*>~i', '', $html);
+
         $dom = new DOMDocument('1.0', 'UTF-8');
         libxml_use_internal_errors(true);
         // Wrapped in a root element and a forced encoding so multibyte text is not mis-decoded and no
@@ -102,9 +110,325 @@ final class HtmlSanitizer
             return '';
         }
 
+        // Styles are read here and then discarded by cleanNode(), so the formatting survives as real tags.
+        $this->translatePastedFormatting($root);
         $this->cleanNode($root);
+        $this->removeEmptyWrappers($root);
 
         return $this->innerHtml($root, $dom);
+    }
+
+    /**
+     * Google Docs and Word mark italics, bold and underline with a style on a span, which would be dropped
+     * with every other style. The marks become em, strong, u and friends first; the span is left behind
+     * empty of meaning and is unwrapped by cleanNode().
+     */
+    private function translatePastedFormatting(DOMElement $root): void
+    {
+        $this->unwrapNeutralFormatting($root);
+        $this->convertWordLists($root);
+        $this->flattenTables($root);
+
+        foreach (iterator_to_array($root->getElementsByTagName('span')) as $span) {
+            if ($span instanceof DOMElement && $span->hasAttribute('style')) {
+                $this->wrapStyledChildren($span);
+            }
+        }
+    }
+
+    /**
+     * Google Docs wraps a whole paste in a bold tag whose style says the weight is normal, and states
+     * "not italic" on italic tags the same way. Read literally these would bold the entire chapter.
+     */
+    private function unwrapNeutralFormatting(DOMElement $root): void
+    {
+        foreach (iterator_to_array($root->getElementsByTagName('*')) as $element) {
+            if (!$element instanceof DOMElement || $element->parentNode === null) {
+                continue;
+            }
+
+            $tag = strtolower($element->tagName);
+            $style = $this->parseStyle($element->getAttribute('style'));
+            $neutral = match ($tag) {
+                'b', 'strong' => str_starts_with(strtolower($element->getAttribute('id')), 'docs-internal-guid')
+                    || (isset($style['font-weight']) && !$this->isBold($style['font-weight'])),
+                'i', 'em' => ($style['font-style'] ?? '') === 'normal',
+                default => false,
+            };
+
+            if ($neutral) {
+                $this->unwrap($element);
+            }
+        }
+    }
+
+    private function wrapStyledChildren(DOMElement $span): void
+    {
+        $style = $this->parseStyle($span->getAttribute('style'));
+        $tags = [];
+
+        if (in_array($style['font-style'] ?? '', ['italic', 'oblique'], true)) {
+            $tags[] = 'em';
+        }
+
+        if (isset($style['font-weight']) && $this->isBold($style['font-weight'])) {
+            $tags[] = 'strong';
+        }
+
+        // Google Docs underlines every link's text; a second underline inside a link is noise.
+        if (preg_match('/\bunderline\b/', ($style['text-decoration'] ?? '') . ' ' . ($style['text-decoration-line'] ?? '')) === 1 && !$this->insideLink($span)) {
+            $tags[] = 'u';
+        }
+
+        if (preg_match('/\bline-through\b/', ($style['text-decoration'] ?? '') . ' ' . ($style['text-decoration-line'] ?? '')) === 1) {
+            $tags[] = 's';
+        }
+
+        $align = $style['vertical-align'] ?? '';
+
+        if ($align === 'super') {
+            $tags[] = 'sup';
+        } elseif ($align === 'sub') {
+            $tags[] = 'sub';
+        }
+
+        $dom = $span->ownerDocument;
+
+        if ($tags === [] || $dom === null) {
+            return;
+        }
+
+        $outer = null;
+        $inner = null;
+
+        foreach ($tags as $tag) {
+            $wrapper = $dom->createElement($tag);
+
+            if ($inner === null) {
+                $outer = $wrapper;
+            } else {
+                $inner->appendChild($wrapper);
+            }
+
+            $inner = $wrapper;
+        }
+
+        while ($span->firstChild !== null && $inner !== null) {
+            $inner->appendChild($span->firstChild);
+        }
+
+        if ($outer !== null) {
+            $span->appendChild($outer);
+        }
+    }
+
+    private function insideLink(DOMNode $node): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof DOMElement; $parent = $parent->parentNode) {
+            if (strtolower($parent->tagName) === 'a') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isBold(string $weight): bool
+    {
+        return in_array($weight, ['bold', 'bolder'], true) || (ctype_digit($weight) && (int) $weight >= 600);
+    }
+
+    /**
+     * @return array<string, string> lower-cased property => value, with "!important" removed
+     */
+    private function parseStyle(string $style): array
+    {
+        $parsed = [];
+
+        foreach (explode(';', $style) as $declaration) {
+            $parts = explode(':', $declaration, 2);
+
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $value = trim((string) preg_replace('/\s*!important\s*$/i', '', strtolower(trim($parts[1]))));
+            $parsed[strtolower(trim($parts[0]))] = $value;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Word writes a list item as a styled paragraph with the bullet or number typed in a marked-off span.
+     * Consecutive item paragraphs become one real list; nesting levels are flattened.
+     */
+    private function convertWordLists(DOMElement $root): void
+    {
+        $dom = $root->ownerDocument;
+
+        if ($dom === null) {
+            return;
+        }
+
+        $list = null;
+        $listKind = '';
+        $previous = null;
+
+        foreach (iterator_to_array($root->getElementsByTagName('p')) as $paragraph) {
+            if (!$paragraph instanceof DOMElement || $paragraph->parentNode === null || !$this->isWordListItem($paragraph)) {
+                continue;
+            }
+
+            $kind = 'ul';
+
+            foreach (iterator_to_array($paragraph->getElementsByTagName('span')) as $marker) {
+                if ($marker instanceof DOMElement && preg_match('/mso-list\s*:\s*ignore/i', $marker->getAttribute('style')) === 1) {
+                    if (preg_match('/^[\s\x{00A0}]*(?:\d+|[a-z]|[ivxlcdm]+)[.)]/iu', $marker->textContent) === 1) {
+                        $kind = 'ol';
+                    }
+
+                    $marker->parentNode?->removeChild($marker);
+                }
+            }
+
+            // Only paragraphs that are neighbours join one list; any other block between them ends it.
+            if ($list === null || $kind !== $listKind || $paragraph->previousSibling !== $previous) {
+                $list = $dom->createElement($kind);
+                $listKind = $kind;
+                $paragraph->parentNode->insertBefore($list, $paragraph);
+            }
+
+            $item = $dom->createElement('li');
+
+            while ($paragraph->firstChild !== null) {
+                $item->appendChild($paragraph->firstChild);
+            }
+
+            $list->appendChild($item);
+            $paragraph->parentNode->removeChild($paragraph);
+            $previous = $list;
+        }
+    }
+
+    private function isWordListItem(DOMElement $paragraph): bool
+    {
+        return preg_match('/mso-list\s*:\s*(?!none)\S/i', $paragraph->getAttribute('style')) === 1
+            || str_starts_with(strtolower($paragraph->getAttribute('class')), 'msolistparagraph');
+    }
+
+    /**
+     * Tables are not part of the allowlist, so a pasted one would run its cells together into one line.
+     * Each cell becomes its own paragraph instead, in reading order, and the table frame is unwrapped.
+     */
+    private function flattenTables(DOMElement $root): void
+    {
+        $dom = $root->ownerDocument;
+
+        if ($dom === null) {
+            return;
+        }
+
+        foreach (iterator_to_array($root->getElementsByTagName('*')) as $cell) {
+            if (!$cell instanceof DOMElement || $cell->parentNode === null || !in_array(strtolower($cell->tagName), ['td', 'th', 'caption'], true)) {
+                continue;
+            }
+
+            if ($this->findBlockDescendant($cell) !== null) {
+                continue;
+            }
+
+            $paragraph = $dom->createElement('p');
+
+            while ($cell->firstChild !== null) {
+                $paragraph->appendChild($cell->firstChild);
+            }
+
+            $cell->parentNode->replaceChild($paragraph, $cell);
+        }
+    }
+
+    private function unwrap(DOMElement $element): void
+    {
+        $parent = $element->parentNode;
+
+        if ($parent === null) {
+            return;
+        }
+
+        while ($element->firstChild !== null) {
+            $parent->insertBefore($element->firstChild, $element);
+        }
+
+        $parent->removeChild($element);
+    }
+
+    /**
+     * A paste leaves hollow formatting tags behind ("<b></b>", a span around nothing) and a paragraph of
+     * only line breaks where the source had a blank line. Children are visited before their parents, so
+     * a wrapper emptied by removing its child goes too. A whitespace-only wrapper is unwrapped instead,
+     * since the space between two words must survive.
+     */
+    private function removeEmptyWrappers(DOMElement $root): void
+    {
+        $wrappers = ['strong', 'b', 'em', 'i', 'u', 'del', 's', 'sup', 'sub', 'span', 'a'];
+
+        foreach (array_reverse(iterator_to_array($root->getElementsByTagName('*'))) as $element) {
+            if (!$element instanceof DOMElement || $element->parentNode === null) {
+                continue;
+            }
+
+            $tag = strtolower($element->tagName);
+
+            if (in_array($tag, $wrappers, true) && $element->getElementsByTagName('br')->length === 0) {
+                $text = $element->textContent;
+
+                if ($text === '') {
+                    $element->parentNode->removeChild($element);
+                } elseif (preg_match('/^\s*\z/u', $text) === 1) {
+                    $this->unwrap($element);
+                }
+
+                continue;
+            }
+
+            if ($tag === 'p' && !$element->hasAttribute('class') && $this->holdsOnlyLineBreaks($element)) {
+                $element->parentNode->removeChild($element);
+
+                continue;
+            }
+
+            // A line break straight between two blocks (a pasted blank line) adds nothing.
+            if ($tag === 'br' && $element->parentNode === $root && $this->touchesBlock($element)) {
+                $root->removeChild($element);
+            }
+        }
+    }
+
+    private function touchesBlock(DOMElement $element): bool
+    {
+        foreach ([$element->previousSibling, $element->nextSibling] as $sibling) {
+            if ($sibling instanceof DOMElement && in_array(strtolower($sibling->tagName), self::BLOCK_LEVEL_TAGS, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function holdsOnlyLineBreaks(DOMElement $paragraph): bool
+    {
+        foreach ($paragraph->childNodes as $child) {
+            if ($child instanceof DOMElement && strtolower($child->tagName) === 'br') {
+                continue;
+            }
+
+            if (!$child instanceof DOMText || trim($child->textContent) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -313,6 +637,11 @@ final class HtmlSanitizer
 
             $this->cleanAttributes($child, $allowedTags[$tag]);
             $this->cleanNode($child);
+
+            // A span only ever carried a class or a style; with neither left it is just a wrapper.
+            if ($tag === 'span' && !$child->hasAttributes()) {
+                $this->unwrap($child);
+            }
         }
     }
 
