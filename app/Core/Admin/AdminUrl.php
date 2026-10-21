@@ -39,6 +39,14 @@ final class AdminUrl
     }
 
     /**
+     * The address of the signed-in member's account page, the way back for a writer who came from it.
+     */
+    public static function account(): string
+    {
+        return BasePath::get() . '/account/profile';
+    }
+
+    /**
      * The address of a file under admin/assets/, with a version so a browser fetches a changed file.
      */
     public static function asset(string $path, string $version = ''): string
