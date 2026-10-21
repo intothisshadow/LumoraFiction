@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Story form suggestions: while a writer types a fandom, character, relationship or tag, the matching entries that already exist appear under the box, so a name is picked instead of being spelled a new way. Names that start with the typed words come first, then names that contain them, then aliases (an alias is entered under its proper name). Entries already typed in the box are left out, an entry no administrator has reviewed yet is marked as new, and characters and relationships are narrowed to the fandoms already named. It works with the keyboard and a screen reader, and the boxes remain plain text when scripts are off.
+
 - Browse: a **Browse** page in the main menu gathers ways to look around the archive. It links **New stories**, **Recently updated stories** and **Completed stories**, and an index for fandoms, genres, categories, tags, ratings, archive warnings and relationship categories, each showing how many stories use every name, A to Z or most used first, with first-letter links and pages of a hundred. Only reviewed names that a public story uses are listed, and a kind the archive mode switches off is not offered. A fandom's page now also links to its most used characters and relationships. Both bundled themes draw all of it.
 
 - Account page: writers now find **Post New Story** and **My stories** under their account, so starting a story no longer means knowing where the admin is. Editors and Administrators also see **Awaiting approval**. Readers see none of these. The links sit in a row of quiet outlined pills under a small **Quick links** heading. The admin header gains a **My account** link beside **View site**, so a writer can always get back to the public side.

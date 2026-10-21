@@ -32,6 +32,7 @@ final class AdminRoutes
         ArchiveSettingsController $archive,
         EditorSettingsController $editor,
         ContentEditorController $content,
+        TermSuggestController $suggest,
         TaxonomyController $taxonomy,
         StoryController $stories,
         ChapterController $chapters,
@@ -60,6 +61,8 @@ final class AdminRoutes
         $router->get('/admin/maintenance/security-events', $securityEvents->index(...), 'admin.security-events');
         $router->post('/admin/content/preview', $content->preview(...), 'admin.content.preview');
         $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
+        // Before the /admin/taxonomy/{type} pattern below, which would otherwise read "suggest" as a kind.
+        $router->get('/admin/taxonomy/suggest', $suggest->suggest(...), 'admin.taxonomy.suggest');
         $router->get('/admin/taxonomy', $taxonomy->overview(...), 'admin.taxonomy');
         $router->post('/admin/taxonomy/required', $taxonomy->saveRequired(...), 'admin.taxonomy.required');
         $router->get('/admin/taxonomy/term/{id}', $taxonomy->showEdit(...), 'admin.taxonomy.term');

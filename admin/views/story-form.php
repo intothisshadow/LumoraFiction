@@ -204,8 +204,8 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                 <?php else: ?>
                     <div class="lf-field<?= isset($errors[$kind]) ? ' lf-field--error' : '' ?>">
                         <label for="<?= Html::e($kind) ?>"><?= Html::e($label) ?><?= $required ?></label>
-                        <input type="text" id="<?= Html::e($kind) ?>" name="names_<?= Html::e($kind) ?>" value="<?= Html::e($field['text']) ?>" autocomplete="off"<?= $describe($kind) ?>>
-                        <p class="lf-hint" id="<?= Html::e($kind) ?>_hint">Separate with commas, up to <?= (int) $type->maximumPerStory() ?>. A name that matches an existing entry or its alias uses it; a new one is added and checked by an administrator.</p>
+                        <input type="text" id="<?= Html::e($kind) ?>" name="names_<?= Html::e($kind) ?>" value="<?= Html::e($field['text']) ?>" autocomplete="off" data-lf-suggest="<?= Html::e($kind) ?>"<?= $describe($kind) ?>>
+                        <p class="lf-hint" id="<?= Html::e($kind) ?>_hint">Separate with commas, up to <?= (int) $type->maximumPerStory() ?>. Matching entries appear as you type. A name that matches an existing entry or its alias uses it; a new one is added and checked by an administrator.</p>
                         <?= $problem($kind) ?>
                     </div>
                 <?php endif; ?>
@@ -218,6 +218,10 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
 
 <?php if ($coverAvailable): ?>
     <script src="<?= Html::e(AdminUrl::asset('js/cover-crop.js', $assetVersion ?? '')) ?>" defer></script>
+<?php endif; ?>
+
+<?php if ($fields !== []): ?>
+    <script src="<?= Html::e(AdminUrl::asset('js/term-suggest.js', $assetVersion ?? '')) ?>" data-lf-suggest-url="<?= Html::e(AdminUrl::to('taxonomy/suggest')) ?>" defer></script>
 <?php endif; ?>
 
 <?php if ($story !== null): ?>

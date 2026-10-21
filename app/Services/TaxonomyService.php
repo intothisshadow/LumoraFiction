@@ -334,6 +334,125 @@ final class TaxonomyService
     }
 
     /**
+     * Existing entries whose name or alias contains the typed words, for the story form to offer while a writer
+     * types: names that start with the words first, then names that contain them, then aliases. Every entry is
+     * offered, reviewed or not, so two writers do not propose the same tag twice; only the name, whether it is
+     * reviewed and the alias that matched leave this method, never a count of stories or an author.
+     *
+     * A character or relationship is narrowed to the fandoms named on the form, plus those that belong to none.
+     * Fandoms that do not exist yet narrow nothing, so the list is never empty for a reason the writer cannot see.
+     *
+     * @param list<string> $skip names already entered in the field
+     * @param list<string> $fandomNames the fandoms typed on the form
+     * @return list<array{name: string, alias: string, reviewed: bool}>
+     */
+    public function suggest(TermType $type, string $words, array $skip = [], array $fandomNames = [], int $limit = 8): array
+    {
+        $key = trim((string) preg_replace('/\s+/u', ' ', $this->nameKey($words)));
+
+        if ($key === '') {
+            return [];
+        }
+
+        $limit = max(1, min(20, $limit));
+        $skipKeys = array_map(fn (string $name): string => $this->nameKey(trim($name)), array_slice($skip, 0, 50));
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $key);
+        $params = ['type' => $type->value, 'contains' => '%' . $escaped . '%', 'prefix' => $escaped . '%'];
+        $parents = '';
+
+        if ($type->belongsToFandom()) {
+            $fandomIds = $this->fandomIdsNamed($fandomNames);
+
+            if ($fandomIds !== []) {
+                [$marks, $parentParams] = $this->placeholders(array_values($fandomIds), 'parent');
+                $parents = ' AND parent_id IN (0, ' . $marks . ')';
+                $params += $parentParams;
+            }
+        }
+
+        // Skipped names are removed after the query, so it asks for enough rows to still fill the list.
+        $rows = max($limit, 1) + count($skipKeys);
+        $found = [];
+        $seen = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT id, name, name_key, reviewed FROM {prefix}terms WHERE type = :type AND name_key LIKE :contains' . $parents
+            . ' ORDER BY CASE WHEN name_key LIKE :prefix THEN 0 ELSE 1 END, story_count DESC, name_key LIMIT ' . $rows,
+            $params,
+        ) as $row) {
+            $seen[(int) $row['id']] = true;
+
+            if (!in_array((string) $row['name_key'], $skipKeys, true)) {
+                $found[] = ['name' => (string) $row['name'], 'alias' => '', 'reviewed' => (int) $row['reviewed'] === 1];
+            }
+        }
+
+        if (count($found) < $limit) {
+            $aliasParams = ['type' => $type->value, 'contains' => $params['contains']] + array_diff_key($params, ['type' => 1, 'contains' => 1, 'prefix' => 1]);
+
+            foreach ($this->database->fetchAll(
+                'SELECT a.alias, t.id, t.name, t.name_key, t.reviewed FROM {prefix}term_aliases a JOIN {prefix}terms t ON t.id = a.term_id
+                 WHERE a.type = :type AND a.alias_key LIKE :contains' . str_replace('parent_id', 't.parent_id', $parents)
+                . ' ORDER BY a.alias_key LIMIT ' . $rows,
+                $aliasParams,
+            ) as $row) {
+                // The same entry reached by its name and by an alias is offered once, under its name.
+                if (isset($seen[(int) $row['id']]) || in_array((string) $row['name_key'], $skipKeys, true)) {
+                    continue;
+                }
+
+                $seen[(int) $row['id']] = true;
+                $found[] = ['name' => (string) $row['name'], 'alias' => (string) $row['alias'], 'reviewed' => (int) $row['reviewed'] === 1];
+            }
+        }
+
+        return array_slice($found, 0, $limit);
+    }
+
+    /**
+     * The ids of the fandoms with these names or aliases, in one query.
+     *
+     * @param list<string> $names
+     * @return list<int>
+     */
+    private function fandomIdsNamed(array $names): array
+    {
+        $keys = [];
+
+        foreach (array_slice($names, 0, 10) as $name) {
+            $key = $this->nameKey(trim($name));
+
+            if ($key !== '' && mb_strlen($key, 'UTF-8') <= 100) {
+                $keys[$key] = $key;
+            }
+        }
+
+        if ($keys === []) {
+            return [];
+        }
+
+        // A named placeholder is used once, so the same keys are bound again under other names for the alias check.
+        $params = ['type' => TermType::Fandom->value, 'alias_type' => TermType::Fandom->value];
+        $names = [];
+        $aliases = [];
+
+        foreach (array_values($keys) as $index => $key) {
+            $names[] = ':name' . $index;
+            $aliases[] = ':alias' . $index;
+            $params['name' . $index] = $key;
+            $params['alias' . $index] = $key;
+        }
+
+        return array_map(
+            static fn (array $row): int => (int) $row['id'],
+            $this->database->fetchAll(
+                'SELECT t.id FROM {prefix}terms t WHERE t.type = :type AND (t.name_key IN (' . implode(', ', $names) . ') OR t.id IN (SELECT a.term_id FROM {prefix}term_aliases a WHERE a.type = :alias_type AND a.alias_key IN (' . implode(', ', $aliases) . ')))',
+                $params,
+            ),
+        );
+    }
+
+    /**
      * @param list<string> $chars
      * @return array{0: string, 1: array<string, mixed>}
      */

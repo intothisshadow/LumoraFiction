@@ -30,6 +30,7 @@ use LumoraFiction\Controllers\Admin\SecuritySettingsController;
 use LumoraFiction\Controllers\Admin\SpamSettingsController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
+use LumoraFiction\Controllers\Admin\TermSuggestController;
 use LumoraFiction\Controllers\Admin\UsersController;
 use LumoraFiction\Services\UserAdminService;
 use LumoraFiction\Core\Content\HtmlSanitizer;
@@ -341,6 +342,7 @@ final class Kernel
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit)),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
+            new TermSuggestController($kernel->auth, $taxonomy),
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
             new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
