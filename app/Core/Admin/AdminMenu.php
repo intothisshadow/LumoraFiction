@@ -89,6 +89,7 @@ final class AdminMenu
                 'children' => [
                     ['slug' => 'settings-archive', 'label' => 'Archive', 'path' => 'settings/archive', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
                 ],
             ],
             [
@@ -99,6 +100,7 @@ final class AdminMenu
                 'children' => [
                     ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-plugins', 'label' => 'Plugins', 'path' => 'maintenance/plugins', 'capability' => Capability::ManageSite],
+                    ['slug' => 'maintenance-security-events', 'label' => 'Security events', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
                 ],
             ],
         ];

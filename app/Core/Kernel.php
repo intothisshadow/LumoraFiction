@@ -25,6 +25,8 @@ use LumoraFiction\Controllers\Admin\ContentEditorController;
 use LumoraFiction\Controllers\Admin\EditorSettingsController;
 use LumoraFiction\Controllers\Admin\PluginsController;
 use LumoraFiction\Controllers\Admin\ReviewController;
+use LumoraFiction\Controllers\Admin\SecurityEventsController;
+use LumoraFiction\Controllers\Admin\SpamSettingsController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
 use LumoraFiction\Controllers\Admin\UsersController;
@@ -53,11 +55,15 @@ use LumoraFiction\Core\Plugin\PluginNotices;
 use LumoraFiction\Core\Security\ContentSecurityPolicy;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Security\DatabaseSessionHandler;
+use LumoraFiction\Core\Security\FormShield;
 use LumoraFiction\Core\Security\LoginThrottle;
 use LumoraFiction\Core\Security\PasswordPolicy;
+use LumoraFiction\Core\Security\RegistrationNotices;
+use LumoraFiction\Core\Security\RegistrationThrottle;
 use LumoraFiction\Core\Security\SecurityHeaders;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Core\Theme\FormProtectionFields;
 use LumoraFiction\Core\Theme\StaffNavigation;
 use LumoraFiction\Core\Theme\ThemeCatalog;
 use LumoraFiction\Core\Theme\ThemeRenderer;
@@ -69,8 +75,13 @@ use LumoraFiction\Controllers\PublicController;
 use LumoraFiction\Controllers\ReaderController;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\TermType;
+use LumoraFiction\Services\AkismetClient;
 use LumoraFiction\Services\ArchiveSettings;
 use LumoraFiction\Services\BookmarkPresenter;
+use LumoraFiction\Services\FormGuard;
+use LumoraFiction\Services\RegistrationGuard;
+use LumoraFiction\Services\SecurityEventLog;
+use LumoraFiction\Services\SpamSettings;
 use LumoraFiction\Services\BookmarkService;
 use LumoraFiction\Services\PluginManager;
 use LumoraFiction\Services\PublicArchive;
@@ -148,7 +159,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -163,6 +174,8 @@ final class Kernel
         $users = new UserService($database, $passwords);
         $siteUrl = rtrim((string) $config->get('site_url', ''), '/');
 
+        $securityEvents = new SecurityEventLog($database, $config);
+
         $auth = new AuthService(
             $users,
             $sessions,
@@ -172,9 +185,19 @@ final class Kernel
             $passwords,
             $config,
             $siteUrl,
+            events: $securityEvents,
         );
 
         $audit = new AuditLogService($database);
+
+        $spamSettings = new SpamSettings($config, $database, $audit, $securityEvents);
+        $registrationThrottle = new RegistrationThrottle($database, $config);
+        $akismet = new AkismetClient($siteUrl);
+        $formShield = new FormShield((string) $config->get('secret_key', ''), $spamSettings->current()['min_seconds']);
+        $formGuard = new FormGuard($formShield, $securityEvents);
+        $registrationGuard = new RegistrationGuard($registrationThrottle, $formGuard, $securityEvents, $spamSettings, $akismet, $hooks, $audit);
+        (new FormProtectionFields($formShield))->register($hooks);
+        (new RegistrationNotices($registrationThrottle))->register($hooks);
 
         // The template tags are plain functions so a theme can call them; they only forward to ThemeContext.
         require_once __DIR__ . '/../Helpers/template-tags.php';
@@ -203,8 +226,8 @@ final class Kernel
         $plugins = new PluginManager($config, $pluginCatalog, new PluginLoader($kernel, $pluginCatalog, $version['version'], $root), $audit, $hooks, $errors, $version['version']);
         (new PluginNotices($plugins))->register($hooks);
 
-        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins);
+        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $registrationGuard, $formGuard);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents);
 
         // Plugins load after the core routes are registered, so none of them can take over a core address.
         $plugins->loadActive();
@@ -220,12 +243,12 @@ final class Kernel
     /**
      * The public site's own addresses. Plugins add theirs through routes_register, after these.
      */
-    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings): void
+    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, RegistrationGuard $registrationGuard, FormGuard $formGuard): void
     {
         $readerPreferences = new ReaderPreferences($kernel->database);
         $bookmarks = new BookmarkService($kernel->database, $stories);
         $bookmarkPresenter = new BookmarkPresenter($bookmarks);
-        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences);
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard);
         $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash);
         (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
         (new ReaderHead($kernel->auth, $readerPreferences))->register($kernel->hooks);
@@ -292,7 +315,7 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents): void
     {
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
@@ -313,6 +336,8 @@ final class Kernel
             new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit), $themeOptions),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
             new PluginsController($kernel->auth, $view, $flash, $plugins),
+            new SpamSettingsController($kernel->auth, $view, $flash, $spamSettings, $registrationThrottle, $akismet, $kernel->audit),
+            new SecurityEventsController($kernel->auth, $view, $flash, $securityEvents),
         );
     }
 

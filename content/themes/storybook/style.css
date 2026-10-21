@@ -398,6 +398,15 @@ img {
     margin: 0 0 1rem;
 }
 
+/* Fields a person never sees. Moved off screen rather than hidden, because some programs skip fields that are not displayed. */
+.lf-form__trap {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
 /* ==========================================================================
    5. Notices and preview banner
    ========================================================================== */

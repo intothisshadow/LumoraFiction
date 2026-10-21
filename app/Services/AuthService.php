@@ -77,6 +77,7 @@ final class AuthService
         private readonly Configuration $config,
         string $siteUrl,
         private readonly string $siteName = 'Lumora Fiction',
+        private readonly ?SecurityEventLog $events = null,
     ) {
         $siteUrl = rtrim($siteUrl, '/');
 
@@ -187,6 +188,11 @@ final class AuthService
 
         if ($user === null) {
             $this->throttle->recordFailure($ipAddress);
+
+            // Only the failure that starts a lockout is noted; the attempts refused while it lasts return above.
+            if ($this->events !== null && $this->throttle->isLocked($ipAddress)) {
+                $this->events->record(SecurityEventLog::LOGIN_LOCKOUT, $ipAddress);
+            }
 
             return LoginResult::invalidCredentials();
         }

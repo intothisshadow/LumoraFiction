@@ -206,7 +206,7 @@ Sign-in, registration, email confirmation, password reset and the profile are al
 | `links` | Links to other account pages, each `{label, url}`, drawn below the forms. |
 | `shortcuts` | Links a signed-in member uses often, such as **My bookmarks** on the profile page, each `{label, url}`. Draw them above the forms. Empty on every other page. |
 
-A form is `{action, csrf_token, submit, heading, fields, errors}`. The part prints the hidden `csrf_token` field itself, which every form must carry. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
+A form is `{id, action, csrf_token, submit, heading, fields, errors}`. The part prints the hidden `csrf_token` field itself, which every form must carry, and then fires `do_action('lf_form_fields', $form['id'])` once, inside the `<form>` and before the first field. Core uses that action to print the hidden spam-trap and timing fields on the registration, password-reset and confirmation-email forms; a theme that leaves the call out cannot register anyone, because those forms are then refused as sent without their timing check. Give the trap's wrapper, `lf-form__trap`, a rule that takes it off the screen without `display: none` (some programs skip fields that are not displayed): position it far off to the left, one pixel square, as Storybook's stylesheet does. A theme without the rule still works, but visitors see two odd extra fields. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
 
 Do not change the field names or the form's `action`: the account controller reads them.
 
@@ -246,6 +246,7 @@ A feature adds what it needs in one place, and every theme gets it.
 | `lf_head` | Action, receives the view | Print markup inside `<head>`. |
 | `lf_body_open` | Action, receives the view | Print markup right after `<body>`. |
 | `lf_footer` | Action, receives the view | Print markup before `</body>`. |
+| `lf_form_fields` | Action, receives the form's `id` | Fired by the `account-form` part inside each form. Prints the hidden fields of a protected form. A theme calls it once per form and prints nothing itself. |
 | `lf_styles` | Filter, `array<handle, path>` | Add stylesheets. |
 | `lf_scripts` | Filter, `array<handle, path>` | Add scripts, loaded with `defer`. |
 | `lf_body_class` | Filter, `list<string>` | Add classes to `<body>`. |

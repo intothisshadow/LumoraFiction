@@ -32,8 +32,12 @@ use LumoraFiction\Services\AccountRules;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\EditorSettings;
+use LumoraFiction\Services\FormGuard;
+use LumoraFiction\Services\GuardDecision;
+use LumoraFiction\Services\GuardOutcome;
 use LumoraFiction\Services\LoginOutcome;
 use LumoraFiction\Services\ReaderPreferences;
+use LumoraFiction\Services\RegistrationGuard;
 use LumoraFiction\Services\UserService;
 
 /**
@@ -55,6 +59,8 @@ final class AccountController
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
         private readonly ReaderPreferences $readerPreferences,
+        private readonly RegistrationGuard $registrationGuard,
+        private readonly FormGuard $formGuard,
     ) {
     }
 
@@ -167,20 +173,58 @@ final class AccountController
             return $this->registerPage($request, $values, ['form' => self::EXPIRED], 400);
         }
 
+        $decision = $this->registrationGuard->check($request, $values['display_name'], $values['email'], $request->input('challenge_answer') ?? '');
+
+        if (!$decision->allowed()) {
+            return $this->refusedRegistration($request, $values, $decision);
+        }
+
         $result = $this->auth->register($values['login_name'], $values['display_name'], $values['email'], $request->input('password') ?? '');
 
         if (!$result->accepted) {
             return $this->registerPage($request, $values, $result->errors, 422);
         }
 
-        // The same words whether or not the address already had an account.
-        $message = $result->needsVerification
+        return $this->registrationReceived($request, $result->needsVerification);
+    }
+
+    /**
+     * The same words whether or not the address already had an account, and whether or not the protections quietly
+     * dropped the sign-up.
+     */
+    private function registrationReceived(Request $request, bool $needsVerification): Response
+    {
+        $message = $needsVerification
             ? 'Thank you for joining. We have sent a message to the address you gave. Open the link in it to confirm your address and activate your account.'
             : 'Thank you for joining. Your account is ready, and you can sign in now.';
 
         return $this->page($request, 'Registration received', 'message', [], 200, [['type' => 'success', 'text' => $message]], [
             ['label' => 'Go to the sign-in page', 'url' => PublicUrl::account('sign-in')],
         ]);
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function refusedRegistration(Request $request, array $values, GuardDecision $decision): Response
+    {
+        if ($decision->outcome === GuardOutcome::Silent) {
+            return $this->registrationReceived($request, $this->config->setting('registration.email_verification', true) !== false);
+        }
+
+        if ($decision->outcome === GuardOutcome::Reject) {
+            return $this->registerPage($request, $values, $decision->errors, 422);
+        }
+
+        $minutes = max(1, (int) ceil($decision->retryAfter / 60));
+        $wait = $minutes === 1 ? 'about a minute' : 'about ' . $minutes . ' minutes';
+
+        $message = $decision->outcome === GuardOutcome::Paused
+            ? 'Registration is paused for a little while because many sign-ups arrived at once. Please try again in ' . $wait . '.'
+            : 'You have tried to register several times in a short while. Please try again in ' . $wait . '.';
+
+        return $this->registerPage($request, $values, ['form' => $message], $decision->outcome === GuardOutcome::Paused ? 503 : 429)
+            ->withHeader('Retry-After', (string) $decision->retryAfter);
     }
 
     /**
@@ -195,12 +239,21 @@ final class AccountController
             ]);
         }
 
-        $form = $this->form('account_register', PublicUrl::account('register'), 'Create account', [
+        $fields = [
             $this->field('login_name', 'Login name', 'text', $values['login_name'] ?? '', 'username', 'Private. You use it to sign in, and it is never shown to other people.', $errors['login_name'] ?? ''),
             $this->field('display_name', 'Display name', 'text', $values['display_name'] ?? '', 'nickname', 'Public. This is the name shown on your stories and your author page.', $errors['display_name'] ?? ''),
             $this->field('email', 'Email address', 'email', $values['email'] ?? '', 'email', '', $errors['email'] ?? ''),
             $this->field('password', 'Password', 'password', '', 'new-password', '', $errors['password'] ?? ''),
-        ], '', isset($errors['form']) ? [$errors['form']] : []);
+        ];
+
+        // A question the administrator wrote, asked with an ordinary field so every theme already draws it.
+        $question = $this->registrationGuard->question();
+
+        if ($question !== '') {
+            $fields[] = $this->field('challenge_answer', $question, 'text', '', 'off', '', $errors['challenge'] ?? '');
+        }
+
+        $form = $this->form('account_register', PublicUrl::account('register'), 'Create account', $fields, '', isset($errors['form']) ? [$errors['form']] : []);
 
         return $this->page($request, 'Create an account', 'register', [$form], $status, [], [
             ['label' => 'Already have an account? Sign in', 'url' => PublicUrl::account('sign-in')],
@@ -588,11 +641,20 @@ final class AccountController
             return $this->emailRequestPage($request, $action, $path, $title, $submit, $intro, self::EXPIRED, $email, 400);
         }
 
+        $decision = $this->formGuard->inspect($request, $action);
+
+        if ($decision->outcome === GuardOutcome::Reject) {
+            return $this->emailRequestPage($request, $action, $path, $title, $submit, $intro, $decision->errors['form'] ?? self::EXPIRED, $email, 422);
+        }
+
         if (AccountRules::emailProblem(AccountRules::normalizeEmail($email)) !== null) {
             return $this->emailRequestPage($request, $action, $path, $title, $submit, $intro, 'Enter a valid email address.', $email, 422);
         }
 
-        $send($email);
+        // A caught bot is answered like anyone else, but no message is sent.
+        if ($decision->allowed()) {
+            $send($email);
+        }
 
         // The same words whether or not the address belongs to an account.
         return $this->page($request, $title, 'message', [], 200, [['type' => 'success', 'text' => 'If that address belongs to an account, a message is on its way. Check your inbox, and your spam folder.']], [
@@ -617,6 +679,7 @@ final class AccountController
     private function form(string $action, string $url, string $submit, array $fields, string $heading = '', array $errors = []): array
     {
         return [
+            'id' => $action,
             'action' => $url,
             'csrf_token' => Csrf::token($action),
             'submit' => $submit,

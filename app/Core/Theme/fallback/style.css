@@ -218,6 +218,14 @@ a:focus-visible {
     margin: 0 0 1rem;
 }
 
+.lf-form__trap {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
 .lf-filters__list {
     display: flex;
     flex-wrap: wrap;

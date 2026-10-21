@@ -64,6 +64,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `user_role_changed` | `User $user`, `UserRole $from`, `User $actor`, `string $reason` | After an administrator has changed an account's role and it has been saved. `$user` is the account as it is now, and `$reason` is empty when none was given. |
 | `user_status_changed` | `User $user`, `UserStatus $from`, `User $actor`, `string $reason` | After an administrator has suspended or reinstated an account. `$from` is the status the account had before; read the new one from `$user`. |
 | `user_publishing_override_changed` | `User $user`, `?PublishingOverride $from`, `User $actor` | After an administrator has changed how an author's stories are published. `$from` is null when the author followed the site setting. |
+| `lf_form_fields` | `string $formId` | Inside a public form, fired by the theme's form part. Core prints the hidden trap and timing fields here for `account_register`, `account_forgot` and `account_resend`. |
 | `lf_head` | `string $view` | While a public page prints its `<head>`, after the stylesheets. Print markup the page needs there. |
 | `lf_body_open` | `string $view` | Right after the opening `<body>` of a public page. |
 | `lf_footer` | `string $view` | Just before the closing `</body>` of a public page, after queued scripts. |
@@ -81,6 +82,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
 | `content_html` | `string` HTML, plus the `ContentFormat` | Adjust the final HTML of a chapter just before it is shown. The result is sanitised again, so a plugin cannot add scripts, images or other elements the allowlist refuses. |
+| `lf_registration_spam_reasons` | `list<string>` (empty), plus `array{display_name, email, ip}` | Return reasons to refuse a sign-up. Any non-empty text is enough: the sign-up is dropped without telling the sender, the visitor sees the usual thanks, and the reason is written to the Security events list as `plugin: {reason}`. It runs after the built-in checks and before Akismet, and never sees the password. |
 | `admin_dashboard_notices` | `list<array{variant: string, message: string}>`, plus the `Request` | Add a notice to the administrator's dashboard. `variant` is `error`, `warning`, `info` or `success`; the message is plain text and is escaped. |
 
 ```php
@@ -129,6 +131,30 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `security.hsts` | `false` | Send `Strict-Transport-Security` over HTTPS. Once a browser has seen it, it refuses plain HTTP for the site for a year. |
 
 Emailed links are built from the `site_url` value in `config/config.php`, never from the request, so it must be set to the site's full public address.
+
+## Sign-up and form protection
+
+`RegistrationGuard::check($request, $displayName, $email, $answer)` runs in front of every registration and returns a `GuardDecision` whose `outcome` (`GuardOutcome`) is `Allow`, `Reject` (a mistake the visitor can fix; `errors` holds a message per field), `Silent` (looks automated: answer as if it worked and do nothing), `Limited` or `Paused` (`retryAfter` seconds). `FormGuard::inspect($request, $formId)` is the hidden-field and timing check alone, for any other public form that sends mail or creates something. The order of the checks and their reasons are in the code; the rules a plugin or a theme must know are these:
+
+- A public form that should be protected prints its fields with `do_action('lf_form_fields', $formId)`, and the id must be listed in `FormProtectionFields::PROTECTED_FORMS`. The trap field names and the signed timing stamp are made from the site's `secret_key` by `FormShield`; a stamp is tied to one form and cannot be used on another.
+- A caught bot gets the same page as a person who succeeded, and a request that sent no timing fields is treated as too fast or tampered with rather than let through. Never add a code path that lets a request with the fields missing succeed.
+- The address used for the rate limits is `Request::ip()`, the address the web server saw. A site behind a reverse proxy shares one address among all its visitors until a trusted-proxy setting exists.
+- `SecurityEventLog::record($event, $ip, $detail)` writes to the Security events list. It never throws, keeps only the event name, the address and a short note, and trims by age (`security.log_retention_days`). `recordOnce()` skips a repeat from the same address inside ten minutes, which suits events one client can cause thousands of times. Never pass anything a visitor typed as the detail.
+
+| Setting | Default | Meaning |
+| ------- | ------- | ------- |
+| `spam.min_seconds` | `3` | Fastest a form may be sent after it was shown. `0` turns the timing check off. |
+| `spam.registration_gap_seconds` | `5` | Shortest wait between two registration submissions from one address. `0` turns it off. |
+| `spam.registration_ip_limit` | `10` | Registration submissions from one address in an hour. `0` turns it off. |
+| `spam.registration_flood_limit` | `60` | Submissions from every address in an hour that pause registration. `0` turns it off. |
+| `spam.registration_pause_minutes` | `60` | How long a flood pause lasts. |
+| `spam.block_disposable` | `true` | Refuse addresses at throw-away email services. |
+| `spam.domain_blocklist` | empty | Domains whose addresses cannot register, one per line; subdomains count. |
+| `spam.question`, `spam.answer` | empty | An optional question on the registration form. Both must be set. |
+| `spam.akismet_enabled`, `spam.akismet_key` | off, empty | Optional Akismet check of new sign-ups. Fails open, and sends nothing while off. |
+| `security.log_retention_days` | `30` | How long Security events are kept, from 1 to 365. |
+
+Changes to these are written to the audit log as `settings.spam.update`, with only that an answer or key changed and never its value, and a flood pause and its ending as `security.registration_paused` and `security.registration_resumed`. The events themselves are in the `security_events` table, listed under Maintenance > Security events, and are one of `login_lockout`, `registration_rate_limited`, `registration_paused`, `registration_blocked_email`, `registration_wrong_answer`, `registration_spam`, `trap_triggered`, `form_too_fast`, `form_expired` and `form_invalid`.
 
 ## Stories and chapters
 
