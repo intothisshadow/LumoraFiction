@@ -635,6 +635,10 @@ img {
 }
 
 .lf-story-card {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
     padding: 1.1rem 1.25rem;
     background: var(--lf-surface);
     border: 1px solid var(--lf-border);
@@ -667,6 +671,41 @@ img {
     margin: 0;
 }
 
+.lf-story-card__cover {
+    display: block;
+}
+
+.lf-story-card__body {
+    min-width: 0;
+}
+
+/* Covers: a picture, or a quiet 2:3 block when the story has none, so a list keeps its rhythm. */
+.lf-cover {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--lf-border);
+    border-radius: calc(var(--lf-radius) / 2);
+    background: var(--lf-surface-strong);
+}
+
+.lf-cover--full {
+    max-width: 100%;
+}
+
+.lf-cover--thumb,
+.lf-cover--placeholder {
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+}
+
+.lf-cover--placeholder {
+    background:
+        linear-gradient(var(--lf-border), var(--lf-border)) 0.6rem 0.9rem / calc(100% - 1.2rem) 2px no-repeat,
+        linear-gradient(var(--lf-border), var(--lf-border)) 0.6rem 1.4rem / calc(60% - 0.6rem) 2px no-repeat,
+        var(--lf-surface-strong);
+}
+
 /* ==========================================================================
    8. Story page
    ========================================================================== */
@@ -689,6 +728,32 @@ img {
     margin: 0;
     color: var(--lf-muted);
     font-size: 1.1rem;
+}
+
+/* A 600 by 400 frame, centred above the title; the picture fills it and is trimmed to fit rather than stretched. */
+.lf-story__cover {
+    width: 600px;
+    max-width: 100%;
+    margin: 0 auto 1.5rem;
+}
+
+.lf-story__cover .lf-cover--full {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    border-color: transparent;
+    border-radius: var(--lf-radius);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 18px rgb(60 40 20 / 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-lf-scheme="light"]) .lf-story__cover .lf-cover--full {
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px rgb(0 0 0 / 0.45);
+    }
+}
+
+:root[data-lf-scheme="dark"] .lf-story__cover .lf-cover--full {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px rgb(0 0 0 / 0.45);
 }
 
 /* A finished one-chapter story is read on its own page, below the details. */

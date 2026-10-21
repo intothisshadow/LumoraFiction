@@ -158,6 +158,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `story.language` | The language code, upper-case. |
 | `story.published`, `story.updated` | Dates such as "2 January 2026". `published` is empty until the story is first published; check it with `lf_has('story.published')`. |
 | `story.url` | The address of the story. |
+| `story.cover.thumb`, `story.cover.full`, `story.cover.alt` | The story's cover: a small picture for lists (200 pixels wide at most), a larger one for the story page (600 pixels wide at most), and the text alternative the author wrote. All three are empty strings for a story without a cover, so check with `lf_has('story.cover.full')`. Print the description in the `alt` attribute of the story page's picture. |
 | `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. Only the kinds of term the archive mode allows are listed. |
 | `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
 | `chapter` | Only on a finished story that has a single readable chapter, where the story page is also the place to read it. It holds the same fields as on a chapter page (`chapter.html`, `chapter.notes`, and so on). When `lf_has('chapter.html')` is true, print the text under the details and leave out the chapter list and the start-reading link. |
@@ -183,7 +184,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `author` | The list data below. The page title is "Stories by" and the author's display name. |
 | `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |
 
-A story card is `{title, url, author, author_url, summary, status, words, updated}`. Print the values with `lf_e()`, and leave the author as plain text when `author_url` is empty.
+A story card is `{title, url, author, author_url, summary, status, words, updated, cover}`, where `cover` is `{thumb, full, alt}` as for a story. Print the values with `lf_e()`, and leave the author as plain text when `author_url` is empty. When `cover.thumb` is empty, draw a placeholder so a list keeps its rhythm. A cover beside a title link repeats it, so a list may hide the picture from assistive technology with `alt=""` and let the story page carry the description.
 
 A view with a list of stories receives:
 

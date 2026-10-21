@@ -432,6 +432,55 @@ fieldset.lf-card legend {
     margin-left: 1.6rem;
 }
 
+.lf-cover-field {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+
+.lf-cover-field__current {
+    margin: 0;
+}
+
+.lf-cover-field__image {
+    display: block;
+    width: 8rem;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+.lf-cover-field__controls {
+    flex: 1 1 18rem;
+}
+
+.lf-cropper {
+    margin-bottom: 1rem;
+}
+
+.lf-cropper__canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    cursor: move;
+    touch-action: none;
+}
+
+.lf-cropper__controls .lf-field input[type="range"] {
+    width: 100%;
+    max-width: 20rem;
+}
+
+.lf-field input[type="file"] {
+    max-width: 100%;
+    font: inherit;
+}
+
 .lf-button {
     display: inline-block;
     padding: 0.55rem 1.2rem;

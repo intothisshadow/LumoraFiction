@@ -22,6 +22,7 @@ use LumoraFiction\Core\Admin\AdminView;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
@@ -136,6 +137,14 @@ final class StoryController extends WriterController
             return $this->formPage($request, $user, $story, $values, $state, $exception->errors, 422);
         }
 
+        try {
+            $this->stories->applyCover($user, $story->id, $request->upload('cover'), $values['cover_alt'], $request->checked('cover_remove'), $request->ip(), $this->postedCrop($request));
+        } catch (StoryValidationException $exception) {
+            $this->flash->add('warning', 'The story was saved, but its cover was not. Please fix the problems below.');
+
+            return $this->formPage($request, $user, $story, $values, $state, $exception->errors, 422);
+        }
+
         $this->flash->add('success', 'The story was saved as a draft. You can add its chapters now.');
 
         return Response::redirect(AdminUrl::to(self::PATH . '/' . $story->id), 303);
@@ -189,6 +198,7 @@ final class StoryController extends WriterController
         try {
             $this->stories->update($user, $story->id, $values, $request->ip());
             $this->stories->classify($user, $story->id, $this->selection($state), $request->ip());
+            $this->stories->applyCover($user, $story->id, $request->upload('cover'), $values['cover_alt'], $request->checked('cover_remove'), $request->ip(), $this->postedCrop($request));
         } catch (StoryValidationException $exception) {
             return $this->formPage($request, $user, $story, $values, $state, $exception->errors, 422);
         } catch (StoryPermissionException $exception) {
@@ -506,11 +516,15 @@ final class StoryController extends WriterController
                 'unpublish' => $base . '/unpublish',
             ],
             'chapterCount' => $story === null ? 0 : ($this->chapters->countsForStories([$story->id])[$story->id]['total'] ?? 0),
+            'cover' => $story === null ? ['thumb' => '', 'full' => '', 'alt' => ''] : $this->presenter->cover($story),
+            'coverAvailable' => CoverImageStore::isAvailable(),
+            'coverLimit' => (string) round(CoverImageStore::limitBytes() / 1048576, 1),
             'limits' => [
                 'title' => StoryService::TITLE_MAX,
                 'summary' => StoryService::SUMMARY_MAX,
                 'notes' => StoryService::NOTES_MAX,
                 'disclaimer' => StoryService::DISCLAIMER_MAX,
+                'cover_alt' => StoryService::COVER_ALT_MAX,
             ],
         ], $user, $story === null ? 'New story' : 'Edit story', $story === null ? self::PATH . '/new' : self::PATH, $this->flash->pull($request->cookies), $status);
     }
@@ -576,7 +590,7 @@ final class StoryController extends WriterController
      */
     private function defaultValues(): array
     {
-        return ['title' => '', 'summary' => '', 'notes' => '', 'disclaimer' => '', 'language' => 'en', 'work_status' => WorkStatus::Ongoing->value];
+        return ['title' => '', 'summary' => '', 'notes' => '', 'disclaimer' => '', 'language' => 'en', 'work_status' => WorkStatus::Ongoing->value, 'cover_alt' => ''];
     }
 
     /**
@@ -591,6 +605,7 @@ final class StoryController extends WriterController
             'disclaimer' => $story->disclaimer,
             'language' => $story->language,
             'work_status' => $story->workStatus->value,
+            'cover_alt' => $story->coverAlt,
         ];
     }
 
@@ -684,11 +699,21 @@ final class StoryController extends WriterController
     }
 
     /**
+     * The area of a new cover the writer chose to keep, or null for the whole picture.
+     *
+     * @return array{x: float, y: float, w: float, h: float}|null
+     */
+    private function postedCrop(Request $request): ?array
+    {
+        return CoverImageStore::parseCrop($request->input('crop_x'), $request->input('crop_y'), $request->input('crop_w'), $request->input('crop_h'));
+    }
+
+    /**
      * @return list<string> the form fields whose text is handed back if the session has ended
      */
     private function keptFields(): array
     {
-        $fields = ['title', 'summary', 'notes', 'disclaimer', 'language', 'work_status'];
+        $fields = ['title', 'summary', 'notes', 'disclaimer', 'language', 'work_status', 'cover_alt'];
 
         foreach (TermType::cases() as $type) {
             array_push($fields, 'term_' . $type->value, 'terms_' . $type->value, 'names_' . $type->value);

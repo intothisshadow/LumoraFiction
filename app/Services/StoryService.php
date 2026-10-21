@@ -21,6 +21,9 @@ use DateTimeImmutable;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
+use LumoraFiction\Core\Http\UploadedFile;
+use LumoraFiction\Core\Media\CoverImageException;
+use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Helpers\Slug;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\PublicationState;
@@ -48,6 +51,8 @@ final class StoryService
 
     public const REASON_MAX = 1000;
 
+    public const COVER_ALT_MAX = 250;
+
     /** The slug column holds 120 characters: room for a ten-digit id, the hyphen and the title words. */
     private const SLUG_WORDS_MAX = 100;
 
@@ -57,6 +62,7 @@ final class StoryService
         private readonly AuditLogService $audit,
         private readonly TaxonomyService $taxonomy,
         private readonly ?HookManager $hooks = null,
+        private readonly ?CoverImageStore $covers = null,
     ) {
     }
 
@@ -156,6 +162,91 @@ final class StoryService
             $this->taxonomy->assignToStory($actor, $story->id, $selection, $ipAddress);
             $this->database->execute('UPDATE {prefix}stories SET updated_at = :updated WHERE id = :id', ['updated' => date('Y-m-d H:i:s'), 'id' => $story->id]);
         });
+
+        return $this->mustFind($story->id);
+    }
+
+    /**
+     * Sets, replaces, describes or removes the story's cover in one step, so the form saves it with the rest.
+     * A picture needs its text alternative, so a cover is never stored without one. Nothing changes when
+     * the form carries no picture, no removal and an unchanged description. The old files are removed only
+     * after the new ones are safely recorded.
+     *
+     * @throws StoryPermissionException
+     * @param array{x: float, y: float, w: float, h: float}|null $crop the part of a new picture to keep, as fractions
+     * @throws StoryValidationException keyed "cover" or "cover_alt"
+     */
+    public function applyCover(User $actor, int $storyId, ?UploadedFile $upload, string $alt, bool $remove = false, string $ipAddress = '', ?array $crop = null): Story
+    {
+        $story = $this->manageable($actor, $storyId);
+        $uploading = $upload !== null && $upload->wasSent();
+
+        if ($remove && !$uploading) {
+            return $story->hasCover() ? $this->storeCover($actor, $story, '', '', 'remove', $ipAddress) : $story;
+        }
+
+        if (!$uploading && !$story->hasCover()) {
+            return $story;
+        }
+
+        $errors = [];
+        $alt = $this->singleLine($alt, 'cover_alt', 'Describe the cover for readers who cannot see it.', self::COVER_ALT_MAX, $errors, true);
+        $file = '';
+
+        if ($uploading) {
+            if ($this->covers === null) {
+                $errors['cover'] = 'Covers are not available on this site.';
+            } elseif ($upload->problem() !== '') {
+                $errors['cover'] = $upload->problem();
+            } else {
+                try {
+                    $file = $this->covers->save($upload->path, $crop);
+                } catch (CoverImageException $exception) {
+                    $errors['cover'] = $exception->getMessage();
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            if ($file !== '') {
+                $this->covers?->delete($file);
+            }
+
+            throw new StoryValidationException($errors);
+        }
+
+        if ($file === '' && $alt === $story->coverAlt) {
+            return $story;
+        }
+
+        return $this->storeCover($actor, $story, $file === '' ? $story->coverFile : $file, $alt, $file === '' ? 'describe' : ($story->hasCover() ? 'replace' : 'set'), $ipAddress);
+    }
+
+    /**
+     * Records the new cover, then removes the picture it replaced. A failure while recording removes the new
+     * picture instead, so no file is left that no story points at.
+     */
+    private function storeCover(User $actor, Story $story, string $file, string $alt, string $action, string $ipAddress): Story
+    {
+        try {
+            $this->database->transaction(function () use ($actor, $story, $file, $alt, $action, $ipAddress): void {
+                $this->database->execute(
+                    'UPDATE {prefix}stories SET cover_file = :file, cover_alt = :alt, updated_at = :updated WHERE id = :id',
+                    ['file' => $file, 'alt' => $alt, 'updated' => date('Y-m-d H:i:s'), 'id' => $story->id],
+                );
+                $this->audit->record($actor->id, 'story.cover', 'story', (string) $story->id, ['action' => $action], $ipAddress);
+            });
+        } catch (\Throwable $exception) {
+            if ($file !== '' && $file !== $story->coverFile) {
+                $this->covers?->delete($file);
+            }
+
+            throw $exception;
+        }
+
+        if ($story->hasCover() && $story->coverFile !== $file) {
+            $this->covers?->delete($story->coverFile);
+        }
 
         return $this->mustFind($story->id);
     }
@@ -392,6 +483,11 @@ final class StoryService
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
             $this->audit->record($actor->id, 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
         });
+
+        // After the rows are gone, so a rolled-back deletion never loses the picture of a story that still exists.
+        if ($story->hasCover()) {
+            $this->covers?->delete($story->coverFile);
+        }
     }
 
     /**
@@ -841,6 +937,9 @@ final class StoryService
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
             rejectionReason: is_string($row['rejection_reason'] ?? null) ? $row['rejection_reason'] : '',
             rejectedAt: is_string($row['rejected_at'] ?? null) && $row['rejected_at'] !== '' ? new DateTimeImmutable($row['rejected_at']) : null,
+            // A name that is not one the store made is treated as no cover, so a damaged row cannot point anywhere.
+            coverFile: is_string($row['cover_file'] ?? null) && CoverImageStore::isValidName($row['cover_file']) ? $row['cover_file'] : '',
+            coverAlt: is_string($row['cover_alt'] ?? null) ? $row['cover_alt'] : '',
         );
     }
 }

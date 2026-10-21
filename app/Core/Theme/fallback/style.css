@@ -260,6 +260,18 @@ a:focus-visible {
     line-height: 1.25;
 }
 
+.lf-story__cover {
+    width: 12rem;
+    max-width: 60%;
+    margin: 0 0 1rem;
+}
+
+.lf-cover {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
 .lf-story__byline,
 .lf-story__meta,
 .lf-chapter__meta,

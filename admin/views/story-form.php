@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
@@ -23,7 +24,7 @@ use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\WorkStatus;
 
 /** @var Story|null $story */
-/** @var array{title: string, summary: string, notes: string, disclaimer: string, language: string, work_status: string} $values */
+/** @var array{title: string, summary: string, notes: string, disclaimer: string, language: string, work_status: string, cover_alt: string} $values */
 /** @var list<array{type: TermType, style: string, options: list<Term>, ids: list<int>, text: string, required: bool}> $fields */
 /** @var array<string, string> $languages */
 /** @var list<WorkStatus> $workStatuses */
@@ -35,7 +36,11 @@ use LumoraFiction\Models\WorkStatus;
 /** @var bool $trusted whether this story goes straight to readers when the writer publishes it */
 /** @var array<string, string> $urls */
 /** @var int $chapterCount */
-/** @var array{title: int, summary: int, notes: int, disclaimer: int} $limits */
+/** @var array{title: int, summary: int, notes: int, disclaimer: int, cover_alt: int} $limits */
+/** @var array{thumb: string, full: string, alt: string} $cover the story's current cover, empty strings for none */
+/** @var bool $coverAvailable whether this server can process pictures */
+/** @var string $coverLimit the largest upload in megabytes */
+/** @var string $assetVersion */
 
 /** The attributes that tie a field to its hint and, when it failed, its message. */
 $describe = static function (string $name, bool $hint = true) use ($errors): string {
@@ -49,7 +54,7 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
 
 <p><a href="<?= Html::e($listUrl) ?>">&larr; My stories</a></p>
 
-<form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate data-lf-guard>
+<form method="post" action="<?= Html::e($action) ?>" class="lf-form" enctype="multipart/form-data" novalidate data-lf-guard>
     <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
 
     <section class="lf-card" aria-labelledby="details-heading">
@@ -103,6 +108,62 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
         </div>
     </section>
 
+    <?php if ($coverAvailable): ?>
+        <section class="lf-card" aria-labelledby="cover-heading">
+            <h2 id="cover-heading">Cover</h2>
+
+            <div class="lf-cover-field">
+                <?php if ($cover['full'] !== ''): ?>
+                    <p class="lf-cover-field__current">
+                        <img class="lf-cover-field__image" src="<?= Html::e($cover['thumb']) ?>" alt="<?= Html::e($cover['alt']) ?>">
+                    </p>
+                <?php endif; ?>
+
+                <div class="lf-cover-field__controls">
+                    <div class="lf-field<?= isset($errors['cover']) ? ' lf-field--error' : '' ?>">
+                        <label for="cover"><?= $cover['full'] !== '' ? 'Replace the cover' : 'Cover picture' ?></label>
+                        <input type="file" id="cover" name="cover" accept="image/jpeg,image/png,image/webp"<?= $describe('cover') ?>>
+                        <p class="lf-hint" id="cover_hint">A JPEG, PNG or WebP picture, up to <?= Html::e($coverLimit) ?> MB. It is resized and saved again on this site; other details in the file, such as where a photo was taken, are not kept. Optional.</p>
+                        <?= $problem('cover') ?>
+                    </div>
+
+                    <?php // Shown by the script once a picture is chosen; without a script the whole picture is used. ?>
+                    <div class="lf-cropper" data-lf-cropper data-lf-ratio="1.5" hidden>
+                        <p class="lf-hint" id="cover_crop_hint">The story page shows the cover in a 3 by 2 frame. Drag the frame over the picture, or use the sliders, to choose the part to keep.</p>
+                        <canvas class="lf-cropper__canvas" width="480" height="320" role="img" aria-label="Preview of the picture with the frame"></canvas>
+                        <div class="lf-cropper__controls">
+                            <div class="lf-choice">
+                                <input type="checkbox" id="cover_crop_use" data-lf-crop-use>
+                                <label for="cover_crop_use">Crop the picture to this frame</label>
+                            </div>
+                            <div class="lf-field"><label for="cover_crop_zoom">Zoom</label><input type="range" id="cover_crop_zoom" min="100" max="400" value="100" step="1" data-lf-crop-zoom></div>
+                            <div class="lf-field"><label for="cover_crop_left">Left to right</label><input type="range" id="cover_crop_left" min="0" max="100" value="50" step="1" data-lf-crop-x></div>
+                            <div class="lf-field"><label for="cover_crop_top">Top to bottom</label><input type="range" id="cover_crop_top" min="0" max="100" value="50" step="1" data-lf-crop-y></div>
+                        </div>
+                        <input type="hidden" name="crop_x" value="">
+                        <input type="hidden" name="crop_y" value="">
+                        <input type="hidden" name="crop_w" value="">
+                        <input type="hidden" name="crop_h" value="">
+                    </div>
+
+                    <div class="lf-field<?= isset($errors['cover_alt']) ? ' lf-field--error' : '' ?>">
+                        <label for="cover_alt">Describe the cover</label>
+                        <input type="text" id="cover_alt" name="cover_alt" value="<?= Html::e($values['cover_alt']) ?>" maxlength="<?= (int) $limits['cover_alt'] ?>" autocomplete="off"<?= $describe('cover_alt') ?>>
+                        <p class="lf-hint" id="cover_alt_hint">What the picture shows, for readers who cannot see it. Needed whenever a cover is set.</p>
+                        <?= $problem('cover_alt') ?>
+                    </div>
+
+                    <?php if ($cover['full'] !== ''): ?>
+                        <div class="lf-choice">
+                            <input type="checkbox" id="cover_remove" name="cover_remove" value="1">
+                            <label for="cover_remove">Remove the cover</label>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <?php if ($fields !== []): ?>
         <section class="lf-card" aria-labelledby="classification-heading">
             <h2 id="classification-heading">Classification</h2>
@@ -154,6 +215,10 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
 
     <p><button type="submit" class="lf-button"><?= $story === null ? 'Save story' : 'Save changes' ?></button></p>
 </form>
+
+<?php if ($coverAvailable): ?>
+    <script src="<?= Html::e(AdminUrl::asset('js/cover-crop.js', $assetVersion ?? '')) ?>" defer></script>
+<?php endif; ?>
 
 <?php if ($story !== null): ?>
     <section class="lf-card" aria-labelledby="visibility-heading">

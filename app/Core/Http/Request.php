@@ -30,6 +30,8 @@ final readonly class Request
      * @param array<string, mixed> $post
      * @param array<string, mixed> $cookies
      * @param array<string, mixed> $server
+     * @param array<string, mixed> $files
+     * @param bool $uploadsTrusted only a test sets this; a real request is checked with is_uploaded_file()
      */
     public function __construct(
         public string $method,
@@ -38,12 +40,36 @@ final readonly class Request
         public array $post = [],
         public array $cookies = [],
         public array $server = [],
+        public array $files = [],
+        public bool $uploadsTrusted = false,
     ) {
     }
 
     public static function fromGlobals(string $method, string $uri, ?TrustedProxies $proxies = null): self
     {
-        return new self(strtoupper($method), $uri, $_GET, $_POST, $_COOKIE, $proxies === null ? $_SERVER : $proxies->resolve($_SERVER));
+        return new self(strtoupper($method), $uri, $_GET, $_POST, $_COOKIE, $proxies === null ? $_SERVER : $proxies->resolve($_SERVER), $_FILES);
+    }
+
+    /**
+     * A file sent with the form, or null when the field is absent, is not a single file, or names something PHP did
+     * not itself receive in this request. The last check matters: a forged entry pointing at a server file must
+     * never be read as if the visitor had uploaded it.
+     */
+    public function upload(string $name): ?UploadedFile
+    {
+        $entry = $this->files[$name] ?? null;
+
+        if (!is_array($entry) || !is_string($entry['tmp_name'] ?? null) || !is_int($entry['error'] ?? null)) {
+            return null;
+        }
+
+        $path = $entry['tmp_name'];
+
+        if ($entry['error'] === UPLOAD_ERR_OK && !$this->uploadsTrusted && !is_uploaded_file($path)) {
+            return null;
+        }
+
+        return new UploadedFile($path, $entry['error'], is_int($entry['size'] ?? null) ? $entry['size'] : 0);
     }
 
     public function isPost(): bool

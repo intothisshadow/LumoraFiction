@@ -23,6 +23,9 @@ $groups = lf_items('term_groups');
 <article class="lf-story">
     <?php lf_part('notices'); ?>
     <header class="lf-story__header">
+        <?php if (lf_has('story.cover.full')): ?>
+            <p class="lf-story__cover"><img class="lf-cover lf-cover--full" src="<?php lf_field('story.cover.full'); ?>" alt="<?php lf_field('story.cover.alt'); ?>" decoding="async"></p>
+        <?php endif; ?>
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
         <?php if ($chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html')): ?>

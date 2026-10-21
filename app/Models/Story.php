@@ -38,7 +38,14 @@ final readonly class Story
         public DateTimeImmutable $updatedAt,
         public string $rejectionReason = '',
         public ?DateTimeImmutable $rejectedAt = null,
+        public string $coverFile = '',
+        public string $coverAlt = '',
     ) {
+    }
+
+    public function hasCover(): bool
+    {
+        return $this->coverFile !== '';
     }
 
     /**

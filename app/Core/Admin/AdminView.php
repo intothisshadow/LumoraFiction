@@ -44,7 +44,7 @@ final class AdminView
      */
     public function render(string $view, array $data, User $user, string $title, string $currentPath, array $flash = [], int $status = 200): Response
     {
-        $content = $this->include($view, $data);
+        $content = $this->include($view, $data + ['assetVersion' => $this->version]);
 
         return $this->respond($this->include('layout', [
             'title' => $title,

@@ -97,6 +97,7 @@ use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
@@ -224,10 +225,11 @@ final class Kernel
 
         // The public pages and the admin screens work on the same services, so each is built once.
         $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
-        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks);
+        $covers = new CoverImageStore($root . '/content/uploads/covers');
+        $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks, $covers);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
-        $presenter = new StoryPresenter();
+        $presenter = new StoryPresenter($covers);
         $flash = new FlashMessages($sessions);
         $editorSettings = new EditorSettings($config, $database, $audit);
 

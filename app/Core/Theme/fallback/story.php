@@ -20,6 +20,9 @@ lf_get_header();
 <article class="lf-story">
     <?php lf_part('notices'); ?>
     <header class="lf-story__header">
+        <?php if (lf_has('story.cover.full')): ?>
+            <p class="lf-story__cover"><img class="lf-cover lf-cover--full" src="<?php lf_field('story.cover.full'); ?>" alt="<?php lf_field('story.cover.alt'); ?>"></p>
+        <?php endif; ?>
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <p class="lf-story__byline">by <?php lf_field('story.author'); ?></p>
         <p class="lf-story__meta"><?php lf_field('story.status'); ?> &middot; <?php lf_field('story.words'); ?> words &middot; <?php lf_field('story.language'); ?></p>

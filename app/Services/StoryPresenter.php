@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use Closure;
+use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Core\Theme\SafeHtml;
 use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\PublicationState;
@@ -32,6 +33,30 @@ use LumoraFiction\Models\TermType;
  */
 final class StoryPresenter
 {
+    public function __construct(private readonly ?CoverImageStore $covers = null)
+    {
+    }
+
+    /**
+     * The addresses of a story's cover, or empty strings when it has none. The keys are always present so a theme
+     * can test one with lf_has() and never has to guard against a missing array.
+     *
+     * @return array{thumb: string, full: string, alt: string}
+     */
+    public function cover(Story $story): array
+    {
+        if (!$story->hasCover() || $this->covers === null || !$this->covers->exists($story->coverFile)) {
+            return ['thumb' => '', 'full' => '', 'alt' => ''];
+        }
+
+        return [
+            // A missing thumbnail falls back to the full picture rather than a broken image.
+            'thumb' => $this->covers->url($story->coverFile, $this->covers->exists($story->coverFile, true)),
+            'full' => $this->covers->url($story->coverFile),
+            'alt' => $story->coverAlt,
+        ];
+    }
+
     /**
      * @param array<string, list<Term>> $terms the story's terms by kind
      * @param list<Chapter> $chapters
@@ -106,7 +131,7 @@ final class StoryPresenter
     /**
      * One entry of a list of stories. These are the only keys a list template may rely on.
      *
-     * @return array{title: string, url: string, author: string, author_url: string, summary: string, status: string, words: string, updated: string}
+     * @return array{title: string, url: string, author: string, author_url: string, summary: string, status: string, words: string, updated: string, cover: array{thumb: string, full: string, alt: string}}
      */
     public function card(Story $story, string $author, string $authorUrl, string $storyUrl): array
     {
@@ -119,6 +144,7 @@ final class StoryPresenter
             'status' => $story->workStatus->label(),
             'words' => number_format($story->wordCount),
             'updated' => $story->updatedAt->format('j F Y'),
+            'cover' => $this->cover($story),
         ];
     }
 
@@ -129,6 +155,7 @@ final class StoryPresenter
     {
         return [
             'id' => $story->id,
+            'cover' => $this->cover($story),
             'title' => $story->title,
             'url' => $storyUrl,
             'author' => $author,
