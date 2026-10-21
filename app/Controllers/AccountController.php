@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Controllers;
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\BasePath;
 use LumoraFiction\Core\Http\FlashMessages;
@@ -611,9 +612,33 @@ final class AccountController
         $forms[] = $this->form('reader_preferences', PublicUrl::account('profile/reading'), 'Save reading preferences', $readingFields, 'Reading', $summary('reading'));
         $forms[] = $this->form('account_sign_out', PublicUrl::account('sign-out'), 'Sign out', [], 'Sign out');
 
-        $shortcuts = $user->can(Capability::Bookmark) ? [['label' => 'My bookmarks', 'url' => PublicUrl::account('bookmarks')]] : [];
+        return $this->page($request, 'Your account', 'profile', $forms, $status, [], [], false, '', $this->shortcuts($user));
+    }
 
-        return $this->page($request, 'Your account', 'profile', $forms, $status, [], [], false, '', $shortcuts);
+    /**
+     * Each link is offered only to someone who holds the capability behind it, so the page never
+     * advertises an address the server would refuse.
+     *
+     * @return list<array{label: string, url: string}>
+     */
+    private function shortcuts(User $user): array
+    {
+        $shortcuts = [];
+
+        if ($user->can(Capability::WriteStories)) {
+            $shortcuts[] = ['label' => 'Post New Story', 'url' => AdminUrl::to('stories/new')];
+            $shortcuts[] = ['label' => 'My stories', 'url' => AdminUrl::to('stories')];
+        }
+
+        if ($user->can(Capability::ModerateStories)) {
+            $shortcuts[] = ['label' => 'Awaiting approval', 'url' => AdminUrl::to('review')];
+        }
+
+        if ($user->can(Capability::Bookmark)) {
+            $shortcuts[] = ['label' => 'My bookmarks', 'url' => PublicUrl::account('bookmarks')];
+        }
+
+        return $shortcuts;
     }
 
     private function editorChoiceAvailable(User $user): bool
