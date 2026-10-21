@@ -772,6 +772,31 @@ fieldset.lf-card legend {
     vertical-align: middle;
 }
 
+/* Plugins */
+
+.lf-plugin-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-plugin-card {
+    margin-bottom: 0;
+}
+
+.lf-plugin-card--active {
+    border-color: var(--accent);
+    border-width: 2px;
+}
+
+.lf-plugin-card__name {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+}
+
 .lf-choice--inline {
     display: inline-flex;
     align-items: center;

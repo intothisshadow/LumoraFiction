@@ -98,6 +98,7 @@ final class AdminMenu
                 'capability' => Capability::ManageSite,
                 'children' => [
                     ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
+                    ['slug' => 'maintenance-plugins', 'label' => 'Plugins', 'path' => 'maintenance/plugins', 'capability' => Capability::ManageSite],
                 ],
             ],
         ];

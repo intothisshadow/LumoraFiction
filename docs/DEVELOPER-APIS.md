@@ -2,6 +2,40 @@
 
 Reference for plugin authors. It describes only what exists today and is updated whenever a hook, filter, or service changes.
 
+## Plugins
+
+A plugin is a folder `content/plugins/{slug}/` holding a main file named `{slug}.php`. The slug is lower-case letters, digits and hyphens, starts with a letter and is at most 50 characters. Nothing else in the folder is ever included by the loader; the plugin includes its own files with paths built from `__DIR__`.
+
+The main file starts with a comment that carries the header. It is read as text, never run, within the first 8 KB:
+
+```php
+<?php
+
+/**
+ * Plugin Name: Reading Lists
+ * Version: 1.0.0
+ * Author: Someone
+ * Description: One short sentence shown on the Plugins screen.
+ * Requires PHP: 8.2
+ * Requires at least: 0.1.0
+ */
+
+declare(strict_types=1);
+
+add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $router): void {
+    // ...
+});
+```
+
+`Plugin Name` and `Version` are required; a plugin without both, or with a version or requirement that is not a plain number such as `1.2.3`, is not listed. `Author`, `Description`, `Requires PHP` and `Requires at least` (the Lumora Fiction version) are optional. The header can sit in its own comment block after the usual file docblock.
+
+- **Lifecycle.** An administrator turns a plugin on under Maintenance > Plugins. The file is run once in that request, and the plugin is refused, with the reason shown, if it throws, has a syntax error, or needs a newer PHP or Lumora Fiction than the site has. Once on, the file runs on every request while the application starts, after the core services and the core routes are ready and before `routes_register` fires, in the order the plugins were turned on. Turning a plugin off stops it running from the next request. The slug is kept in the `plugins.active` setting.
+- **What the file sees.** `$kernel` is in scope, so a plugin can read `$kernel->config`, `$kernel->database`, `$kernel->auth`, `$kernel->hooks` and the other services. Do the work in hook callbacks rather than directly in the file where you can. Register settings defaults for your own keys with `$kernel->config->registerDefaults([...])`, and read and write them with `setting()` and `setSetting()`; prefix every key with your slug.
+- **Registering things.** Routes go through `routes_register`, admin screens through the `admin_menu` filter (see "Admin screens"), dashboard notices through `admin_dashboard_notices`, and public output through the theme hooks. The file is run once per request, so it must not declare a function or class that another plugin might declare too; put classes behind a namespace named for your plugin.
+- **When a plugin fails.** Anything the file throws, including a warning, is caught: the plugin is skipped for that request and the site continues. The reason is written to the error log and the audit log (`plugin.load_failed`) once, then kept in the `plugins.failures` setting so the dashboard can flag it; it is cleared when the plugin loads cleanly or is turned off. Hooks the plugin added before it threw stay registered for that request, so register hooks at the end of the file, or inside a function the file calls last. A fatal error PHP cannot catch, such as running out of memory, cannot be skipped; remove the plugin's folder.
+- **Versions.** Change the `Version` in the header whenever the plugin changes; it is what the Plugins screen shows.
+- **Security.** A plugin runs with the full power of the site. The PHP files in `content/plugins/` are refused by the web server if someone requests them directly; serve a plugin's own stylesheet or script from a route, or place static files next to the code (images, CSS and JS are served directly). Check capabilities in every handler.
+
 ## Hooks
 
 Plugins and themes extend Lumora Fiction with actions (run code at a point in the request) and filters (change a value). The procedural functions are available everywhere once the application has started.
@@ -21,8 +55,11 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 
 | Action | Arguments | Fires |
 | ------ | --------- | ----- |
+| `plugins_loaded` | `Kernel $kernel` | Once every active plugin's file has run, before `routes_register`. Use it for work that needs another plugin to have registered its hooks first. |
+| `plugin_activated` | `string $slug` | After an administrator has turned a plugin on. The plugin's file has just run in that request, so the plugin's own listener hears it; test `$slug` to react only to your own plugin, for example to create a table. |
+| `plugin_deactivated` | `string $slug` | After an administrator has turned a plugin off. The plugin's listener hears it too, because the plugin is still loaded for that request. Use it to tidy up. |
 | `routes_register` | `Router $router` | While the application starts, before any request is matched. Register routes here. |
-| `kernel_booted` | `Kernel $kernel` | When the core services are ready. |
+| `kernel_booted` | `Kernel $kernel` | When the core services are ready, after plugins have loaded. |
 | `story_state_changed` | `Story $story`, `PublicationState $from`, `User $actor`, `string $reason` | After a story's publication state has changed and been saved: submitted, published, approved, sent back, withdrawn or unpublished. `$story` is the story as it is now and `$from` its earlier state. `$reason` is the reviewer's note when a story is sent back or taken down in bulk, and an empty string otherwise. Use it to notify people; a callback that fails cannot undo the change. |
 | `user_role_changed` | `User $user`, `UserRole $from`, `User $actor`, `string $reason` | After an administrator has changed an account's role and it has been saved. `$user` is the account as it is now, and `$reason` is empty when none was given. |
 | `user_status_changed` | `User $user`, `UserStatus $from`, `User $actor`, `string $reason` | After an administrator has suspended or reinstated an account. `$from` is the status the account had before; read the new one from `$user`. |

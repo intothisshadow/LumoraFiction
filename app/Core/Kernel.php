@@ -23,6 +23,7 @@ use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
 use LumoraFiction\Controllers\Admin\ChapterController;
 use LumoraFiction\Controllers\Admin\ContentEditorController;
 use LumoraFiction\Controllers\Admin\EditorSettingsController;
+use LumoraFiction\Controllers\Admin\PluginsController;
 use LumoraFiction\Controllers\Admin\ReviewController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
@@ -46,6 +47,9 @@ use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Http\Router;
 use LumoraFiction\Core\Mail\NativeMailer;
+use LumoraFiction\Core\Plugin\PluginCatalog;
+use LumoraFiction\Core\Plugin\PluginLoader;
+use LumoraFiction\Core\Plugin\PluginNotices;
 use LumoraFiction\Core\Security\ContentSecurityPolicy;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Security\DatabaseSessionHandler;
@@ -68,6 +72,7 @@ use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\ArchiveSettings;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\BookmarkService;
+use LumoraFiction\Services\PluginManager;
 use LumoraFiction\Services\PublicArchive;
 use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\ReadingProgressService;
@@ -143,7 +148,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -194,8 +199,16 @@ final class Kernel
         $flash = new FlashMessages($sessions);
         $editorSettings = new EditorSettings($config, $database, $audit);
 
+        $pluginCatalog = new PluginCatalog($root . '/content/plugins');
+        $plugins = new PluginManager($config, $pluginCatalog, new PluginLoader($kernel, $pluginCatalog, $version['version'], $root), $audit, $hooks, $errors, $version['version']);
+        (new PluginNotices($plugins))->register($hooks);
+
         self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins);
+
+        // Plugins load after the core routes are registered, so none of them can take over a core address.
+        $plugins->loadActive();
+        $hooks->doAction('plugins_loaded', $kernel);
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
@@ -279,7 +292,7 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins): void
     {
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
@@ -299,6 +312,7 @@ final class Kernel
             new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config),
             new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit), $themeOptions),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
+            new PluginsController($kernel->auth, $view, $flash, $plugins),
         );
     }
 

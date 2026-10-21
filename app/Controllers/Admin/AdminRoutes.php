@@ -39,6 +39,7 @@ final class AdminRoutes
         UsersController $users,
         AppearanceController $appearance,
         SystemInformationController $systemInformation,
+        PluginsController $plugins,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -105,5 +106,8 @@ final class AdminRoutes
         $router->post('/admin/appearance/options', $appearance->saveOptions(...));
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
+        $router->get('/admin/maintenance/plugins', $plugins->index(...), 'admin.plugins');
+        $router->post('/admin/maintenance/plugins/activate', $plugins->activate(...), 'admin.plugins.activate');
+        $router->post('/admin/maintenance/plugins/deactivate', $plugins->deactivate(...), 'admin.plugins.deactivate');
     }
 }
