@@ -170,17 +170,35 @@ a:focus-visible {
 
 .lf-account__link-item a {
     display: inline-block;
-    padding: 0.35rem 1rem;
-    background: var(--lf-fb-link);
-    border: 1px solid var(--lf-fb-link);
+    padding: 0.2rem 0.85rem;
+    background: transparent;
+    border: 1px solid var(--lf-fb-border);
     border-radius: 999px;
-    color: var(--lf-fb-bg);
-    font-weight: 600;
+    color: var(--lf-fb-link);
+    font-size: 0.9rem;
     text-decoration: none;
 }
 
 .lf-account__link-item a:hover {
+    background: var(--lf-fb-surface);
     text-decoration: underline;
+}
+
+.lf-account__quick {
+    margin: 1.5rem 0;
+}
+
+.lf-account__quick-heading {
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--lf-fb-muted);
+}
+
+.lf-account__links--quick {
+    margin: 0;
 }
 
 .lf-form {

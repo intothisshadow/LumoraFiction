@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Account page: writers now find **Post New Story** and **My stories** under their account, so starting a story no longer means knowing where the admin is. Editors and Administrators also see **Awaiting approval**. Readers see none of these. The admin header gains a **My account** link beside **View site**, so a writer can always get back to the public side.
+- Account page: writers now find **Post New Story** and **My stories** under their account, so starting a story no longer means knowing where the admin is. Editors and Administrators also see **Awaiting approval**. Readers see none of these. The links sit in a row of quiet outlined pills under a small **Quick links** heading. The admin header gains a **My account** link beside **View site**, so a writer can always get back to the public side.
 
 - Pasting from Google Docs and Word: italic, bold, underline, strikethrough, superscript and subscript now arrive as real formatting instead of being lost. In the Visual editor the marks are kept as the text is pasted, and in the Markdown editor a paste that carries formatting is inserted as Markdown (`*italic*`, `**bold**`, links, headings and lists), while a plain paste behaves as before. Text typed in HTML mode gets the same treatment when it is saved, so chapters saved earlier also lose their empty `<span>` tags, hollow `<b></b>` leftovers and empty paragraphs when they are shown. Word's list paragraphs become real lists, a pasted table becomes one paragraph per cell, and Word's stray marker text no longer prints on the page. Formatting that an earlier paste already dropped cannot be recovered and has to be pasted again.
 

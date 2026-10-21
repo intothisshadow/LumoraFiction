@@ -28,11 +28,14 @@ lf_get_header();
     <?php endforeach; ?>
     <?php $shortcuts = lf_items('shortcuts'); ?>
     <?php if ($shortcuts !== []): ?>
-        <ul class="lf-account__links">
-            <?php foreach ($shortcuts as $link): ?>
-                <li class="lf-account__link-item"><a href="<?= lf_e($link['url'] ?? '') ?>"><?= lf_e($link['label'] ?? '') ?></a></li>
-            <?php endforeach; ?>
-        </ul>
+        <nav class="lf-account__quick" aria-labelledby="lf-account-quick-heading">
+            <h2 class="lf-account__quick-heading" id="lf-account-quick-heading">Quick links</h2>
+            <ul class="lf-account__links lf-account__links--quick">
+                <?php foreach ($shortcuts as $link): ?>
+                    <li class="lf-account__link-item"><a href="<?= lf_e($link['url'] ?? '') ?>"><?= lf_e($link['label'] ?? '') ?></a></li>
+                <?php endforeach; ?>
+            </ul>
+        </nav>
     <?php endif; ?>
     <?php foreach (lf_items('forms') as $form): ?>
         <?php lf_part('account-form', ['form' => $form]); ?>
