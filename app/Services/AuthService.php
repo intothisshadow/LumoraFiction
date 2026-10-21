@@ -55,6 +55,8 @@ final class AuthService
 
     private const RESEND_COOLDOWN_SECONDS = 60;
 
+    private const LOCKOUT_NOTICE_COOLDOWN_SECONDS = 3600;
+
     private const SESSION_USER = 'auth_user_id';
 
     private const SESSION_STARTED_AT = 'auth_started_at';
@@ -190,8 +192,11 @@ final class AuthService
             $this->throttle->recordFailure($ipAddress);
 
             // Only the failure that starts a lockout is noted; the attempts refused while it lasts return above.
-            if ($this->events !== null && $this->throttle->isLocked($ipAddress)) {
-                $this->events->record(SecurityEventLog::LOGIN_LOCKOUT, $ipAddress);
+            $lockedFor = $this->throttle->secondsUntilUnlocked($ipAddress);
+
+            if ($lockedFor > 0) {
+                $this->events?->record(SecurityEventLog::LOGIN_LOCKOUT, $ipAddress);
+                $this->warnOwner($identity, $ipAddress, $lockedFor);
             }
 
             return LoginResult::invalidCredentials();
@@ -466,6 +471,35 @@ final class AuthService
             . "To confirm your email address and activate your account, open this link within two days:\n\n"
             . $this->link('/account/verify/' . rawurlencode($token))
             . "\n\nIf you did not create this account, you can ignore this email.\n",
+        );
+    }
+
+    /**
+     * Tells the owner of the account the failing sign-in named that someone is guessing at it. The page the visitor sees
+     * is the same whether or not an account was named, so this reveals nothing to the one who is guessing. Only an
+     * account that can sign in is written to, at most once an hour, so a flood of lockouts cannot flood an inbox.
+     */
+    private function warnOwner(string $identity, string $ipAddress, int $lockedFor): void
+    {
+        if ($this->config->setting('security.notify_owner', true) === false || $this->siteUrl === '') {
+            return;
+        }
+
+        $user = $this->users->findByIdentity($identity);
+
+        if ($user === null || $user->status !== UserStatus::Active || !$this->users->claimLockoutNotice($user->id, self::LOCKOUT_NOTICE_COOLDOWN_SECONDS)) {
+            return;
+        }
+
+        $minutes = max(1, (int) ceil($lockedFor / 60));
+
+        $this->send(
+            $user,
+            'Someone keeps trying to sign in to your ' . $this->siteName . ' account',
+            "Hello {$user->displayName},\n\nSomeone has typed a wrong password for your account on {$this->siteName} several times in a row, "
+            . "from the internet address {$ipAddress}. Sign-in from that address is paused for about {$minutes} " . ($minutes === 1 ? 'minute' : 'minutes') . ".\n\n"
+            . "If that was you, you can ignore this message. If it was not, nobody has got in and nothing has changed, but it is a good time to choose a long password you do not use anywhere else:\n\n"
+            . $this->link('/account/forgot') . "\n",
         );
     }
 

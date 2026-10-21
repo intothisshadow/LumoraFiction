@@ -26,6 +26,7 @@ use LumoraFiction\Controllers\Admin\EditorSettingsController;
 use LumoraFiction\Controllers\Admin\PluginsController;
 use LumoraFiction\Controllers\Admin\ReviewController;
 use LumoraFiction\Controllers\Admin\SecurityEventsController;
+use LumoraFiction\Controllers\Admin\SecuritySettingsController;
 use LumoraFiction\Controllers\Admin\SpamSettingsController;
 use LumoraFiction\Controllers\Admin\StoryController;
 use LumoraFiction\Controllers\Admin\TaxonomyController;
@@ -48,6 +49,7 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Http\Router;
+use LumoraFiction\Core\Http\TrustedProxies;
 use LumoraFiction\Core\Mail\NativeMailer;
 use LumoraFiction\Core\Plugin\PluginCatalog;
 use LumoraFiction\Core\Plugin\PluginLoader;
@@ -81,6 +83,7 @@ use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\FormGuard;
 use LumoraFiction\Services\RegistrationGuard;
 use LumoraFiction\Services\SecurityEventLog;
+use LumoraFiction\Services\SecuritySettings;
 use LumoraFiction\Services\SpamSettings;
 use LumoraFiction\Services\BookmarkService;
 use LumoraFiction\Services\PluginManager;
@@ -119,6 +122,7 @@ final class Kernel
         public readonly AuditLogService $audit,
         public readonly ThemeRenderer $themes,
         private readonly bool $isHttps = false,
+        public readonly ?TrustedProxies $proxies = null,
     ) {
     }
 
@@ -159,7 +163,11 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS);
+
+        // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
+        $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
+        $server = $proxies->resolve($server);
 
         $isHttps = SecurityHeaders::isHttps($server);
         $sessions = new SessionManager(
@@ -175,20 +183,21 @@ final class Kernel
         $siteUrl = rtrim((string) $config->get('site_url', ''), '/');
 
         $securityEvents = new SecurityEventLog($database, $config);
+        $audit = new AuditLogService($database);
+        $securitySettings = new SecuritySettings($config, $database, $audit);
+        $lockout = $securitySettings->current();
 
         $auth = new AuthService(
             $users,
             $sessions,
             new TokenService($database),
             new NativeMailer('noreply@' . (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost')),
-            new LoginThrottle($database),
+            new LoginThrottle($database, $lockout['lockout_attempts'], $lockout['lockout_minutes'] * 60, $lockout['lockout_minutes'] * 60, $lockout['lockout_progressive']),
             $passwords,
             $config,
             $siteUrl,
             events: $securityEvents,
         );
-
-        $audit = new AuditLogService($database);
 
         $spamSettings = new SpamSettings($config, $database, $audit, $securityEvents);
         $registrationThrottle = new RegistrationThrottle($database, $config);
@@ -209,7 +218,7 @@ final class Kernel
         $themeOptions = new ThemeOptions($config, $hooks, $audit);
         $themes = new ThemeRenderer($themeCatalog, $config, $hooks, $themeOptions, $errors, $version['version']);
 
-        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps);
+        $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps, $proxies);
 
         (new StaffNavigation($auth))->register($hooks);
 
@@ -227,7 +236,7 @@ final class Kernel
         (new PluginNotices($plugins))->register($hooks);
 
         self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $registrationGuard, $formGuard);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents, $securitySettings);
 
         // Plugins load after the core routes are registered, so none of them can take over a core address.
         $plugins->loadActive();
@@ -315,7 +324,7 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings): void
     {
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
 
@@ -338,6 +347,7 @@ final class Kernel
             new PluginsController($kernel->auth, $view, $flash, $plugins),
             new SpamSettingsController($kernel->auth, $view, $flash, $spamSettings, $registrationThrottle, $akismet, $kernel->audit),
             new SecurityEventsController($kernel->auth, $view, $flash, $securityEvents),
+            new SecuritySettingsController($kernel->auth, $view, $flash, $securitySettings),
         );
     }
 
@@ -352,7 +362,7 @@ final class Kernel
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
         if ($resolution->isFound() && $resolution->handler !== null) {
-            $result = ($resolution->handler)($resolution->params, $request ?? Request::fromGlobals($method, $uri));
+            $result = ($resolution->handler)($resolution->params, $request ?? Request::fromGlobals($method, $uri, $this->proxies));
 
             // A handler may return a Response to be sent, or print its own output and return nothing.
             if ($result instanceof Response) {

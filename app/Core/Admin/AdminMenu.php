@@ -89,6 +89,7 @@ final class AdminMenu
                 'children' => [
                     ['slug' => 'settings-archive', 'label' => 'Archive', 'path' => 'settings/archive', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-security', 'label' => 'Security', 'path' => 'settings/security', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
                 ],
             ],

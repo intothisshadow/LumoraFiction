@@ -41,9 +41,9 @@ final readonly class Request
     ) {
     }
 
-    public static function fromGlobals(string $method, string $uri): self
+    public static function fromGlobals(string $method, string $uri, ?TrustedProxies $proxies = null): self
     {
-        return new self(strtoupper($method), $uri, $_GET, $_POST, $_COOKIE, $_SERVER);
+        return new self(strtoupper($method), $uri, $_GET, $_POST, $_COOKIE, $proxies === null ? $_SERVER : $proxies->resolve($_SERVER));
     }
 
     public function isPost(): bool
@@ -90,12 +90,23 @@ final readonly class Request
     }
 
     /**
-     * The visitor's address as the web server saw it. Forwarding headers are deliberately ignored:
-     * anyone can forge them, so trusting them is a separate, opt-in setting for sites behind a proxy.
+     * The visitor's address. Forwarding headers are never read here: anyone can forge them. A site behind a reverse
+     * proxy lists it under Settings > Security, and TrustedProxies has by then replaced REMOTE_ADDR with the address the
+     * proxy vouched for, so this stays the one place that answers.
      */
     public function ip(): string
     {
         $address = $this->server['REMOTE_ADDR'] ?? null;
+
+        return is_string($address) && filter_var($address, FILTER_VALIDATE_IP) !== false ? $address : '0.0.0.0';
+    }
+
+    /**
+     * The address the connection really came from, which differs from ip() only behind a trusted proxy.
+     */
+    public function peer(): string
+    {
+        $address = $this->server[TrustedProxies::PEER_KEY] ?? $this->server['REMOTE_ADDR'] ?? null;
 
         return is_string($address) && filter_var($address, FILTER_VALIDATE_IP) !== false ? $address : '0.0.0.0';
     }

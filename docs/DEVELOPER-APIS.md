@@ -138,7 +138,7 @@ Emailed links are built from the `site_url` value in `config/config.php`, never 
 
 - A public form that should be protected prints its fields with `do_action('lf_form_fields', $formId)`, and the id must be listed in `FormProtectionFields::PROTECTED_FORMS`. The trap field names and the signed timing stamp are made from the site's `secret_key` by `FormShield`; a stamp is tied to one form and cannot be used on another.
 - A caught bot gets the same page as a person who succeeded, and a request that sent no timing fields is treated as too fast or tampered with rather than let through. Never add a code path that lets a request with the fields missing succeed.
-- The address used for the rate limits is `Request::ip()`, the address the web server saw. A site behind a reverse proxy shares one address among all its visitors until a trusted-proxy setting exists.
+- The address used for the rate limits is `Request::ip()`. Behind a reverse proxy it is the visitor's address only when the proxy is listed under Settings > Security; see "Sign-in lockout and reverse proxies" below.
 - `SecurityEventLog::record($event, $ip, $detail)` writes to the Security events list. It never throws, keeps only the event name, the address and a short note, and trims by age (`security.log_retention_days`). `recordOnce()` skips a repeat from the same address inside ten minutes, which suits events one client can cause thousands of times. Never pass anything a visitor typed as the detail.
 
 | Setting | Default | Meaning |
@@ -155,6 +155,21 @@ Emailed links are built from the `site_url` value in `config/config.php`, never 
 | `security.log_retention_days` | `30` | How long Security events are kept, from 1 to 365. |
 
 Changes to these are written to the audit log as `settings.spam.update`, with only that an answer or key changed and never its value, and a flood pause and its ending as `security.registration_paused` and `security.registration_resumed`. The events themselves are in the `security_events` table, listed under Maintenance > Security events, and are one of `login_lockout`, `registration_rate_limited`, `registration_paused`, `registration_blocked_email`, `registration_wrong_answer`, `registration_spam`, `trap_triggered`, `form_too_fast`, `form_expired` and `form_invalid`.
+
+## Sign-in lockout and reverse proxies
+
+| Setting | Default | Meaning |
+| ------- | ------- | ------- |
+| `security.lockout_attempts` | `5` | Wrong passwords from one address that start a lockout, from 3 to 20. |
+| `security.lockout_minutes` | `15` | How long the lockout lasts and how far back wrong passwords are counted, from 1 to 1440. |
+| `security.lockout_progressive` | `true` | Double the lockout for each further batch of failures from the same address within a day, up to sixteen times. |
+| `security.notify_owner` | `true` | Email the owner of the account the lockout-starting sign-in named. |
+| `security.trusted_proxies` | empty | Addresses or ranges of reverse proxies, one per line. |
+
+- The lockout counts wrong passwords per address, never per account name, so an attacker cannot lock a real person out by guessing at their name. `LoginThrottle` takes the numbers from these settings when the kernel starts.
+- When the failure that starts a lockout names an active account (by login name or email address), `AuthService` writes to its owner once an hour at most (`users.lockout_notified_at`, claimed in one statement by `UserService::claimLockoutNotice()`). The sign-in page and its status code are the same whether or not an account was named. The message carries the address and the length of the lockout and a link to the password-reset page, and never what was typed. The lockout is also written to the Security events list as `login_lockout`.
+- `TrustedProxies::resolve($server)` runs when the kernel starts and again for the request. When `REMOTE_ADDR` matches a listed proxy, `REMOTE_ADDR` becomes the first address, reading `X-Forwarded-For` from the right, that is not itself a listed proxy; a header that has anything other than an address in the part it reads is ignored. `X-Forwarded-Proto: https` from a listed proxy turns on `HTTPS`. The connection's own address is kept as `LF_PEER_ADDR`. Ranges wider than a /8 (IPv4) or /32 (IPv6) are refused when saved, because trusting nearly everyone lets a visitor choose the address that is recorded.
+- Changes are written to the audit log as `settings.security.update`.
 
 ## Stories and chapters
 
@@ -241,6 +256,6 @@ add_action('routes_register', function (\LumoraFiction\Core\Http\Router $router)
 - `{name}` matches one path segment. `{name*}` matches across slashes; register greedy routes last.
 - Handlers receive the captured parameters as an array of strings, and the `Request`. Treat both as untrusted input.
 - A handler may return a `Response` (`Response::html()`, `Response::redirect()`, `Response::download()`) or print its own output. `Response::redirect()` only accepts a path on this site.
-- Read cookies, form values, and the visitor's address from the `Request`, never from the PHP superglobals. `Request::ip()` ignores forwarding headers because anyone can forge them.
+- Read cookies, form values, and the visitor's address from the `Request`, never from the PHP superglobals. `Request::ip()` never reads a forwarding header itself, because anyone can forge one: `TrustedProxies` has already replaced `REMOTE_ADDR` when, and only when, the connection came from a proxy the administrator listed. `Request::peer()` is the address the connection really came from, and `Request::isHttps()` already reflects a trusted proxy's `X-Forwarded-Proto`. Never read `HTTP_X_FORWARDED_*` yourself.
 - A route can be named, and `$router->urlFor('reading-list', ['id' => 7])` returns its path. The path does not include the install's base directory.
 - Paths containing control characters, invalid UTF-8, or `.` and `..` segments never match a route.

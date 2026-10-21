@@ -163,6 +163,28 @@ final class UserService
         return $this->findWhere('email = :value', AccountRules::normalizeEmail($email));
     }
 
+    /**
+     * The account a sign-in form's first box names, which is a login name or an email address.
+     */
+    public function findByIdentity(string $identity): ?User
+    {
+        $identity = trim($identity);
+
+        return str_contains($identity, '@') ? $this->findByEmail($identity) : $this->findByLoginName($identity);
+    }
+
+    /**
+     * Takes the right to send an account's owner a lockout notice, once in the given time. The check and the claim are one
+     * statement, so two requests at the same moment cannot both send one.
+     */
+    public function claimLockoutNotice(int $userId, int $cooldownSeconds): bool
+    {
+        return $this->database->execute(
+            'UPDATE {prefix}users SET lockout_notified_at = :now WHERE id = :id AND (lockout_notified_at IS NULL OR lockout_notified_at < :cutoff)',
+            ['now' => date('Y-m-d H:i:s'), 'id' => $userId, 'cutoff' => date('Y-m-d H:i:s', time() - $cooldownSeconds)],
+        ) > 0;
+    }
+
     public function findBySlug(string $slug): ?User
     {
         return $this->findWhere('slug = :value', $slug);

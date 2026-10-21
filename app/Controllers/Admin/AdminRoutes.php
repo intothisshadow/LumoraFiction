@@ -42,6 +42,7 @@ final class AdminRoutes
         PluginsController $plugins,
         SpamSettingsController $spam,
         SecurityEventsController $securityEvents,
+        SecuritySettingsController $security,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -51,7 +52,9 @@ final class AdminRoutes
         $router->post('/admin/settings/archive', $archive->update(...));
         $router->get('/admin/settings/editor', $editor->show(...), 'admin.settings.editor');
         $router->post('/admin/settings/editor', $editor->update(...));
-        $router->get('/admin/settings/spam', $spam->show(...), 'admin.settings.spam');
+        $router->get('/admin/settings/security', $security->show(...), 'admin.settings.security');
+        $router->post('/admin/settings/security', $security->update(...));
+        $router->get('/admin/settings/spam',$spam->show(...), 'admin.settings.spam');
         $router->post('/admin/settings/spam', $spam->update(...));
         $router->post('/admin/settings/spam/resume', $spam->resume(...), 'admin.settings.spam.resume');
         $router->get('/admin/maintenance/security-events', $securityEvents->index(...), 'admin.security-events');
