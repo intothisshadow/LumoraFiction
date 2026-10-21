@@ -560,6 +560,65 @@ img {
     font-weight: 700;
 }
 
+/* An author's page: their own words and picture above the list of stories. The picture keeps its size so the text never shifts. */
+
+.lf-author-about {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    margin: 0 0 2rem;
+    padding: 1.25rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-author-about__avatar {
+    flex: none;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--lf-border);
+}
+
+.lf-author-about__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.lf-author-about__heading {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+}
+
+/* The name above the box matches the page title below it ("Stories by ..."): same size, face and weight. */
+.lf-author-about__name {
+    margin: 0 0 0.75rem;
+    font-family: var(--lf-font-story);
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.lf-author-about__text > :first-child {
+    margin-top: 0;
+}
+
+.lf-author-about__text > :last-child {
+    margin-bottom: 0;
+}
+
+.lf-author-about__text {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 30rem) {
+    .lf-author-about {
+        flex-direction: column;
+    }
+}
+
 /* Browse: the hub's cards, a term index's letters and columns, and a fandom's links to its characters. */
 
 .lf-browse__group {

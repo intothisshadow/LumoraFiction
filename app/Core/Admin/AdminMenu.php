@@ -58,6 +58,13 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'profile',
+                'label' => 'Author profile',
+                'path' => 'profile',
+                'capability' => Capability::WriteStories,
+                'children' => [],
+            ],
+            [
                 'slug' => 'users',
                 'label' => 'Users',
                 'path' => 'users',

@@ -377,6 +377,61 @@ a:focus-visible {
     margin-block: 0.5rem;
 }
 
+.lf-author-about {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+    padding: 1rem;
+    background: var(--lf-fb-surface);
+    border: 1px solid var(--lf-fb-border);
+    border-radius: 4px;
+}
+
+.lf-author-about__avatar {
+    flex: none;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lf-author-about__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.lf-author-about__heading {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+}
+
+/* Matches the page title below it ("Stories by ..."): same size and weight. */
+.lf-author-about__name {
+    margin: 0 0 0.5rem;
+    font-size: 2em;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.lf-author-about__text {
+    overflow-wrap: anywhere;
+}
+
+.lf-author-about__text > :first-child {
+    margin-top: 0;
+}
+
+.lf-author-about__text > :last-child {
+    margin-bottom: 0;
+}
+
+@media (max-width: 30rem) {
+    .lf-author-about {
+        flex-direction: column;
+    }
+}
+
 .lf-browse__heading,
 .lf-related__heading {
     margin: 1.5rem 0 0.5rem;

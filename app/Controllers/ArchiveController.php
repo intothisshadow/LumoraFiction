@@ -32,6 +32,7 @@ use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\WorkStatus;
+use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
@@ -95,6 +96,7 @@ final class ArchiveController
         private readonly BookmarkPresenter $bookmarkPresenter,
         private readonly ReadingProgressService $progress,
         private readonly FlashMessages $flash,
+        private readonly AuthorProfileService $authorProfiles,
     ) {
     }
 
@@ -284,6 +286,7 @@ final class ArchiveController
 
             $name = $user->publicProfile()['display_name'];
             $slug = $user->publicProfile()['slug'];
+            $about = $this->authorProfiles->publicView($user->id);
 
             return $this->listing(
                 $request,
@@ -294,6 +297,9 @@ final class ArchiveController
                 PublicUrl::author($slug),
                 $this->archive->countForAuthor($user->id),
                 fn (string $sort, int $limit, int $offset): array => $this->archive->forAuthor($user->id, $sort, $limit, $offset),
+                null,
+                // Both are empty when the author has set nothing, so a theme prints the section only when there is something.
+                ['author_about' => new SafeHtml($about['about_html']), 'author_avatar' => $about['avatar_url'], 'author_name' => $name],
             );
         });
     }

@@ -31,6 +31,8 @@ use LumoraFiction\Models\PublishingOverride;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\UserStatus;
+use LumoraFiction\Services\AuthorProfileException;
+use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\UserAdminException;
@@ -58,6 +60,7 @@ final class UsersController extends WriterController
         private readonly UserService $users,
         private readonly StoryService $stories,
         private readonly Configuration $config,
+        private readonly AuthorProfileService $profiles,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -339,8 +342,63 @@ final class UsersController extends WriterController
             'publishingUrl' => AdminUrl::to(self::PATH . '/' . $person->id . '/publishing'),
             'suspendUrl' => AdminUrl::to(self::PATH . '/' . $person->id . '/suspend'),
             'reinstateUrl' => AdminUrl::to(self::PATH . '/' . $person->id . '/reinstate'),
+            'profile' => $this->profiles->publicView($person->id),
+            'clearAboutUrl' => AdminUrl::to(self::PATH . '/' . $person->id . '/author-clear'),
+            'removePictureUrl' => AdminUrl::to(self::PATH . '/' . $person->id . '/author-picture-remove'),
             'listUrl' => AdminUrl::to(self::PATH),
         ], $user, $person->displayName, self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function clearAuthorInformation(array $params, Request $request): Response
+    {
+        return $this->moderateProfile($params, $request, fn (User $admin, User $person): bool => $this->profiles->clearAbout($admin, $person->id, $request->ip()), 'Their author information was cleared.', 'They have no author information to clear.');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function removeAuthorPicture(array $params, Request $request): Response
+    {
+        return $this->moderateProfile($params, $request, fn (User $admin, User $person): bool => $this->profiles->removeAvatar($admin, $person->id, $request->ip()), 'Their picture was removed.', 'They have no picture to remove.');
+    }
+
+    /**
+     * @param array<string, string> $params
+     * @param \Closure(User, User): bool $action true when something was changed
+     */
+    private function moderateProfile(array $params, Request $request, \Closure $action, string $done, string $nothing): Response
+    {
+        $user = $this->guard($request, Capability::ManageUsers, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $person = $this->person($params);
+
+        if ($person === null) {
+            return $this->missing('That account does not exist.', self::PATH);
+        }
+
+        if (!$this->validToken($request, self::TOKEN)) {
+            return $this->back($person, 'error', self::STALE_FORM);
+        }
+
+        // An administrator edits their own profile on their own screen, so the moderation actions never act on oneself.
+        if ($person->id === $user->id) {
+            return $this->back($person, 'error', 'Change your own author profile from the Author profile screen.');
+        }
+
+        try {
+            $changed = $action($user, $person);
+
+            return $this->back($person, $changed ? 'success' : 'info', $changed ? $done : $nothing);
+        } catch (AuthorProfileException) {
+            return $this->back($person, 'error', 'You may not do that.');
+        }
     }
 
     /**

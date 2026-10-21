@@ -18,6 +18,21 @@ declare(strict_types=1);
 lf_get_header();
 ?>
 <section class="lf-archive">
+    <?php if (lf_has('author_about') || lf_has('author_avatar')): ?>
+        <p class="lf-author-about__name"><?php lf_field('author_name'); ?></p>
+        <section class="lf-author-about" aria-labelledby="lf-author-about-heading">
+            <?php if (lf_has('author_avatar')): ?>
+                <img class="lf-author-about__avatar" src="<?php lf_field('author_avatar'); ?>" width="100" height="100" alt="">
+            <?php endif; ?>
+            <div class="lf-author-about__body">
+                <h2 class="lf-author-about__heading" id="lf-author-about-heading">About the author</h2>
+                <?php if (lf_has('author_about')): ?>
+                    <div class="lf-author-about__text"><?php lf_field('author_about'); ?></div>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <header class="lf-archive__header">
         <h1 class="lf-archive__title"><?php lf_title(); ?></h1>
         <?php if (lf_has('description')): ?>

@@ -33,6 +33,7 @@ final class AdminRoutes
         EditorSettingsController $editor,
         ContentEditorController $content,
         TermSuggestController $suggest,
+        AuthorProfileController $profile,
         TaxonomyController $taxonomy,
         StoryController $stories,
         ChapterController $chapters,
@@ -59,7 +60,10 @@ final class AdminRoutes
         $router->post('/admin/settings/spam', $spam->update(...));
         $router->post('/admin/settings/spam/resume', $spam->resume(...), 'admin.settings.spam.resume');
         $router->get('/admin/maintenance/security-events', $securityEvents->index(...), 'admin.security-events');
-        $router->post('/admin/content/preview', $content->preview(...), 'admin.content.preview');
+        $router->get('/admin/profile', $profile->show(...), 'admin.profile');
+        $router->post('/admin/profile/about', $profile->saveAbout(...), 'admin.profile.about');
+        $router->post('/admin/profile/picture', $profile->savePicture(...), 'admin.profile.picture');
+        $router->post('/admin/content/preview',$content->preview(...), 'admin.content.preview');
         $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
         // Before the /admin/taxonomy/{type} pattern below, which would otherwise read "suggest" as a kind.
         $router->get('/admin/taxonomy/suggest', $suggest->suggest(...), 'admin.taxonomy.suggest');
@@ -108,6 +112,8 @@ final class AdminRoutes
         $router->get('/admin/users/{id}', $users->show(...), 'admin.users.show');
         $router->post('/admin/users/{id}/role', $users->changeRole(...));
         $router->post('/admin/users/{id}/publishing', $users->setPublishing(...));
+        $router->post('/admin/users/{id}/author-clear', $users->clearAuthorInformation(...));
+        $router->post('/admin/users/{id}/author-picture-remove', $users->removeAuthorPicture(...));
         $router->get('/admin/users/{id}/suspend', $users->showSuspend(...));
         $router->post('/admin/users/{id}/suspend', $users->suspend(...));
         $router->get('/admin/users/{id}/reinstate', $users->showReinstate(...));

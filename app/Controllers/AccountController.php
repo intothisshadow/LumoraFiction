@@ -628,6 +628,7 @@ final class AccountController
         if ($user->can(Capability::WriteStories)) {
             $shortcuts[] = ['label' => 'Post New Story', 'url' => AdminUrl::to('stories/new')];
             $shortcuts[] = ['label' => 'My stories', 'url' => AdminUrl::to('stories')];
+            $shortcuts[] = ['label' => 'Author profile', 'url' => AdminUrl::to('profile')];
         }
 
         if ($user->can(Capability::ModerateStories)) {

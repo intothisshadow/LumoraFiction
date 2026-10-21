@@ -7,7 +7,8 @@
     'use strict';
 
     var box = document.querySelector('[data-lf-cropper]');
-    var input = document.getElementById('cover');
+    // The cover form names its file field "cover"; another form that uses the cropper says which field is its own.
+    var input = box ? document.getElementById(box.getAttribute('data-lf-input') || 'cover') : null;
 
     if (!box || !input || !window.createImageBitmap) {
         return;

@@ -36,6 +36,9 @@ use LumoraFiction\Models\UserStatus;
 /** @var string $suspendUrl */
 /** @var string $reinstateUrl */
 /** @var string $listUrl */
+/** @var array{about_html: string, avatar_url: string} $profile */
+/** @var string $clearAboutUrl */
+/** @var string $removePictureUrl */
 
 $roleHints = [
     UserRole::Administrator->value => 'Manages the whole site, including accounts and settings.',
@@ -70,6 +73,36 @@ $statusClass = match ($person->status) {
         </tbody>
     </table>
 </div>
+
+<?php if ($profile['about_html'] !== '' || $profile['avatar_url'] !== ''): ?>
+    <div class="lf-card">
+        <h2>Author information</h2>
+        <p class="lf-hint">What this person has written about themselves for their public author page.</p>
+        <?php if ($profile['avatar_url'] !== ''): ?>
+            <p><img class="lf-avatar-field__image" src="<?= Html::e($profile['avatar_url']) ?>" width="100" height="100" alt="Their picture"></p>
+        <?php endif; ?>
+        <?php if ($profile['about_html'] !== ''): ?>
+            <?php // Already through the content sanitiser, the same markup the public page prints. ?>
+            <div class="lf-user-about"><?= $profile['about_html'] ?></div>
+        <?php endif; ?>
+        <?php if (!$isSelf): ?>
+            <div class="lf-actions">
+                <?php if ($profile['about_html'] !== ''): ?>
+                    <form method="post" action="<?= Html::e($clearAboutUrl) ?>" class="lf-inline-form">
+                        <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                        <button type="submit" class="lf-button lf-button--secondary">Clear author information</button>
+                    </form>
+                <?php endif; ?>
+                <?php if ($profile['avatar_url'] !== ''): ?>
+                    <form method="post" action="<?= Html::e($removePictureUrl) ?>" class="lf-inline-form">
+                        <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                        <button type="submit" class="lf-button lf-button--secondary">Remove picture</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+<?php endif; ?>
 
 <?php if ($isSelf): ?>
     <p class="lf-hint">This is your own account. You cannot change your role or suspend yourself here; change your details from your account page, or ask another administrator.</p>

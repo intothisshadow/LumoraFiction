@@ -469,6 +469,15 @@ fieldset.lf-card legend {
     margin: 0;
 }
 
+.lf-avatar-field__image {
+    display: block;
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+}
+
 .lf-cover-field__image {
     display: block;
     width: 8rem;
