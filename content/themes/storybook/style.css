@@ -360,7 +360,6 @@ img {
     background: var(--lf-link-hover);
     border-color: var(--lf-link-hover);
     color: var(--lf-on-accent);
-    color: var(--lf-link-hover);
 }
 
 .lf-form {
