@@ -62,6 +62,23 @@ final class ArchiveController
     /** Pages beyond this are refused outright, so a huge number in an address cannot become a huge database offset. */
     private const MAX_PAGE = 10000;
 
+    /** Terms per page on a Browse index; names are short, so a page holds many more than a page of stories. */
+    private const INDEX_PAGE_SIZE = 100;
+
+    /** How many characters or relationships a fandom's page links to. */
+    private const RELATED_COUNT = 20;
+
+    /**
+     * The plain story lists under Browse: a fixed order and, for one, a fixed work status.
+     *
+     * @var array<string, array{title: string, description: string, sort: string, status: ?WorkStatus}>
+     */
+    private const BROWSE_LISTS = [
+        'new' => ['title' => 'New stories', 'description' => 'Stories in the order they were first published, newest first.', 'sort' => 'published', 'status' => null],
+        'updated' => ['title' => 'Recently updated stories', 'description' => 'Stories in the order their latest chapter was added, newest first.', 'sort' => 'updated', 'status' => null],
+        'completed' => ['title' => 'Completed stories', 'description' => 'Stories their authors have marked as finished, most recently updated first.', 'sort' => 'updated', 'status' => WorkStatus::Completed],
+    ];
+
     public function __construct(
         private readonly ThemeRenderer $themes,
         private readonly StoryService $stories,
@@ -282,6 +299,140 @@ final class ArchiveController
     }
 
     /**
+     * The Browse hub (/browse), the indexes of terms (/browse/tags) and the plain story lists (/browse/new).
+     *
+     * @param array<string, string> $params
+     */
+    public function browse(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($params, $request): Response {
+            $page = $params['page'] ?? '';
+
+            if ($page === '') {
+                return $this->browseHub();
+            }
+
+            if (isset(self::BROWSE_LISTS[$page])) {
+                $list = self::BROWSE_LISTS[$page];
+
+                return $this->listing(
+                    $request,
+                    'archive',
+                    null,
+                    $list['title'],
+                    $list['description'],
+                    PublicUrl::browse($page),
+                    $this->archive->countAll($list['status']),
+                    fn (string $sort, int $limit, int $offset): array => $this->archive->all($list['sort'], $limit, $offset, $list['status']),
+                    $list['sort'],
+                );
+            }
+
+            $type = PublicUrl::browseKind($page);
+
+            // A kind the archive mode has switched off answers exactly like a term page of that kind would.
+            if ($type === null || !$this->taxonomy->isEnabled($type)) {
+                return $this->themes->notFound();
+            }
+
+            return $this->browseIndex($type, $page, $request);
+        });
+    }
+
+    private function browseHub(): Response
+    {
+        $counts = $this->taxonomy->browseCounts();
+        $kinds = [];
+
+        foreach (PublicUrl::browseKinds() as $segment => $type) {
+            if ($this->taxonomy->isEnabled($type) && ($counts[$type->value] ?? 0) > 0) {
+                $kinds[] = ['label' => $type->pluralLabel(), 'url' => PublicUrl::browse($segment), 'count' => number_format($counts[$type->value]), 'count_label' => number_format($counts[$type->value]) . ' ' . strtolower($counts[$type->value] === 1 ? $type->label() : $type->pluralLabel())];
+            }
+        }
+
+        $lists = [];
+
+        foreach (self::BROWSE_LISTS as $segment => $list) {
+            $lists[] = ['label' => $list['title'], 'url' => PublicUrl::browse($segment), 'description' => $list['description']];
+        }
+
+        return $this->themes->render('browse', ['title' => 'Browse', 'lists' => $lists, 'kinds' => $kinds], 200, ['title' => 'Browse']);
+    }
+
+    /**
+     * One page of the terms of a kind, A to Z or most used first, optionally limited to one first letter.
+     */
+    private function browseIndex(TermType $type, string $segment, Request $request): Response
+    {
+        $letters = $this->taxonomy->browseLetters($type);
+        $letter = $request->queryValue('letter') ?? '';
+        $chars = [];
+
+        if ($letter !== '') {
+            // Only a letter the index really has is accepted, so an invented one is simply not there.
+            $match = array_values(array_filter($letters, static fn (array $group): bool => $group['letter'] === $letter));
+
+            if ($match === []) {
+                return $this->themes->notFound();
+            }
+
+            $chars = $match[0]['chars'];
+        }
+
+        $mostUsed = $request->queryValue('sort') === 'used';
+        $total = $this->taxonomy->browseTotal($type, $chars);
+        $pages = max(1, (int) ceil($total / self::INDEX_PAGE_SIZE));
+        $requested = $request->queryValue('page');
+        $page = $requested === null ? 1 : (preg_match('/^[1-9][0-9]{0,8}\z/', $requested) === 1 ? (int) $requested : 0);
+
+        if ($page < 1 || $page > $pages || $page > self::MAX_PAGE) {
+            return $this->themes->notFound();
+        }
+
+        $terms = [];
+
+        foreach ($this->taxonomy->browseTerms($type, $mostUsed, $chars, self::INDEX_PAGE_SIZE, ($page - 1) * self::INDEX_PAGE_SIZE) as $term) {
+            $terms[] = [
+                'name' => $term->name,
+                'url' => PublicUrl::term($type, $term->slug),
+                'count' => number_format($term->storyCount),
+                'count_label' => $this->plural($term->storyCount, 'story', 'stories'),
+            ];
+        }
+
+        $sort = $mostUsed ? 'used' : '';
+        $letterLinks = [['label' => 'All', 'url' => PublicUrl::browse($segment, ['sort' => $sort]), 'current' => $letter === '']];
+
+        foreach ($letters as $group) {
+            $letterLinks[] = ['label' => $group['letter'], 'url' => PublicUrl::browse($segment, ['letter' => $group['letter'], 'sort' => $sort]), 'current' => $group['letter'] === $letter];
+        }
+
+        $query = http_build_query(array_filter(['letter' => $letter, 'sort' => $sort], static fn (string $value): bool => $value !== ''), '', '&', PHP_QUERY_RFC3986);
+
+        return $this->themes->render('browse', [
+            'title' => $type->pluralLabel(),
+            'description' => 'Every ' . strtolower($type->label()) . ' used by at least one story. Each links to the stories that use it.',
+            'total' => number_format($total),
+            'terms' => $terms,
+            'letters' => count($letters) > 1 ? $letterLinks : [],
+            'sorts' => $total === 0 ? [] : [
+                ['label' => 'A to Z', 'url' => PublicUrl::browse($segment, ['letter' => $letter]), 'current' => !$mostUsed],
+                ['label' => 'Most used', 'url' => PublicUrl::browse($segment, ['letter' => $letter, 'sort' => 'used']), 'current' => $mostUsed],
+            ],
+            'pagination' => [
+                'page' => $page,
+                'pages' => $pages,
+                'url' => PublicUrl::browse($segment) . '?' . ($query === '' ? '' : $query . '&') . 'page={page}',
+            ],
+        ], 200, ['title' => $type->pluralLabel()]);
+    }
+
+    private function plural(int $count, string $one, string $many): string
+    {
+        return number_format($count) . ' ' . ($count === 1 ? $one : $many);
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function term(TermType $type, array $params, Request $request): Response
@@ -311,8 +462,38 @@ final class ArchiveController
                 PublicUrl::term($type, $term->slug),
                 $total,
                 fn (string $sort, int $limit, int $offset): array => $this->archive->forTerm($term->id, $sort, $limit, $offset),
+                null,
+                $type === TermType::Fandom ? ['related' => $this->relatedLinks($term)] : [],
             );
         });
+    }
+
+    /**
+     * A fandom's most used characters and relationships, as groups of links, so they can be reached from the
+     * fandom without an index of their own. A kind the archive mode has switched off is left out.
+     *
+     * @return list<array{label: string, terms: list<array{name: string, url: string, count_label: string}>}>
+     */
+    private function relatedLinks(Term $fandom): array
+    {
+        $groups = [];
+
+        foreach ([TermType::Character, TermType::Relationship] as $type) {
+            if (!$this->taxonomy->isEnabled($type)) {
+                continue;
+            }
+
+            $links = array_map(
+                fn (Term $term): array => ['name' => $term->name, 'url' => PublicUrl::term($type, $term->slug), 'count_label' => $this->plural($term->storyCount, 'story', 'stories')],
+                $this->taxonomy->relatedTerms($fandom->id, $type, self::RELATED_COUNT),
+            );
+
+            if ($links !== []) {
+                $groups[] = ['label' => $type->pluralLabel(), 'terms' => $links];
+            }
+        }
+
+        return $groups;
     }
 
     /**
@@ -433,10 +614,12 @@ final class ArchiveController
      * A page of stories with its sort choices and page links.
      *
      * @param Closure(string, int, int): list<Story> $fetch the stories for a sort, a limit and an offset
+     * @param string|null $fixedSort a page with its own order offers no sort choices and ignores the address's
+     * @param array<string, mixed> $extra more view data, such as a fandom's links to its characters
      */
-    private function listing(Request $request, string $view, ?string $variant, string $title, string $description, string $baseUrl, int $total, Closure $fetch): Response
+    private function listing(Request $request, string $view, ?string $variant, string $title, string $description, string $baseUrl, int $total, Closure $fetch, ?string $fixedSort = null, array $extra = []): Response
     {
-        $sort = PublicArchive::sortOrDefault($request->queryValue('sort'));
+        $sort = $fixedSort ?? PublicArchive::sortOrDefault($request->queryValue('sort'));
         $pages = max(1, (int) ceil($total / PublicArchive::PAGE_SIZE));
         $requested = $request->queryValue('page');
         $page = $requested === null ? 1 : (preg_match('/^[1-9][0-9]{0,8}\z/', $requested) === 1 ? (int) $requested : 0);
@@ -451,7 +634,7 @@ final class ArchiveController
 
         $sorts = [];
 
-        foreach (PublicArchive::SORTS as $name => $label) {
+        foreach ($fixedSort === null ? PublicArchive::SORTS : [] as $name => $label) {
             $sorts[] = [
                 'label' => $label,
                 'url' => $name === PublicArchive::DEFAULT_SORT ? $baseUrl : $baseUrl . '?sort=' . $name,
@@ -468,9 +651,9 @@ final class ArchiveController
             'pagination' => [
                 'page' => $page,
                 'pages' => $pages,
-                'url' => $baseUrl . '?' . ($sort === PublicArchive::DEFAULT_SORT ? '' : 'sort=' . $sort . '&') . 'page={page}',
+                'url' => $baseUrl . '?' . ($fixedSort !== null || $sort === PublicArchive::DEFAULT_SORT ? '' : 'sort=' . $sort . '&') . 'page={page}',
             ],
-        ], 200, ['title' => $title, 'variant' => $variant]);
+        ] + $extra, 200, ['title' => $title, 'variant' => $variant]);
     }
 
     /**

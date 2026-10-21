@@ -377,6 +377,55 @@ a:focus-visible {
     margin-block: 0.5rem;
 }
 
+.lf-browse__heading,
+.lf-related__heading {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.15rem;
+}
+
+.lf-browse__cards,
+.lf-related__list,
+.lf-letters__list {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-browse__card,
+.lf-related__item {
+    margin-block: 0.4rem;
+}
+
+.lf-letters__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.lf-letters__link[aria-current] {
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.lf-term-index {
+    column-width: 16rem;
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-term-index__item {
+    break-inside: avoid;
+    margin-block: 0.3rem;
+}
+
+.lf-browse__card-note,
+.lf-term-index__count,
+.lf-related__count {
+    color: var(--lf-fb-muted);
+    font-size: 0.9rem;
+}
+
 .lf-story-list__meta,
 .lf-archive__sort,
 .lf-continue__chapter {

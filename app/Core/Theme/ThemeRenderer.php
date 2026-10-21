@@ -48,6 +48,7 @@ final class ThemeRenderer
         'author' => ['author', 'archive', 'index'],
         'archive' => ['archive', 'index'],
         'search' => ['search', 'archive', 'index'],
+        'browse' => ['browse', 'archive', 'index'],
         'page' => ['page', 'index'],
         'account' => ['account', 'page', 'index'],
         'bookmarks' => ['bookmarks', 'archive', 'index'],
@@ -279,6 +280,7 @@ final class ThemeRenderer
         $home = BasePath::get() . '/';
         $items = $this->hooks->applyFilters('lf_navigation_items', [
             ['label' => 'Home', 'url' => $home, 'current' => $view === 'home'],
+            ['label' => 'Browse', 'url' => BasePath::get() . PublicUrl::BROWSE, 'current' => $view === 'browse'],
             ['label' => 'Search', 'url' => BasePath::get() . PublicUrl::SEARCH, 'current' => $view === 'search'],
         ]);
         $clean = [];

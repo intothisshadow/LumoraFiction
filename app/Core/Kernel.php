@@ -287,6 +287,8 @@ final class Kernel
 
         $kernel->router->get('/', $archive->home(...), 'home');
         $kernel->router->get(PublicUrl::SEARCH, $archive->search(...), 'search');
+        $kernel->router->get(PublicUrl::BROWSE, $archive->browse(...), 'browse');
+        $kernel->router->get(PublicUrl::BROWSE_PAGE, $archive->browse(...), 'browse.page');
         $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
         $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
 

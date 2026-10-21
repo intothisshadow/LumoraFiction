@@ -34,6 +34,10 @@ final class PublicUrl
 
     public const SEARCH = '/search';
 
+    public const BROWSE = '/browse';
+
+    public const BROWSE_PAGE = '/browse/{page}';
+
     public const SIGN_IN = '/account/sign-in';
 
     public const SIGN_OUT = '/account/sign-out';
@@ -76,6 +80,42 @@ final class PublicUrl
         $values = array_filter($values, static fn (string|int|null $value): bool => $value !== null && $value !== '');
 
         return BasePath::get() . self::SEARCH . ($values === [] ? '' : '?' . http_build_query($values, '', '&', PHP_QUERY_RFC3986));
+    }
+
+    /**
+     * The kinds of term that have an index under /browse, keyed by the plural name used in the address.
+     * Characters and relationships have none: there are too many, and they only make sense inside a fandom.
+     *
+     * @return array<string, TermType>
+     */
+    public static function browseKinds(): array
+    {
+        return [
+            'fandoms' => TermType::Fandom,
+            'genres' => TermType::Genre,
+            'categories' => TermType::Category,
+            'tags' => TermType::Tag,
+            'ratings' => TermType::Rating,
+            'warnings' => TermType::Warning,
+            'relationship-categories' => TermType::RelationshipCategory,
+        ];
+    }
+
+    public static function browseKind(string $segment): ?TermType
+    {
+        return self::browseKinds()[$segment] ?? null;
+    }
+
+    /**
+     * A browse page, such as browse('tags') or browse('tags', ['letter' => 'B']); empty values are left out.
+     *
+     * @param array<string, string|int|null> $query
+     */
+    public static function browse(string $page = '', array $query = []): string
+    {
+        $query = array_filter($query, static fn (string|int|null $value): bool => $value !== null && $value !== '');
+
+        return BasePath::get() . self::BROWSE . ($page === '' ? '' : '/' . $page) . ($query === [] ? '' : '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
     }
 
     public static function story(string $slug): string

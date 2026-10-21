@@ -560,6 +560,113 @@ img {
     font-weight: 700;
 }
 
+/* Browse: the hub's cards, a term index's letters and columns, and a fandom's links to its characters. */
+
+.lf-browse__group {
+    margin: 0 0 2rem;
+}
+
+.lf-browse__heading,
+.lf-related__heading {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+}
+
+.lf-browse__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-browse__card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.85rem 1rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-browse__card-link {
+    font-weight: 700;
+}
+
+.lf-browse__card-note,
+.lf-term-index__count,
+.lf-related__count {
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-letters {
+    margin: 0 0 1.25rem;
+}
+
+.lf-letters__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-letters__link {
+    display: inline-block;
+    min-width: 2rem;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    text-align: center;
+    text-decoration: none;
+}
+
+.lf-letters__item--current .lf-letters__link {
+    background: var(--lf-link);
+    border-color: var(--lf-link);
+    color: var(--lf-on-accent);
+    font-weight: 700;
+}
+
+.lf-term-index {
+    column-width: 16rem;
+    column-gap: 2rem;
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-term-index__item {
+    break-inside: avoid;
+    margin: 0 0 0.4rem;
+}
+
+.lf-term-index__link,
+.lf-related__link {
+    font-weight: 600;
+}
+
+.lf-related__item {
+    margin: 0;
+}
+
+.lf-related {
+    margin: 0 0 1.5rem;
+}
+
+.lf-related__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
 /* Search: the form keeps the filters in a disclosure, and each filter in use is a link that removes it. */
 
 .lf-search-form {
@@ -1230,6 +1337,8 @@ a.lf-term-link:hover {
 @media (forced-colors: active) {
     .lf-term-link,
     .lf-story-card,
+    .lf-browse__card,
+    .lf-letters__link,
     .lf-chapter-nav__link {
         border: 1px solid CanvasText;
     }

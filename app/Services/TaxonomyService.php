@@ -243,6 +243,120 @@ final class TaxonomyService
     }
 
     /**
+     * How many terms each kind lists on its public index. An index lists only reviewed terms that have a public
+     * story, going by the stored story count, so a tag that exists only on a draft or that no administrator has
+     * reviewed yet is never advertised.
+     *
+     * @return array<string, int> keyed by kind name
+     */
+    public function browseCounts(): array
+    {
+        $counts = [];
+
+        foreach ($this->database->fetchAll('SELECT t.type, COUNT(*) AS total FROM {prefix}terms t WHERE t.reviewed = 1 AND t.story_count > 0 GROUP BY t.type') as $row) {
+            $counts[(string) $row['type']] = (int) $row['total'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * The first letters an index has terms under, in order, with the first characters behind each. A digit or a
+     * symbol is grouped under "#". The grouping follows the column's collation, so "E" and "É" share a group.
+     *
+     * @return list<array{letter: string, chars: list<string>}>
+     */
+    public function browseLetters(TermType $type): array
+    {
+        $groups = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT LEFT(t.name_key, 1) AS c FROM {prefix}terms t WHERE t.type = :type AND t.reviewed = 1 AND t.story_count > 0 GROUP BY LEFT(t.name_key, 1) ORDER BY c LIMIT 200',
+            ['type' => $type->value],
+        ) as $row) {
+            $char = (string) $row['c'];
+            $letter = preg_match('/^\p{L}\z/u', $char) === 1 ? mb_strtoupper($char, 'UTF-8') : '#';
+            $groups[$letter][] = $char;
+        }
+
+        // "#" comes first, as it does in a printed index.
+        uksort($groups, static fn (string $a, string $b): int => $a === '#' ? -1 : ($b === '#' ? 1 : 0));
+
+        $letters = [];
+
+        foreach ($groups as $letter => $chars) {
+            $letters[] = ['letter' => (string) $letter, 'chars' => $chars];
+        }
+
+        return $letters;
+    }
+
+    /**
+     * One page of an index. $chars limits it to the terms whose first character is one of these (a letter's chars
+     * from browseLetters()), or lists every term when empty.
+     *
+     * @param list<string> $chars
+     * @return list<Term>
+     */
+    public function browseTerms(TermType $type, bool $mostUsed, array $chars, int $limit, int $offset): array
+    {
+        [$where, $params] = $this->browseCondition($type, $chars);
+        $order = $mostUsed ? 't.story_count DESC, t.name_key, t.id' : 't.name_key, t.id';
+
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT t.* FROM {prefix}terms t WHERE ' . $where . ' ORDER BY ' . $order . ' LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
+            $params,
+        ));
+    }
+
+    /**
+     * @param list<string> $chars
+     */
+    public function browseTotal(TermType $type, array $chars): int
+    {
+        [$where, $params] = $this->browseCondition($type, $chars);
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}terms t WHERE ' . $where, $params);
+    }
+
+    /**
+     * The most used reviewed characters or relationships of a fandom, for its page to link to.
+     *
+     * @return list<Term>
+     */
+    public function relatedTerms(int $fandomId, TermType $type, int $limit): array
+    {
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT t.* FROM {prefix}terms t WHERE t.type = :type AND t.parent_id = :parent AND t.reviewed = 1 AND t.story_count > 0
+             ORDER BY t.story_count DESC, t.name_key, t.id LIMIT ' . max(1, min(100, $limit)),
+            ['type' => $type->value, 'parent' => $fandomId],
+        ));
+    }
+
+    /**
+     * @param list<string> $chars
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function browseCondition(TermType $type, array $chars): array
+    {
+        $where = 't.type = :type AND t.reviewed = 1 AND t.story_count > 0';
+        $params = ['type' => $type->value];
+
+        if ($chars !== []) {
+            $marks = [];
+
+            foreach (array_values($chars) as $index => $char) {
+                $marks[] = ':char' . $index;
+                $params['char' . $index] = $char;
+            }
+
+            $where .= ' AND LEFT(t.name_key, 1) IN (' . implode(', ', $marks) . ')';
+        }
+
+        return [$where, $params];
+    }
+
+    /**
      * @param list<int> $ids
      * @return array<int, string> term id => name
      */

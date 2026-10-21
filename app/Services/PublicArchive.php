@@ -20,6 +20,7 @@ namespace LumoraFiction\Services;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Models\SearchQuery;
 use LumoraFiction\Models\Story;
+use LumoraFiction\Models\WorkStatus;
 
 /**
  * Every query here starts from StoryVisibility::publicCondition(), so a draft, a story awaiting approval and a story
@@ -73,6 +74,28 @@ final class PublicArchive
             'SELECT s.* FROM {prefix}stories s WHERE ' . StoryVisibility::publicCondition('s')
             . ' ORDER BY ' . self::ORDER[self::sortOrDefault($sort)] . ' LIMIT ' . max(1, min(100, $limit)),
         ));
+    }
+
+    /**
+     * Every public story, optionally only those with one work status, for the plain lists under Browse.
+     *
+     * @return list<Story>
+     */
+    public function all(string $sort, int $limit, int $offset, ?WorkStatus $status = null): array
+    {
+        return $this->stories->fromRows($this->database->fetchAll(
+            'SELECT s.* FROM {prefix}stories s WHERE ' . StoryVisibility::publicCondition('s') . ($status === null ? '' : ' AND s.work_status = :status')
+            . ' ORDER BY ' . self::ORDER[self::sortOrDefault($sort)] . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            $status === null ? [] : ['status' => $status->value],
+        ));
+    }
+
+    public function countAll(?WorkStatus $status = null): int
+    {
+        return (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM {prefix}stories s WHERE ' . StoryVisibility::publicCondition('s') . ($status === null ? '' : ' AND s.work_status = :status'),
+            $status === null ? [] : ['status' => $status->value],
+        );
     }
 
     /**

@@ -19,6 +19,14 @@ lf_get_header();
 ?>
 <section class="lf-archive">
     <h1 class="lf-page__title"><?php lf_title(); ?></h1>
+    <?php foreach (lf_items('related') as $group): ?>
+        <h2 class="lf-related__heading"><?= lf_e($group['label'] ?? '') ?> in this fandom</h2>
+        <ul class="lf-related__list">
+            <?php foreach (is_array($group['terms'] ?? null) ? $group['terms'] : [] as $term): ?>
+                <li class="lf-related__item"><a class="lf-related__link" href="<?= lf_e($term['url'] ?? '') ?>"><?= lf_e($term['name'] ?? '') ?></a> <span class="lf-related__count"><?= lf_e($term['count_label'] ?? '') ?></span></li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endforeach; ?>
 
     <?php if (lf_has('stories')): ?>
         <?php if (lf_has('sorts')): ?>

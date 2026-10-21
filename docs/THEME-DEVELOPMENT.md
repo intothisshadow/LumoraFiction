@@ -47,6 +47,7 @@ Each view tries its templates in this order and uses the first one the theme has
 | `author` | `author.php`, `archive.php`, `index.php` |
 | `archive` | `archive.php`, `index.php` |
 | `search` | `search.php`, `archive.php`, `index.php` |
+| `browse` | `browse.php`, `archive.php`, `index.php` |
 | `page` | `page.php`, `index.php` |
 | `account` | `account.php`, `page.php`, `index.php` |
 | `bookmarks` | `bookmarks.php`, `archive.php`, `index.php` |
@@ -194,6 +195,23 @@ A view with a list of stories receives:
 | `total` | How many public stories the list holds, formatted. |
 | `sorts` | The ways to order the list, each `{label, url, current}`. Show them as links and mark the current one in a way that does not rely on colour alone. |
 | `pagination` | `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. |
+
+### Browse (`browse`)
+
+The **Browse** page in the main menu and the indexes under it use the `browse` view, which tries `browse.php`, then `archive.php`, then `index.php`. A theme with no `browse.php` falls back to `archive.php`, which does not draw these lists, so a theme should supply one. One template draws two kinds of page, told apart by which keys are present: the hub has `lists` and `kinds`, and an index of one kind of term has `terms`. The plain lists **New stories**, **Recently updated stories** and **Completed stories** are not this view: they use `archive` with the story-list data above, except that they have no `sorts` because each has its own order.
+
+| Name | Contents |
+| ---- | -------- |
+| `title`, `description` | The heading and a sentence under it. |
+| `lists` | (Hub) The story lists, each `{label, url, description}`. |
+| `kinds` | (Hub) The indexes that have something to show, each `{label, url, count, count_label}`. A kind the archive mode switches off, or with nothing listed, is absent. |
+| `total` | (Index) How many terms the index lists, already formatted. |
+| `terms` | (Index) One page of terms, each `{name, url, count, count_label}`; `count_label` reads "3 stories". Only reviewed terms with at least one public story are listed. Empty when there is nothing to show. |
+| `letters` | (Index) The first-letter links, each `{label, url, current}`, beginning with **All** and with `#` for digits and symbols. Empty when there is only one letter. Draw them as a list of links and mark the current one with `aria-current`. |
+| `sorts` | (Index) **A to Z** and **Most used**, each `{label, url, current}`. |
+| `pagination` | As for the story lists. |
+
+A fandom's page (`archive-fandom.php`, or `archive.php`) also receives `related`: groups of the fandom's most used characters and relationships, each `{label, terms}` where a term is `{name, url, count_label}`. It is empty for every other kind of term, so a theme can loop over it unconditionally.
 
 ### Account pages (`account`)
 
