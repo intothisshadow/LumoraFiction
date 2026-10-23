@@ -19,30 +19,31 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
-use LumoraFiction\Core\Configuration;
-use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Models\Capability;
+use LumoraFiction\Models\SiteAlert;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\SiteAlerts;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\UserService;
 
 final class DashboardController extends AdminController
 {
+    /** The dashboard shows only the most serious few; the Alerts screen has the rest. */
+    private const ALERTS_SHOWN = 5;
+
     public function __construct(
         AuthService $auth,
         AdminView $view,
         FlashMessages $flash,
         private readonly UserService $users,
         private readonly AuditLogService $audit,
-        private readonly Configuration $config,
-        private readonly HookManager $hooks,
+        private readonly SiteAlerts $alerts,
         private readonly StoryService $stories,
-        private readonly string $root,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -62,7 +63,12 @@ final class DashboardController extends AdminController
 
         return $this->view->render('dashboard', [
             'user' => $user,
-            'notices' => $isAdministrator ? $this->notices($request) : [],
+            'notices' => array_map(
+                static fn (SiteAlert $alert): array => ['variant' => $alert->severity->variant(), 'message' => $alert->message],
+                $this->alerts->top($user, self::ALERTS_SHOWN),
+            ),
+            'alertTotal' => count($this->alerts->all($user)),
+            'alertsUrl' => AdminUrl::to('maintenance/alerts'),
             'summary' => $user->can(Capability::ManageUsers) ? $this->users->summary() : null,
             'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
             'awaitingApproval' => $user->can(Capability::ModerateStories) ? $this->stories->countPending($user) : null,
@@ -73,44 +79,4 @@ final class DashboardController extends AdminController
         ], $user, 'Dashboard', '', $this->flash->pull($request->cookies));
     }
 
-    /**
-     * Things an administrator should look at. The installer folder and debug mode are the two that
-     * quietly weaken a live site if forgotten.
-     *
-     * @return list<array{variant: string, message: string}>
-     */
-    private function notices(Request $request): array
-    {
-        $notices = [];
-
-        if (is_dir($this->root . '/install')) {
-            $notices[] = ['variant' => 'error', 'message' => 'The installer folder is still on the server. Delete the "install" folder; leaving it there is a security risk.'];
-        }
-
-        if ($this->config->get('debug', false) === true) {
-            $notices[] = ['variant' => 'warning', 'message' => 'Debug mode is on, so visitors can see technical details when something goes wrong. Turn it off on a live site.'];
-        }
-
-        if ((string) $this->config->get('site_url', '') === '') {
-            $notices[] = ['variant' => 'error', 'message' => 'No site address is set, so links in emails cannot be created.'];
-        }
-
-        if (!$request->isHttps()) {
-            $notices[] = ['variant' => 'warning', 'message' => 'This site is not being served over HTTPS. Passwords and sessions travel unprotected; ask your host for a certificate.'];
-        }
-
-        $extra = $this->hooks->applyFilters('admin_dashboard_notices', [], $request);
-
-        foreach (is_array($extra) ? $extra : [] as $notice) {
-            if (
-                is_array($notice)
-                && in_array($notice['variant'] ?? null, ['error', 'warning', 'info', 'success'], true)
-                && is_string($notice['message'] ?? null)
-            ) {
-                $notices[] = ['variant' => $notice['variant'], 'message' => $notice['message']];
-            }
-        }
-
-        return $notices;
-    }
 }

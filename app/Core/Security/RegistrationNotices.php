@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Tells the administrator's dashboard that registration is paused.
+ * Raises an alert while registration is paused.
  *
  * @package LumoraFiction
  * @subpackage Security
@@ -18,6 +18,8 @@ declare(strict_types=1);
 namespace LumoraFiction\Core\Security;
 
 use LumoraFiction\Core\Hooks\HookManager;
+use LumoraFiction\Models\AlertSeverity;
+use LumoraFiction\Models\SiteAlert;
 
 final class RegistrationNotices
 {
@@ -27,25 +29,28 @@ final class RegistrationNotices
 
     public function register(HookManager $hooks): void
     {
-        $hooks->addFilter('admin_dashboard_notices', $this->add(...), 30);
+        $hooks->addFilter('admin_alerts', $this->add(...), 30);
     }
 
     /**
-     * @param mixed $notices the notices collected so far
-     * @return list<array{variant: string, message: string}>
+     * @param mixed $alerts the alerts collected so far
+     * @return list<mixed>
      */
-    public function add(mixed $notices): array
+    public function add(mixed $alerts): array
     {
-        $notices = is_array($notices) ? array_values($notices) : [];
+        $alerts = is_array($alerts) ? array_values($alerts) : [];
         $paused = $this->throttle->secondsPaused();
 
         if ($paused > 0) {
-            $notices[] = [
-                'variant' => 'warning',
-                'message' => sprintf('Registration is paused for about %d more minute(s) because a flood of sign-ups arrived. Open Settings > Spam protection to look at what happened or to open registration again.', max(1, (int) ceil($paused / 60))),
-            ];
+            $alerts[] = new SiteAlert(
+                'registration.paused',
+                AlertSeverity::Warning,
+                sprintf('Registration is paused for about %d more minute(s) because a flood of sign-ups arrived. Open Settings > Spam protection to look at what happened or to open registration again.', max(1, (int) ceil($paused / 60))),
+                '',
+                'settings/spam',
+            );
         }
 
-        return $notices;
+        return $alerts;
     }
 }

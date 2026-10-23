@@ -52,6 +52,28 @@ add_filter('admin_menu', static function (array $items): array {
     return $items;
 });
 
+// A reminder on the Alerts screen while placeholder content is on the site, so it is not forgotten there.
+add_filter('admin_alerts', static function (array $alerts) use ($kernel): array {
+    try {
+        $made = array_sum((new Tracker($kernel->database))->counts());
+    } catch (\Throwable) {
+        // The list of made items is created on first use, so a site that never used the plugin has none yet.
+        return $alerts;
+    }
+
+    if ($made > 0) {
+        $alerts[] = new \LumoraFiction\Models\SiteAlert(
+            'dummy-content.present',
+            \LumoraFiction\Models\AlertSeverity::Info,
+            'Placeholder content from the Dummy Content plugin is on this site. Remove it before the site is used for real.',
+            '',
+            Screen::PATH,
+        );
+    }
+
+    return $alerts;
+});
+
 add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $router) use ($kernel): void {
     if ($kernel->admin === null) {
         return;

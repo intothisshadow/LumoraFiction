@@ -25,6 +25,7 @@ use LumoraFiction\Core\Security\LoginThrottle;
 use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
+use LumoraFiction\Models\AlertSeverity;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
@@ -80,6 +81,7 @@ final class AuthService
         string $siteUrl,
         private readonly string $siteName = 'Lumora Fiction',
         private readonly ?SecurityEventLog $events = null,
+        private readonly ?SiteAlerts $alerts = null,
     ) {
         $siteUrl = rtrim($siteUrl, '/');
 
@@ -519,6 +521,7 @@ final class AuthService
         if (!$this->mailer->send($user->email, $subject, $body)) {
             // Never log the address or the link: both are personal, and the link is a credential.
             error_log('[AuthService] An email could not be handed to the mail transport.');
+            $this->alerts?->raise('mail.failed', AlertSeverity::Warning, 'The site could not hand an email to the mail system, so sign-up confirmations and password resets may not arrive. Ask your host whether outgoing mail is set up.', '', 'maintenance/system-information');
         }
     }
 

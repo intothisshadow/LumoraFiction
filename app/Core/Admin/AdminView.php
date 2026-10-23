@@ -17,9 +17,11 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Core\Admin;
 
+use Closure;
 use InvalidArgumentException;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 
 /**
@@ -33,7 +35,17 @@ final class AdminView
         private readonly AdminMenu $menu,
         private readonly string $siteName,
         private readonly string $version,
+        private readonly ?Closure $alertCount = null,
     ) {
+    }
+
+    /**
+     * What the header shows beside "Alerts": the number of alerts needing attention, or null for anyone who may not see
+     * them, so the link is absent from an Editor's or Author's page and not merely hidden.
+     */
+    private function alertCountFor(User $user): ?int
+    {
+        return $this->alertCount !== null && $user->can(Capability::ManageSite) ? ($this->alertCount)($user) : null;
     }
 
     /**
@@ -55,6 +67,7 @@ final class AdminView
             'siteName' => $this->siteName,
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
+            'alertCount' => $this->alertCountFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }
@@ -76,6 +89,7 @@ final class AdminView
             'siteName' => $this->siteName,
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
+            'alertCount' => $this->alertCountFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }

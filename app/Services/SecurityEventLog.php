@@ -19,6 +19,7 @@ namespace LumoraFiction\Services;
 
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Models\AlertSeverity;
 use Throwable;
 
 /**
@@ -72,9 +73,25 @@ final class SecurityEventLog
     /** Old rows are looked for at most this often, so a busy site does not pay for it on every refusal. */
     private const PURGE_INTERVAL_SECONDS = 3600;
 
+    /** Events in the last hour that make a run of refusals worth an alert. */
+    private const LOCKOUT_BURST = 5;
+
+    private const REGISTRATION_BURST = 20;
+
+    private const BURST_WINDOW_SECONDS = 3600;
+
+    private const REGISTRATION_EVENTS = [
+        self::REGISTRATION_RATE_LIMITED,
+        self::REGISTRATION_PAUSED,
+        self::REGISTRATION_BLOCKED_EMAIL,
+        self::REGISTRATION_WRONG_ANSWER,
+        self::REGISTRATION_SPAM,
+    ];
+
     public function __construct(
         private readonly Database $database,
         private readonly Configuration $config,
+        private readonly ?SiteAlerts $alerts = null,
     ) {
     }
 
@@ -82,6 +99,7 @@ final class SecurityEventLog
     {
         try {
             $this->insert($event, $ipAddress, $detail);
+            $this->watchForBursts($event);
             $this->purgeIfDue();
         } catch (Throwable $exception) {
             error_log('[SecurityEventLog] ' . $exception::class . ': ' . $exception->getMessage());
@@ -161,6 +179,45 @@ final class SecurityEventLog
             'DELETE FROM {prefix}security_events WHERE created_at < :cutoff',
             ['cutoff' => date('Y-m-d H:i:s', time() - $this->retentionDays() * 86400)],
         );
+    }
+
+    /**
+     * A single refusal is routine; a run of them inside an hour is raised to the administrator as one alert that keeps
+     * counting, not as a row per refusal. Only a count appears in the message, never an address or anything typed.
+     */
+    private function watchForBursts(string $event): void
+    {
+        if ($this->alerts === null) {
+            return;
+        }
+
+        $since = date('Y-m-d H:i:s', time() - self::BURST_WINDOW_SECONDS);
+
+        if ($event === self::LOGIN_LOCKOUT) {
+            $count = (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}security_events WHERE event = :event AND created_at >= :since', ['event' => $event, 'since' => $since]);
+
+            if ($count >= self::LOCKOUT_BURST) {
+                $this->alerts->raise('security.lockouts', AlertSeverity::Warning, sprintf('Sign-in was locked %d times in the last hour after repeated wrong passwords. Someone may be guessing passwords.', $count), '', 'maintenance/security-events');
+            }
+
+            return;
+        }
+
+        if (in_array($event, self::REGISTRATION_EVENTS, true)) {
+            $params = ['since' => $since];
+            $marks = [];
+
+            foreach (self::REGISTRATION_EVENTS as $index => $name) {
+                $marks[] = ':event' . $index;
+                $params['event' . $index] = $name;
+            }
+
+            $count = (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}security_events WHERE event IN (' . implode(', ', $marks) . ') AND created_at >= :since', $params);
+
+            if ($count >= self::REGISTRATION_BURST) {
+                $this->alerts->raise('security.registrations_blocked', AlertSeverity::Warning, sprintf('%d registrations were refused in the last hour. A bot may be trying to sign up.', $count), '', 'maintenance/security-events');
+            }
+        }
     }
 
     private function insert(string $event, string $ipAddress, string $detail): void

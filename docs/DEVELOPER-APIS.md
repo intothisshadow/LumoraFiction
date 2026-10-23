@@ -31,7 +31,7 @@ add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $
 
 - **Lifecycle.** An administrator turns a plugin on under Maintenance > Plugins. The file is run once in that request, and the plugin is refused, with the reason shown, if it throws, has a syntax error, or needs a newer PHP or Lumora Fiction than the site has. Once on, the file runs on every request while the application starts, after the core services and the core routes are ready and before `routes_register` fires, in the order the plugins were turned on. Turning a plugin off stops it running from the next request. The slug is kept in the `plugins.active` setting.
 - **What the file sees.** `$kernel` is in scope, so a plugin can read `$kernel->config`, `$kernel->database`, `$kernel->auth`, `$kernel->hooks` and the other services. Do the work in hook callbacks rather than directly in the file where you can. Register settings defaults for your own keys with `$kernel->config->registerDefaults([...])`, and read and write them with `setting()` and `setSetting()`; prefix every key with your slug.
-- **Registering things.** Routes go through `routes_register`, admin screens through the `admin_menu` filter (see "Admin screens"), dashboard notices through `admin_dashboard_notices`, and public output through the theme hooks. The file is run once per request, so it must not declare a function or class that another plugin might declare too; put classes behind a namespace named for your plugin.
+- **Registering things.** Routes go through `routes_register`, admin screens through the `admin_menu` filter (see "Admin screens"), site alerts through `admin_alerts` (see "Site alerts"), and public output through the theme hooks. The file is run once per request, so it must not declare a function or class that another plugin might declare too; put classes behind a namespace named for your plugin.
 - **When a plugin fails.** Anything the file throws, including a warning, is caught: the plugin is skipped for that request and the site continues. The reason is written to the error log and the audit log (`plugin.load_failed`) once, then kept in the `plugins.failures` setting so the dashboard can flag it; it is cleared when the plugin loads cleanly or is turned off. Hooks the plugin added before it threw stay registered for that request, so register hooks at the end of the file, or inside a function the file calls last. A fatal error PHP cannot catch, such as running out of memory, cannot be skipped; remove the plugin's folder.
 - **Development-only plugins.** `config/config.php` holds an `environment` value that the admin cannot change: the installer writes `production`, and a missing value means `production` too. A plugin that must never run on a live site reads `$kernel->config->get('environment', 'production')` and throws from its main file unless it is `development` or `testing`; the loader then refuses it and shows the reason.
 - **Own tables.** A plugin that needs a table creates it with `CREATE TABLE IF NOT EXISTS` through `$kernel->database->run()`, using the `{prefix}` placeholder, and checks it before use. Core's migrations never touch plugin tables.
@@ -85,7 +85,8 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
 | `content_html` | `string` HTML, plus the `ContentFormat` | Adjust the final HTML of a chapter just before it is shown. The result is sanitised again, so a plugin cannot add scripts, images or other elements the allowlist refuses. |
 | `lf_registration_spam_reasons` | `list<string>` (empty), plus `array{display_name, email, ip}` | Return reasons to refuse a sign-up. Any non-empty text is enough: the sign-up is dropped without telling the sender, the visitor sees the usual thanks, and the reason is written to the Security events list as `plugin: {reason}`. It runs after the built-in checks and before Akismet, and never sees the password. |
-| `admin_dashboard_notices` | `list<array{variant: string, message: string}>`, plus the `Request` | Add a notice to the administrator's dashboard. `variant` is `error`, `warning`, `info` or `success`; the message is plain text and is escaped. |
+| `admin_alerts` | `list<array{key, severity, message, detail?, path?}>`, plus the `Request` | Add an alert to the Administrators' **Alerts** screen, the dashboard and the header count. See "Site alerts". |
+| `admin_dashboard_notices` | `list<array{variant: string, message: string}>`, plus the `Request` | The older way to add a notice to the administrator's dashboard; it keeps working, and each notice also shows on the Alerts screen (`error` as critical, `warning`, `info` and `success` as a plain notice). `variant` is `error`, `warning`, `info` or `success`; the message is plain text and is escaped. New code should use `admin_alerts`. |
 
 ```php
 add_filter('csp_directives', function (array $directives): array {
@@ -241,6 +242,44 @@ add_filter('admin_menu', function (array $items): array {
 - Hiding an entry is a convenience. Your screen must check the capability itself, on the server, before doing anything.
 - Register the screen's routes in a `routes_register` callback, as described below.
 - To draw the screen inside the admin layout, build the body as a string with every value escaped, then call `$kernel->admin->renderContent($html, $user, $title, $currentPath, $flash, $status)`. `$kernel->admin` (an `AdminView`) is set before plugins load; `$currentPath` is the path you gave the menu entry, so the entry is highlighted. A class that extends `LumoraFiction\Controllers\Admin\AdminController` gets `guard()` (sign-in and capability check) and `validToken()` for free; build a `FlashMessages` from `$kernel->sessions` for it. The bundled Dummy Content plugin is a worked example.
+
+## Site alerts
+
+Alerts are about the site itself and are shown to Administrators only (the `ManageSite` capability), under **Maintenance > Alerts**, on the dashboard and as a count in the admin header. They are separate from anything about stories. There are two kinds.
+
+A **live alert** describes a state that can be checked again on every request: debug mode is on, a plugin is failing. Add one with the `admin_alerts` filter; it clears by itself when the cause goes and cannot be dismissed.
+
+```php
+add_filter('admin_alerts', function (array $alerts) use ($kernel): array {
+    if (my_plugin_has_no_api_key($kernel)) {
+        $alerts[] = [
+            'key' => 'my-plugin.no-key',
+            'severity' => 'warning',
+            'message' => 'My Plugin has no API key, so it is switched off.',
+            'path' => 'settings/my-plugin',
+        ];
+    }
+
+    return $alerts;
+});
+```
+
+- `key` is lower-case letters, digits, `.`, `_` or `-` (up to 100 characters), and names the alert. `severity` is `critical`, `warning` or `info`; the header count includes only critical alerts and warnings. `message` is plain text of up to 500 characters and `detail` up to 1,000; both are escaped when shown. `path` is optional and is an admin address below `/admin/`, such as `maintenance/plugins`, for the **Fix this** link; a full address is refused.
+- An entry that is malformed is dropped on its own and never breaks the screen or the dashboard.
+- Never put a folder path, a password, a token, a login name or anything a visitor typed in a message or detail, because the screen and the optional email repeat them.
+
+A **stored alert** records that something happened. Raise it from code that runs after the kernel has booted through `$kernel->alerts`:
+
+```php
+$kernel->alerts->raise('my-plugin.sync-failed', \LumoraFiction\Models\AlertSeverity::Warning, 'The nightly sync failed.', '', 'maintenance/plugins');
+$kernel->alerts->clear('my-plugin.sync-failed');
+```
+
+- Raising the same key again adds one to its count and refreshes its message and last-seen time, so a repeating problem is one alert, not many. `clear()` removes it once the cause is gone.
+- An Administrator can dismiss a stored alert. It stays hidden while the problem keeps repeating and comes back if the problem returns after a week without it.
+- Stored alerts older than 30 days are removed, and no more than 200 are kept.
+- A critical stored alert is also emailed to the oldest active Administrator when they switched that on, at most once per alert per day.
+- `raise()` never throws, so a problem with the alert cannot break the request that noticed it. The built-in alerts (debug mode, installer folder, HTTPS, unwritable folders, plugin failures, paused registration, bursts of sign-in lockouts and refused registrations, and failing email) use the same two paths.
 
 ## Routes
 

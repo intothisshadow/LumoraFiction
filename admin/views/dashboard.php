@@ -21,7 +21,9 @@ use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 
 /** @var User $user */
-/** @var list<array{variant: string, message: string}> $notices */
+/** @var list<array{variant: string, message: string}> $notices the most serious alerts, a few at most */
+/** @var int $alertTotal every alert there is, shown or not */
+/** @var string $alertsUrl */
 /** @var array{total: int, by_role: array<string, int>, by_status: array<string, int>}|null $summary */
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
 /** @var int|null $awaitingApproval stories in the approval queue; null for someone who may not review */
@@ -42,6 +44,7 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
                 <li class="lf-notice lf-notice--<?= Html::e($notice['variant']) ?>"><?= Html::e($notice['message']) ?></li>
             <?php endforeach; ?>
         </ul>
+        <p><a href="<?= Html::e($alertsUrl) ?>"><?= $alertTotal > count($notices) ? 'See all ' . (int) $alertTotal . ' alerts' : 'Open Alerts' ?></a></p>
     </section>
 <?php endif; ?>
 

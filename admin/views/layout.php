@@ -28,6 +28,7 @@ use LumoraFiction\Models\User;
 /** @var string $version */
 /** @var string $signOutToken */
 /** @var string $assetVersion */
+/** @var int|null $alertCount alerts needing attention; null for anyone who may not see alerts */
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -48,6 +49,9 @@ use LumoraFiction\Models\User;
         <div class="lf-admin__tools">
             <a class="lf-button lf-button--quiet lf-admin__site-link" href="<?= Html::e(AdminUrl::site()) ?>">View site</a>
             <a class="lf-button lf-button--quiet lf-admin__account-link" href="<?= Html::e(AdminUrl::account()) ?>">My account</a>
+            <?php if ($alertCount !== null && $alertCount > 0): ?>
+                <a class="lf-button lf-button--quiet lf-alert-link" href="<?= Html::e(AdminUrl::to('maintenance/alerts')) ?>">Alerts<span class="lf-alert-link__count"> (<?= (int) $alertCount ?>)</span></a>
+            <?php endif; ?>
             <button type="button" class="lf-button lf-button--quiet" data-lf-theme-toggle aria-pressed="false" hidden>Dark mode</button>
 
             <form class="lf-admin__signout" method="post" action="<?= Html::e(AdminUrl::to('logout')) ?>">

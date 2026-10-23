@@ -352,6 +352,40 @@ fieldset.lf-card legend {
     margin-bottom: 0;
 }
 
+/* Alerts */
+
+.lf-alert-list {
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-alert__message,
+.lf-alert__detail,
+.lf-alert__meta {
+    margin: 0 0 0.4rem;
+}
+
+.lf-alert__meta {
+    font-size: 0.9rem;
+}
+
+.lf-alert__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.5rem 0 0;
+}
+
+.lf-alert-link {
+    font-weight: bold;
+}
+
+.lf-alert-link__count {
+    margin-left: 0.25rem;
+}
+
 .lf-activity {
     margin: 0;
     padding-left: 1.1rem;

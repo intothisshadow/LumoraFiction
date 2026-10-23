@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Tells the administrator's dashboard which plugins were skipped.
+ * Raises an alert for each plugin that was skipped.
  *
  * @package LumoraFiction
  * @subpackage Plugin
@@ -18,6 +18,8 @@ declare(strict_types=1);
 namespace LumoraFiction\Core\Plugin;
 
 use LumoraFiction\Core\Hooks\HookManager;
+use LumoraFiction\Models\AlertSeverity;
+use LumoraFiction\Models\SiteAlert;
 use LumoraFiction\Services\PluginManager;
 
 final class PluginNotices
@@ -28,25 +30,29 @@ final class PluginNotices
 
     public function register(HookManager $hooks): void
     {
-        $hooks->addFilter('admin_dashboard_notices', $this->add(...), 20);
+        $hooks->addFilter('admin_alerts', $this->add(...), 20);
     }
 
     /**
-     * @param mixed $notices the notices collected so far
-     * @return list<array{variant: string, message: string}>
+     * @param mixed $alerts the alerts collected so far
+     * @return list<mixed>
      */
-    public function add(mixed $notices): array
+    public function add(mixed $alerts): array
     {
-        $notices = is_array($notices) ? array_values($notices) : [];
+        $alerts = is_array($alerts) ? array_values($alerts) : [];
 
         foreach ($this->plugins->failures() as $slug => $message) {
             $name = $this->plugins->catalog()->find($slug)?->name ?? $slug;
-            $notices[] = [
-                'variant' => 'error',
-                'message' => sprintf('The plugin "%s" could not be loaded and was skipped: %s Open Plugins under Maintenance to turn it off.', $name, $message),
-            ];
+            // Hashed, so a folder name that is not a valid key can still raise its alert.
+            $alerts[] = new SiteAlert(
+                'plugin.failed.' . substr(sha1((string) $slug), 0, 12),
+                AlertSeverity::Critical,
+                sprintf('The plugin "%s" could not be loaded and was skipped: %s Open Plugins under Maintenance to turn it off.', $name, $message),
+                '',
+                'maintenance/plugins',
+            );
         }
 
-        return $notices;
+        return $alerts;
     }
 }
