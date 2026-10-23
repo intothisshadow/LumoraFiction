@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Settings › Security: the sign-in lockout and the reverse proxies the site trusts.
+ * Settings › Security: the sign-in lockout, the reverse proxies the site trusts, the HTTPS-only header, the minimum password length and the session length.
  *
  * @package LumoraFiction
  * @subpackage Admin
@@ -32,7 +32,7 @@ final class SecuritySettingsController extends AdminController
 {
     private const PATH = 'settings/security';
 
-    private const FIELDS = ['lockout_attempts', 'lockout_minutes', 'trusted_proxies'];
+    private const FIELDS = ['lockout_attempts', 'lockout_minutes', 'trusted_proxies', 'password_min_length', 'session_hours'];
 
     public function __construct(
         AuthService $auth,
@@ -68,13 +68,17 @@ final class SecuritySettingsController extends AdminController
             return $user;
         }
 
-        $submitted = ['lockout_progressive' => $request->checked('lockout_progressive'), 'notify_owner' => $request->checked('notify_owner')];
+        $submitted = [
+            'lockout_progressive' => $request->checked('lockout_progressive'),
+            'notify_owner' => $request->checked('notify_owner'),
+            'hsts' => $request->checked('hsts'),
+        ];
 
         foreach (self::FIELDS as $field) {
             $submitted[$field] = $request->input($field);
         }
 
-        $result = $this->settings->validate($submitted);
+        $result = $this->settings->validate($submitted, $request->isHttps());
 
         if (!$this->validToken($request, 'admin_settings_security')) {
             return $this->page($request, $user, $result['values'], ['form' => 'Your session expired, so nothing was saved. Please check the settings and save again.'], 400);

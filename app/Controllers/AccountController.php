@@ -25,6 +25,7 @@ use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\EditorMode;
@@ -246,7 +247,7 @@ final class AccountController
             $this->field('login_name', 'Login name', 'text', $values['login_name'] ?? '', 'username', 'Private. You use it to sign in, and it is never shown to other people.', $errors['login_name'] ?? ''),
             $this->field('display_name', 'Display name', 'text', $values['display_name'] ?? '', 'nickname', 'Public. This is the name shown on your stories and your author page.', $errors['display_name'] ?? ''),
             $this->field('email', 'Email address', 'email', $values['email'] ?? '', 'email', '', $errors['email'] ?? ''),
-            $this->field('password', 'Password', 'password', '', 'new-password', '', $errors['password'] ?? ''),
+            $this->field('password', 'Password', 'password', '', 'new-password', $this->passwordHint(), $errors['password'] ?? ''),
         ];
 
         // A question the administrator wrote, asked with an ordinary field so every theme already draws it.
@@ -371,7 +372,7 @@ final class AccountController
     private function resetPage(Request $request, string $token, ?string $error = null, int $status = 200): Response
     {
         $form = $this->form('account_reset', PublicUrl::account('reset/' . rawurlencode($token)), 'Change password', [
-            $this->field('password', 'New password', 'password', '', 'new-password'),
+            $this->field('password', 'New password', 'password', '', 'new-password', $this->passwordHint()),
             $this->field('password_confirm', 'New password again', 'password', '', 'new-password'),
         ], '', $error === null ? [] : [$error]);
 
@@ -578,7 +579,7 @@ final class AccountController
             ], 'Email address', $summary('email')),
             $this->form('account_password', PublicUrl::account('profile/password'), 'Change password', [
                 $this->field('current_password', 'Current password', 'password', '', 'current-password'),
-                $this->field('new_password', 'New password', 'password', '', 'new-password', 'Changing it signs you out everywhere else.'),
+                $this->field('new_password', 'New password', 'password', '', 'new-password', $this->passwordHint() . ' Changing it signs you out everywhere else.'),
                 $this->field('new_password_confirm', 'New password again', 'password', '', 'new-password'),
             ], 'Password', $summary('password')),
         ];
@@ -731,6 +732,14 @@ final class AccountController
             'fields' => $fields,
             'errors' => array_map(static fn (string $message): array => ['message' => $message], $errors),
         ];
+    }
+
+    /**
+     * The length rule as the administrator has set it, so the hint on each form matches what is enforced.
+     */
+    private function passwordHint(): string
+    {
+        return 'At least ' . (new PasswordPolicy($this->config))->minLength() . ' characters.';
     }
 
     /**

@@ -87,5 +87,33 @@ $behindProxy = $peer !== $address;
         </div>
     </fieldset>
 
+    <fieldset class="lf-card">
+        <legend>Passwords and sessions</legend>
+
+        <div class="lf-field<?= isset($errors['password_min_length']) ? ' lf-field--error' : '' ?>">
+            <label for="password_min_length">Shortest password allowed</label>
+            <input type="text" inputmode="numeric" id="password_min_length" name="password_min_length" value="<?= Html::e((string) $values['password_min_length']) ?>" maxlength="2" aria-describedby="password_min_length_hint<?= isset($errors['password_min_length']) ? ' password_min_length_error' : '' ?>">
+            <p class="lf-hint" id="password_min_length_hint">Counted in characters, from 8 to 64; the usual choice is 10. It applies to passwords set or changed from now on and never to ones already set. Passwords longer than 72 bytes are not accepted, because only the first 72 bytes would count.</p>
+            <?php if (isset($errors['password_min_length'])): ?><p class="lf-error" id="password_min_length_error"><?= Html::e($errors['password_min_length']) ?></p><?php endif; ?>
+        </div>
+
+        <div class="lf-field<?= isset($errors['session_hours']) ? ' lf-field--error' : '' ?>">
+            <label for="session_hours">Hours a sign-in lasts</label>
+            <input type="text" inputmode="numeric" id="session_hours" name="session_hours" value="<?= Html::e((string) $values['session_hours']) ?>" maxlength="3" aria-describedby="session_hours_hint<?= isset($errors['session_hours']) ? ' session_hours_error' : '' ?>">
+            <p class="lf-hint" id="session_hours_hint">How long a signed-in person stays signed in without activity, from 1 to 720 hours; the usual choice is 24. A shorter time signs people out sooner. A change applies to sessions as they next renew, and nobody is signed out the moment you save.</p>
+            <?php if (isset($errors['session_hours'])): ?><p class="lf-error" id="session_hours_error"><?= Html::e($errors['session_hours']) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
+    <fieldset class="lf-card">
+        <legend>HTTPS only</legend>
+        <div class="lf-choice<?= isset($errors['hsts']) ? ' lf-field--error' : '' ?>">
+            <input type="checkbox" id="hsts" name="hsts" value="1"<?= $values['hsts'] === true ? ' checked' : '' ?> aria-describedby="hsts_hint<?= isset($errors['hsts']) ? ' hsts_error' : '' ?>">
+            <label for="hsts">Tell browsers to use only HTTPS for this site</label>
+            <p class="lf-hint" id="hsts_hint">Once a browser has seen this, it refuses plain HTTP for this site for a year, so switch it on only when the whole site works over HTTPS. It can be switched on only from a page opened with https://<?= $https ? '' : ' (this page was opened over plain HTTP)' ?>; switching it off is always possible, though browsers that have already seen it keep the rule until it expires.</p>
+            <?php if (isset($errors['hsts'])): ?><p class="lf-error" id="hsts_error"><?= Html::e($errors['hsts']) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
     <p><button type="submit" class="lf-button">Save settings</button></p>
 </form>

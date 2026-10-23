@@ -1,7 +1,7 @@
 <?php
 
 /**
- * The sign-in lockout and reverse-proxy settings.
+ * The sign-in lockout, reverse-proxy, HTTPS-only header, password length and session length settings.
  *
  * @package LumoraFiction
  * @subpackage Services
@@ -20,6 +20,7 @@ namespace LumoraFiction\Services;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Security\IpRangeMatcher;
+use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Models\User;
 
 /**
@@ -35,7 +36,12 @@ final class SecuritySettings
         'security.lockout_progressive' => true,
         'security.notify_owner' => true,
         'security.trusted_proxies' => '',
+        'security.hsts' => false,
+        'security.password_min_length' => 10,
+        'security.session_lifetime' => 86400,
     ];
+
+    private const SECONDS_PER_HOUR = 3600;
 
     /** A proxy list this long is a mistake, not a setup. */
     private const MAX_PROXY_RULES = 50;
@@ -52,6 +58,15 @@ final class SecuritySettings
         'lockout_progressive' => 'security.lockout_progressive',
         'notify_owner' => 'security.notify_owner',
         'trusted_proxies' => 'security.trusted_proxies',
+        'hsts' => 'security.hsts',
+        'password_min_length' => 'security.password_min_length',
+        'session_hours' => 'security.session_lifetime',
+    ];
+
+    /** Field => [lowest, highest, message] for the whole-number fields added after the lockout ones. */
+    private const LIMITS = [
+        'password_min_length' => [PasswordPolicy::FLOOR_MIN_LENGTH, PasswordPolicy::CEILING_MIN_LENGTH, 'Enter a whole number of characters from 8 to 64.'],
+        'session_hours' => [1, 720, 'Enter a whole number of hours from 1 to 720.'],
     ];
 
     public function __construct(
@@ -62,11 +77,17 @@ final class SecuritySettings
     }
 
     /**
-     * @return array{lockout_attempts: int, lockout_minutes: int, lockout_progressive: bool, notify_owner: bool, trusted_proxies: string}
+     * @return array{lockout_attempts: int, lockout_minutes: int, lockout_progressive: bool, notify_owner: bool, trusted_proxies: string, hsts: bool, password_min_length: int, session_hours: int}
      */
     public function current(): array
     {
+        $lifetime = $this->config->setting('security.session_lifetime');
+
         return [
+            'hsts' => $this->config->setting('security.hsts') === true,
+            'password_min_length' => (new PasswordPolicy($this->config))->minLength(),
+            // Stored in seconds because the session manager takes seconds; shown in whole hours, never below one.
+            'session_hours' => is_int($lifetime) ? max(1, min(720, intdiv($lifetime + self::SECONDS_PER_HOUR - 1, self::SECONDS_PER_HOUR))) : 24,
             'lockout_attempts' => $this->number('security.lockout_attempts', 3, 20),
             'lockout_minutes' => $this->number('security.lockout_minutes', 1, 1440),
             'lockout_progressive' => $this->config->setting('security.lockout_progressive') !== false,
@@ -76,10 +97,11 @@ final class SecuritySettings
     }
 
     /**
-     * @param array<string, string|bool|null> $input the submitted form, by field name
+     * @param array<string, string|bool|null> $input the submitted form, by field name; a whole-number field that is absent keeps its current value
+     * @param bool $https whether this page was reached over HTTPS, which the HTTPS-only header needs before it can be switched on
      * @return array{errors: array<string, string>, values: array<string, int|string|bool>}
      */
-    public function validate(array $input): array
+    public function validate(array $input, bool $https = false): array
     {
         $current = $this->current();
         $errors = [];
@@ -98,6 +120,29 @@ final class SecuritySettings
             } else {
                 $errors[$field] = $message;
             }
+        }
+
+        foreach (self::LIMITS as $field => [$low, $high, $message]) {
+            if (!isset($input[$field])) {
+                continue;
+            }
+
+            $raw = trim((string) $input[$field]);
+
+            if (preg_match('/^[0-9]{1,5}\z/', $raw) === 1 && (int) $raw >= $low && (int) $raw <= $high) {
+                $values[$field] = (int) $raw;
+            } else {
+                $errors[$field] = $message;
+            }
+        }
+
+        $values['hsts'] = ($input['hsts'] ?? false) === true;
+
+        // Switching it on from a plain-HTTP page could lock the administrator out of their own site, so only
+        // an HTTPS page may do it. Leaving it on, or turning it off, is always allowed.
+        if ($values['hsts'] && !$current['hsts'] && !$https) {
+            $errors['hsts'] = 'The HTTPS-only header can only be switched on from a page opened with https://. Open this page over HTTPS and try again.';
+            $values['hsts'] = false;
         }
 
         $values['lockout_progressive'] = $input['lockout_progressive'] === true;
@@ -140,7 +185,7 @@ final class SecuritySettings
 
         foreach (self::FIELDS as $field => $setting) {
             if ($values[$field] !== $current[$field]) {
-                $changes[$setting] = ['from' => $current[$field], 'to' => $values[$field]];
+                $changes[$setting] = ['from' => $this->stored($field, $current[$field]), 'to' => $this->stored($field, $values[$field])];
             }
         }
 
@@ -151,7 +196,7 @@ final class SecuritySettings
         $this->database->transaction(function () use ($changes, $values, $actor, $ipAddress): void {
             foreach (self::FIELDS as $field => $setting) {
                 if (isset($changes[$setting])) {
-                    $this->config->setSetting($setting, $values[$field]);
+                    $this->config->setSetting($setting, $this->stored($field, $values[$field]));
                 }
             }
 
@@ -159,6 +204,14 @@ final class SecuritySettings
         });
 
         return array_keys($changes);
+    }
+
+    /**
+     * The value as it is kept in the settings table: the session length goes in as seconds.
+     */
+    private function stored(string $field, int|string|bool $value): int|string|bool
+    {
+        return $field === 'session_hours' ? (int) $value * self::SECONDS_PER_HOUR : $value;
     }
 
     private function ruleProblem(string $rule): ?string
