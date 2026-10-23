@@ -15,10 +15,13 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\ColumnSort;
+use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Story;
 
 /** @var list<Story> $stories */
+/** @var ColumnSort $sort */
 /** @var array<int, string> $owners display names by account id */
 /** @var array<int, array{total: int, published: int}> $chapterCounts */
 /** @var int $total */
@@ -28,21 +31,23 @@ use LumoraFiction\Models\Story;
 /** @var string $storyUrl */
 /** @var string $reviewUrl */
 /** @var string $csrfToken */
+
+$query = static fn (int $number): string => ($parts = $sort->query() + ($number > 1 ? ['page' => (string) $number] : [])) === [] ? '' : '?' . http_build_query($parts);
 ?>
 <?php if ($stories === []): ?>
     <p class="lf-hint">No story is waiting for approval.</p>
 <?php else: ?>
-    <p class="lf-hint"><?= (int) $total ?> waiting, the one waiting longest first.</p>
+    <p class="lf-hint"><?= (int) $total ?> waiting<?= $sort->isDefault ? ', the one waiting longest first' : '' ?>.</p>
 
     <table class="lf-table lf-review-queue">
         <caption class="lf-visually-hidden">Stories waiting for approval</caption>
         <thead>
             <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Author</th>
-                <th scope="col">Chapters</th>
-                <th scope="col">Words</th>
-                <th scope="col">Sent</th>
+                <?= SortHeading::render($sort, 'title', 'Title', $listUrl, []) ?>
+                <?= SortHeading::render($sort, 'author', 'Author', $listUrl, []) ?>
+                <?= SortHeading::render($sort, 'chapters', 'Chapters', $listUrl, []) ?>
+                <?= SortHeading::render($sort, 'words', 'Words', $listUrl, []) ?>
+                <?= SortHeading::render($sort, 'sent', 'Sent', $listUrl, []) ?>
                 <th scope="col">Decision</th>
             </tr>
         </thead>
@@ -69,9 +74,9 @@ use LumoraFiction\Models\Story;
 
     <?php if ($pages > 1): ?>
         <nav class="lf-pagination" aria-label="Pages">
-            <?php if ($page > 1): ?><a href="<?= Html::e($listUrl . ($page > 2 ? '?page=' . ($page - 1) : '')) ?>" rel="prev">Previous</a><?php endif; ?>
+            <?php if ($page > 1): ?><a href="<?= Html::e($listUrl . $query($page - 1)) ?>" rel="prev">Previous</a><?php endif; ?>
             <span>Page <?= (int) $page ?> of <?= (int) $pages ?></span>
-            <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . '?page=' . ($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
+            <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
 <?php endif; ?>

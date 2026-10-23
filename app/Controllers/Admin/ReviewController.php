@@ -66,13 +66,15 @@ final class ReviewController extends WriterController
             return $user;
         }
 
+        $sort = StoryService::pendingSort($request->queryValue('sort'), $request->queryValue('dir'));
         $total = $this->stories->countPending($user);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($pages, max(1, (int) ($request->queryValue('page') ?? 1)));
-        $stories = $this->stories->listPending($user, self::PER_PAGE, ($page - 1) * self::PER_PAGE);
+        $stories = $this->stories->listPending($user, self::PER_PAGE, ($page - 1) * self::PER_PAGE, $sort);
 
         return $this->view->render('review-queue', [
             'stories' => $stories,
+            'sort' => $sort,
             'owners' => $this->users->displayNames(array_map(static fn (Story $story): int => $story->ownerId, $stories)),
             'chapterCounts' => $this->chapters->countsForStories(array_map(static fn (Story $story): int => $story->id, $stories)),
             'total' => $total,

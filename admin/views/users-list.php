@@ -15,12 +15,15 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\ColumnSort;
+use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\UserStatus;
 
 /** @var list<User> $people */
+/** @var ColumnSort $sort */
 /** @var array{search: string, role: string, status: string} $filters */
 /** @var list<UserRole> $roles */
 /** @var list<UserStatus> $statuses */
@@ -31,8 +34,9 @@ use LumoraFiction\Models\UserStatus;
 /** @var string $personUrl */
 /** @var int $selfId */
 
-$query = static function (int $number) use ($filters): string {
-    $parts = array_filter(['q' => $filters['search'], 'role' => $filters['role'], 'status' => $filters['status']], static fn (string $value): bool => $value !== '');
+$kept = array_filter(['q' => $filters['search'], 'role' => $filters['role'], 'status' => $filters['status']], static fn (string $value): bool => $value !== '');
+$query = static function (int $number) use ($kept, $sort): string {
+    $parts = $kept + $sort->query();
 
     if ($number > 1) {
         $parts['page'] = (string) $number;
@@ -71,6 +75,9 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
             <?php endforeach; ?>
         </select>
     </div>
+    <?php foreach ($sort->query() as $name => $value): ?>
+        <input type="hidden" name="<?= Html::e($name) ?>" value="<?= Html::e($value) ?>">
+    <?php endforeach; ?>
     <p><button type="submit" class="lf-button lf-button--secondary">Filter</button></p>
 </form>
 
@@ -83,11 +90,11 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
         <caption class="lf-visually-hidden">Accounts</caption>
         <thead>
             <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Email address</th>
-                <th scope="col">Role</th>
-                <th scope="col">Status</th>
-                <th scope="col">Joined</th>
+                <?= SortHeading::render($sort, 'name', 'Name', $listUrl, $kept) ?>
+                <?= SortHeading::render($sort, 'email', 'Email address', $listUrl, $kept) ?>
+                <?= SortHeading::render($sort, 'role', 'Role', $listUrl, $kept) ?>
+                <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
+                <?= SortHeading::render($sort, 'joined', 'Joined', $listUrl, $kept) ?>
             </tr>
         </thead>
         <tbody>

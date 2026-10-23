@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Sortable columns: the column headings on **Users**, **My stories** / **All stories** and **Awaiting approval** are now links that sort the list by that column, and a second click reverses it. The arrow and a screen-reader announcement show the column in use, the search and filters are kept, and a changed sort starts again at page 1. Each list keeps its usual order until a heading is clicked.
+
 - Footer: on a page too short to fill the screen, the footer now sits at the bottom of the window instead of floating under the content, and its text is centred. Both bundled themes.
 
 - Storybook home page: the large site title above **Recently published** is gone, since the site name already sits in the header. The page keeps a top-level heading for screen readers, hidden from view.

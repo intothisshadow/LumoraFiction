@@ -19,6 +19,7 @@ namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Security\PasswordPolicy;
 use LumoraFiction\Helpers\Slug;
@@ -383,20 +384,20 @@ final class UserService
     }
 
     /**
-     * Accounts for an administrator's list, newest first. A search matches the display name or the email address; the
-     * login name is never searched, so it cannot be found by guessing.
+     * Accounts for an administrator's list, newest first unless a sort is given. A search matches the display name or
+     * the email address; the login name is never searched, so it cannot be found by guessing.
      *
      * @param array{search?: string, role?: string, status?: string} $filters
      * @return list<User>
      */
-    public function search(array $filters, int $limit, int $offset): array
+    public function search(array $filters, int $limit, int $offset, ?ColumnSort $sort = null): array
     {
         [$where, $params] = $this->searchCondition($filters);
 
         return array_map(
             fn (array $row): User => $this->hydrate($row),
             $this->database->fetchAll(
-                'SELECT * FROM {prefix}users WHERE ' . $where . ' ORDER BY created_at DESC, id DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+                'SELECT * FROM {prefix}users WHERE ' . $where . ' ORDER BY ' . ($sort?->orderBy() ?? 'created_at DESC, id DESC') . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
                 $params,
             ),
         );

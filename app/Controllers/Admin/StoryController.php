@@ -379,16 +379,18 @@ final class StoryController extends WriterController
             'search' => $request->queryValue('q') ?? '',
         ];
 
+        $sort = StoryService::writerSort($request->queryValue('sort'), $request->queryValue('dir'));
         $total = $this->stories->countForWriter($user, $filters);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($pages, max(1, (int) ($request->queryValue('page') ?? 1)));
-        $stories = $this->stories->listForWriter($user, $filters, self::PER_PAGE, ($page - 1) * self::PER_PAGE);
+        $stories = $this->stories->listForWriter($user, $filters, self::PER_PAGE, ($page - 1) * self::PER_PAGE, $sort);
         $ids = array_map(static fn (Story $story): int => $story->id, $stories);
 
         return $this->view->render('stories-list', [
             'stories' => $stories,
             'owners' => $scope === 'all' ? $this->users->displayNames(array_map(static fn (Story $story): int => $story->ownerId, $stories)) : [],
             'chapterCounts' => $this->chapters->countsForStories($ids),
+            'sort' => $sort,
             'filters' => $filters,
             'scope' => $scope,
             'states' => PublicationState::cases(),

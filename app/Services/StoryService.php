@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -50,6 +51,8 @@ final class StoryService
     public const DISCLAIMER_MAX = 2000;
 
     public const REASON_MAX = 1000;
+
+    private const CHAPTER_TOTAL = '(SELECT COUNT(*) FROM {prefix}chapters c WHERE c.story_id = s.id)';
 
     public const COVER_ALT_MAX = 250;
 
@@ -445,16 +448,46 @@ final class StoryService
     /**
      * @return list<Story> the stories waiting for approval, longest waiting first; empty for anyone who may not review
      */
-    public function listPending(User $actor, int $limit = 25, int $offset = 0): array
+    public function listPending(User $actor, int $limit = 25, int $offset = 0, ?ColumnSort $sort = null): array
     {
         if (!$actor->can(Capability::ModerateStories)) {
             return [];
         }
 
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT * FROM {prefix}stories WHERE publication_state = :state ORDER BY updated_at ASC, id ASC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            'SELECT s.* FROM {prefix}stories s LEFT JOIN {prefix}users u ON u.id = s.owner_id WHERE s.publication_state = :state ORDER BY '
+            . ($sort ?? self::pendingSort(null, null))->orderBy() . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
             ['state' => PublicationState::Pending->value],
         ));
+    }
+
+    /**
+     * The sortable columns of the writer's story list. Most recently changed first stays the default.
+     */
+    public static function writerSort(?string $sort, ?string $direction): ColumnSort
+    {
+        return ColumnSort::resolve([
+            'title' => ['sql' => 's.title', 'first' => ColumnSort::ASCENDING],
+            'author' => ['sql' => 'u.display_name', 'first' => ColumnSort::ASCENDING],
+            'status' => ['sql' => 's.publication_state', 'first' => ColumnSort::ASCENDING],
+            'chapters' => ['sql' => self::CHAPTER_TOTAL, 'first' => ColumnSort::DESCENDING],
+            'words' => ['sql' => 's.word_count', 'first' => ColumnSort::DESCENDING],
+            'updated' => ['sql' => 's.updated_at', 'first' => ColumnSort::DESCENDING],
+        ], 'updated', ColumnSort::DESCENDING, 's.id', $sort, $direction);
+    }
+
+    /**
+     * The sortable columns of the approval queue. The one waiting longest first stays the default.
+     */
+    public static function pendingSort(?string $sort, ?string $direction): ColumnSort
+    {
+        return ColumnSort::resolve([
+            'title' => ['sql' => 's.title', 'first' => ColumnSort::ASCENDING],
+            'author' => ['sql' => 'u.display_name', 'first' => ColumnSort::ASCENDING],
+            'chapters' => ['sql' => self::CHAPTER_TOTAL, 'first' => ColumnSort::DESCENDING],
+            'words' => ['sql' => 's.word_count', 'first' => ColumnSort::DESCENDING],
+            'sent' => ['sql' => 's.updated_at', 'first' => ColumnSort::ASCENDING],
+        ], 'sent', ColumnSort::ASCENDING, 's.id', $sort, $direction);
     }
 
     public function countPending(User $actor): int
@@ -546,9 +579,9 @@ final class StoryService
      * cannot widen it.
      *
      * @param array{scope?: string, state?: string, search?: string} $filters
-     * @return list<Story> most recently changed first
+     * @return list<Story> most recently changed first unless a sort is given
      */
-    public function listForWriter(User $actor, array $filters, int $limit = 25, int $offset = 0): array
+    public function listForWriter(User $actor, array $filters, int $limit = 25, int $offset = 0, ?ColumnSort $sort = null): array
     {
         if (!$actor->can(Capability::WriteStories)) {
             return [];
@@ -557,7 +590,8 @@ final class StoryService
         [$where, $params] = $this->writerFilter($actor, $filters);
 
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT s.* FROM {prefix}stories s WHERE ' . $where . ' ORDER BY s.updated_at DESC, s.id DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            'SELECT s.* FROM {prefix}stories s LEFT JOIN {prefix}users u ON u.id = s.owner_id WHERE ' . $where . ' ORDER BY '
+            . ($sort ?? self::writerSort(null, null))->orderBy() . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
             $params,
         ));
     }

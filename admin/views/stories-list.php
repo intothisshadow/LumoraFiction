@@ -15,11 +15,14 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\ColumnSort;
+use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
 
 /** @var list<Story> $stories */
+/** @var ColumnSort $sort */
 /** @var array<int, string> $owners display names by account id; empty unless every story is listed */
 /** @var array<int, array{total: int, published: int}> $chapterCounts */
 /** @var array{scope: string, state: string, search: string} $filters */
@@ -34,16 +37,9 @@ use LumoraFiction\Models\Story;
 /** @var string $bulkUrl */
 /** @var string $csrfToken */
 
-$query = static function (int $number) use ($filters): string {
-    $parts = [];
-
-    if ($filters['search'] !== '') {
-        $parts['q'] = $filters['search'];
-    }
-
-    if ($filters['state'] !== '') {
-        $parts['state'] = $filters['state'];
-    }
+$kept = array_filter(['q' => $filters['search'], 'state' => $filters['state']], static fn (string $value): bool => $value !== '');
+$query = static function (int $number) use ($kept, $sort): string {
+    $parts = $kept + $sort->query();
 
     if ($number > 1) {
         $parts['page'] = (string) $number;
@@ -75,6 +71,9 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
             <?php endforeach; ?>
         </select>
     </div>
+    <?php foreach ($sort->query() as $name => $value): ?>
+        <input type="hidden" name="<?= Html::e($name) ?>" value="<?= Html::e($value) ?>">
+    <?php endforeach; ?>
     <p><button type="submit" class="lf-button lf-button--secondary">Filter</button></p>
 </form>
 
@@ -91,12 +90,12 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
             <thead>
                 <tr>
                     <th scope="col"><span class="lf-visually-hidden">Select</span></th>
-                    <th scope="col">Title</th>
-                    <?php if ($scope === 'all'): ?><th scope="col">Author</th><?php endif; ?>
-                    <th scope="col">Status</th>
-                    <th scope="col">Chapters</th>
-                    <th scope="col">Words</th>
-                    <th scope="col">Last changed</th>
+                    <?= SortHeading::render($sort, 'title', 'Title', $listUrl, $kept) ?>
+                    <?php if ($scope === 'all'): ?><?= SortHeading::render($sort, 'author', 'Author', $listUrl, $kept) ?><?php endif; ?>
+                    <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
+                    <?= SortHeading::render($sort, 'chapters', 'Chapters', $listUrl, $kept) ?>
+                    <?= SortHeading::render($sort, 'words', 'Words', $listUrl, $kept) ?>
+                    <?= SortHeading::render($sort, 'updated', 'Last changed', $listUrl, $kept) ?>
                 </tr>
             </thead>
             <tbody>

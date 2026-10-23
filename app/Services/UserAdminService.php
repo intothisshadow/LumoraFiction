@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Services;
 
+use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -47,9 +48,23 @@ final class UserAdminService
      * @param array{search?: string, role?: string, status?: string} $filters
      * @return list<User>
      */
-    public function list(User $actor, array $filters, int $limit, int $offset): array
+    public function list(User $actor, array $filters, int $limit, int $offset, ?ColumnSort $sort = null): array
     {
-        return $actor->can(Capability::ManageUsers) ? $this->users->search($filters, $limit, $offset) : [];
+        return $actor->can(Capability::ManageUsers) ? $this->users->search($filters, $limit, $offset, $sort) : [];
+    }
+
+    /**
+     * The sortable columns of the Users list. Newest first stays the default.
+     */
+    public static function sortFrom(?string $sort, ?string $direction): ColumnSort
+    {
+        return ColumnSort::resolve([
+            'name' => ['sql' => 'display_name', 'first' => ColumnSort::ASCENDING],
+            'email' => ['sql' => 'email', 'first' => ColumnSort::ASCENDING],
+            'role' => ['sql' => 'role', 'first' => ColumnSort::ASCENDING],
+            'status' => ['sql' => 'status', 'first' => ColumnSort::ASCENDING],
+            'joined' => ['sql' => 'created_at', 'first' => ColumnSort::DESCENDING],
+        ], 'joined', ColumnSort::DESCENDING, 'id', $sort, $direction);
     }
 
     /**

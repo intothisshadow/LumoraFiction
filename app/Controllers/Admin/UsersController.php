@@ -82,13 +82,15 @@ final class UsersController extends WriterController
             'status' => UserStatus::tryFrom($request->queryValue('status') ?? '')?->value ?? '',
         ];
 
+        $sort = UserAdminService::sortFrom($request->queryValue('sort'), $request->queryValue('dir'));
         $total = $this->admin->count($user, $filters);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $requested = $request->queryValue('page');
         $page = min($pages, max(1, $requested !== null && ctype_digit($requested) ? (int) min((int) $requested, 100000) : 1));
 
         return $this->view->render('users-list', [
-            'people' => $this->admin->list($user, $filters, self::PER_PAGE, ($page - 1) * self::PER_PAGE),
+            'people' => $this->admin->list($user, $filters, self::PER_PAGE, ($page - 1) * self::PER_PAGE, $sort),
+            'sort' => $sort,
             'filters' => $filters,
             'roles' => UserRole::cases(),
             'statuses' => UserStatus::cases(),
