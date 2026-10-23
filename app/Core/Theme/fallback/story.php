@@ -30,6 +30,7 @@ lf_get_header();
             <p class="lf-story__actions"><a href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>
         <?php endif; ?>
         <?php lf_part('bookmark-buttons'); ?>
+        <?php lf_part('follow-button'); ?>
     </header>
 
     <?php $groups = lf_items('term_groups'); ?>

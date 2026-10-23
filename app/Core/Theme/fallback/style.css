@@ -483,7 +483,8 @@ a:focus-visible {
 
 .lf-story-list__meta,
 .lf-archive__sort,
-.lf-continue__chapter {
+.lf-continue-item__progress,
+.lf-continue-item__read {
     color: var(--lf-fb-muted);
 }
 
@@ -499,12 +500,58 @@ a:focus-visible {
     margin: 0;
 }
 
-.lf-continue {
-    padding-left: 1.25rem;
+.lf-continue-item__finished {
+    margin-left: 0.4rem;
+    padding: 0 0.5rem;
+    border: 1px solid currentcolor;
+    border-radius: 999px;
+    font-size: 0.85rem;
 }
 
-.lf-continue__item {
-    margin-block: 0.4rem;
+.lf-continue-clear {
+    margin-top: 1.5rem;
+}
+
+.lf-follow {
+    margin-block: 0.75rem;
+}
+
+.lf-bookmark-form__option {
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+.lf-notice__link {
+    font-weight: bold;
+}
+
+.lf-bookmark-item__follow,
+.lf-updates-item__new {
+    color: var(--lf-fb-muted);
+}
+
+.lf-continue-item__new {
+    font-weight: bold;
+}
+
+.lf-updates-stop-all {
+    margin-top: 1.5rem;
+}
+
+.lf-resume {
+    margin-block: 1rem;
+}
+
+.lf-resume[hidden] {
+    display: none;
+}
+
+.lf-resume__button {
+    max-width: 100%;
+}
+
+.lf-resume__percent {
+    color: var(--lf-fb-muted);
 }
 
 @media print {

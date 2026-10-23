@@ -26,6 +26,7 @@ lf_get_header();
     </header>
 
     <?php lf_part('bookmark-buttons'); ?>
+    <?php lf_part('resume-button'); ?>
 
     <?php if (lf_has('chapter.notes')): ?>
         <aside class="lf-chapter__notes" aria-label="Author&rsquo;s notes"><p><?php lf_field('chapter.notes'); ?></p></aside>

@@ -52,6 +52,8 @@ final class ThemeRenderer
         'page' => ['page', 'index'],
         'account' => ['account', 'page', 'index'],
         'bookmarks' => ['bookmarks', 'archive', 'index'],
+        'continue' => ['continue', 'bookmarks', 'archive', 'index'],
+        'updates' => ['updates', 'bookmarks', 'archive', 'index'],
         '404' => ['404', 'index'],
     ];
 

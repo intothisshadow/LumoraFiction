@@ -70,13 +70,16 @@ use LumoraFiction\Core\Security\TokenService;
 use LumoraFiction\Core\Theme\FormProtectionFields;
 use LumoraFiction\Core\Theme\StaffNavigation;
 use LumoraFiction\Core\Theme\ThemeCatalog;
+use LumoraFiction\Core\Theme\ReadingPositionScript;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Controllers\AccountController;
 use LumoraFiction\Controllers\ArchiveController;
 use LumoraFiction\Core\Theme\AccountNavigation;
 use LumoraFiction\Core\Theme\ReaderHead;
 use LumoraFiction\Controllers\PublicController;
+use LumoraFiction\Controllers\FollowController;
 use LumoraFiction\Controllers\ReaderController;
+use LumoraFiction\Controllers\ReadingListController;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\AkismetClient;
@@ -88,6 +91,8 @@ use LumoraFiction\Services\SecurityEventLog;
 use LumoraFiction\Services\SecuritySettings;
 use LumoraFiction\Services\SpamSettings;
 use LumoraFiction\Services\BookmarkService;
+use LumoraFiction\Services\FollowPresenter;
+use LumoraFiction\Services\StoryFollowService;
 use LumoraFiction\Services\PluginManager;
 use LumoraFiction\Services\PublicArchive;
 use LumoraFiction\Services\ReaderPreferences;
@@ -264,10 +269,17 @@ final class Kernel
         $readerPreferences = new ReaderPreferences($kernel->database);
         $bookmarks = new BookmarkService($kernel->database, $stories);
         $bookmarkPresenter = new BookmarkPresenter($bookmarks);
-        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard);
-        $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash);
+        $storyFollows = new StoryFollowService($kernel->database, $stories);
+        $followPresenter = new FollowPresenter();
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows);
+        $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash, $storyFollows, $followPresenter);
+        $readingProgress = new ReadingProgressService($kernel->database, $stories);
+        $readingList = new ReadingListController($kernel->themes, $kernel->auth, $readingProgress, $presenter, $kernel->users, $flash, $storyFollows, $readerPreferences);
+        $follow = new FollowController($kernel->themes, $kernel->auth, $storyFollows, $followPresenter, $stories, $presenter, $kernel->users, $flash);
         (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
         (new ReaderHead($kernel->auth, $readerPreferences))->register($kernel->hooks);
+        $positionScript = new ReadingPositionScript();
+        $positionScript->register($kernel->hooks);
 
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
         $publicArchive = new PublicArchive($kernel->database, $stories);
@@ -286,9 +298,13 @@ final class Kernel
             $searchParser,
             new SearchPresenter($taxonomy, $searchParser, $publicArchive),
             $bookmarkPresenter,
-            new ReadingProgressService($kernel->database, $stories),
+            $readingProgress,
             $flash,
             $authorProfiles,
+            $positionScript,
+            $storyFollows,
+            $followPresenter,
+            $readerPreferences,
         );
 
         $kernel->router->get('/', $archive->home(...), 'home');
@@ -320,6 +336,18 @@ final class Kernel
         $kernel->router->get(PublicUrl::BOOKMARKS, $reader->list(...), 'account.bookmarks');
         $kernel->router->post(PublicUrl::BOOKMARK_ADD, $reader->add(...), 'account.bookmarks.add');
         $kernel->router->post(PublicUrl::BOOKMARK_REMOVE, $reader->remove(...), 'account.bookmarks.remove');
+
+        $kernel->router->get(PublicUrl::CONTINUE, $readingList->list(...), 'account.continue');
+        $kernel->router->post(PublicUrl::CONTINUE_FORGET, $readingList->forget(...), 'account.continue.forget');
+        $kernel->router->get(PublicUrl::CONTINUE_CLEAR, $readingList->confirmClear(...), 'account.continue.clear');
+        $kernel->router->post(PublicUrl::CONTINUE_CLEAR, $readingList->clear(...), 'account.continue.clear.submit');
+        $kernel->router->post(PublicUrl::READING_POSITION, $readingList->savePosition(...), 'account.reading.position');
+
+        $kernel->router->get(PublicUrl::UPDATES, $follow->updates(...), 'account.updates');
+        $kernel->router->post(PublicUrl::UPDATES_FOLLOW, $follow->follow(...), 'account.updates.follow');
+        $kernel->router->post(PublicUrl::UPDATES_STOP, $follow->stop(...), 'account.updates.stop');
+        $kernel->router->get(PublicUrl::UPDATES_STOP_ALL, $follow->confirmStopAll(...), 'account.updates.stop_all');
+        $kernel->router->post(PublicUrl::UPDATES_STOP_ALL, $follow->stopAll(...), 'account.updates.stop_all.submit');
 
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');

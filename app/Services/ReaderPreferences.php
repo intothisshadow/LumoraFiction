@@ -20,9 +20,10 @@ namespace LumoraFiction\Services;
 use LumoraFiction\Core\Database\Database;
 
 /**
- * The browser keeps the same three choices for everyone, so a guest gets them without an account. This class is the
- * account's copy, which follows a reader to another device. A stored value that is no longer a known choice is
- * dropped, so a removed option cannot leave a reader with a broken page.
+ * The browser keeps the same three display choices for everyone, so a guest gets them without an account. This class is
+ * the account's copy, which follows a reader to another device, plus the one choice that only an account can have,
+ * whether to be told when a followed story changes. A stored value that is no longer a known choice is dropped, so a
+ * removed option cannot leave a reader with a broken page.
  */
 final class ReaderPreferences
 {
@@ -31,13 +32,23 @@ final class ReaderPreferences
         'scheme' => ['system', 'light', 'dark'],
         'size' => ['default', 'small', 'large', 'xlarge'],
         'width' => ['default', 'narrow', 'wide'],
+        'updates' => ['off', 'on'],
     ];
 
     public const LABELS = [
         'scheme' => ['system' => 'Match my device', 'light' => 'Light', 'dark' => 'Dark'],
         'size' => ['default' => 'Default', 'small' => 'Small', 'large' => 'Large', 'xlarge' => 'Extra large'],
         'width' => ['default' => 'Default', 'narrow' => 'Narrow', 'wide' => 'Wide'],
+        'updates' => ['off' => 'No, do not tell me', 'on' => 'Yes, tell me'],
     ];
+
+    /**
+     * Whether the reader asked to be told about changes to the stories they follow. Off until they say otherwise.
+     */
+    public function wantsUpdates(int $userId): bool
+    {
+        return ($this->forUser($userId)['updates'] ?? 'off') === 'on';
+    }
 
     public function __construct(
         private readonly Database $database,

@@ -17,5 +17,5 @@ declare(strict_types=1);
 
 ?>
 <?php foreach (lf_items('notices') as $notice): ?>
-    <p class="lf-notice lf-notice--<?= lf_e($notice['type'] ?? 'info') ?>" role="<?= ($notice['type'] ?? '') === 'error' ? 'alert' : 'status' ?>"><?= lf_e($notice['text'] ?? '') ?></p>
+    <p class="lf-notice lf-notice--<?= lf_e($notice['type'] ?? 'info') ?>" role="<?= ($notice['type'] ?? '') === 'error' ? 'alert' : 'status' ?>"><?= lf_e($notice['text'] ?? '') ?><?php if (($notice['url'] ?? '') !== ''): ?> <a class="lf-notice__link" href="<?= lf_e($notice['url']) ?>"><?= lf_e($notice['link'] ?? '') ?></a><?php endif; ?></p>
 <?php endforeach; ?>

@@ -23,11 +23,14 @@ use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Models\FollowOutcome;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\BookmarkService;
+use LumoraFiction\Services\FollowPresenter;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\StoryFollowService;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\UserService;
@@ -50,6 +53,8 @@ final class ReaderController
         private readonly StoryPresenter $presenter,
         private readonly UserService $users,
         private readonly FlashMessages $flash,
+        private readonly StoryFollowService $follows,
+        private readonly FollowPresenter $followPresenter,
     ) {
     }
 
@@ -76,6 +81,7 @@ final class ReaderController
         $entries = $this->bookmarks->listFor($user, PublicArchive::PAGE_SIZE, ($page - 1) * PublicArchive::PAGE_SIZE);
         $profiles = $this->users->publicProfiles(array_map(static fn (array $entry): int => $entry['story']->ownerId, $entries));
         $cards = [];
+        $followed = $this->follows->followedAmong($user, array_map(static fn (array $entry): int => $entry['story']->id, $entries));
 
         foreach ($entries as $entry) {
             $story = $entry['story'];
@@ -87,6 +93,7 @@ final class ReaderController
                 'chapter_title' => $entry['chapter_title'] ?? '',
                 'chapter_url' => $entry['chapter_number'] === null ? '' : PublicUrl::chapter($story->slug, $entry['chapter_number']),
                 'remove' => $this->bookmarkPresenter->removeForm($entry['id']),
+                'follow' => $this->followPresenter->button($story->id, in_array($story->id, $followed, true), 'bookmarks'),
             ];
         }
 
@@ -138,6 +145,15 @@ final class ReaderController
 
         $outcome = $this->bookmarks->add($user, $storyId, $number);
         $this->flash->add($outcome->succeeded() ? 'success' : 'error', $outcome->message());
+
+        // The tick box on the bookmark form: a bookmark that could not be made follows nothing.
+        if ($outcome->succeeded() && $request->input('follow') === '1') {
+            $followed = $this->follows->follow($user, $storyId);
+
+            if ($followed === FollowOutcome::Followed || !$followed->succeeded()) {
+                $this->flash->add($followed->succeeded() ? 'success' : 'error', $followed->message());
+            }
+        }
 
         return $this->back($request);
     }

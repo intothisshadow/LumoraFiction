@@ -25,5 +25,8 @@ $saved = ($saved ?? false) === true;
     <?php foreach ($hidden as $name => $value): ?>
         <input type="hidden" name="<?= lf_e($name) ?>" value="<?= lf_e($value) ?>">
     <?php endforeach; ?>
+    <?php if (is_array($form['option'] ?? null)): ?>
+        <label class="lf-bookmark-form__option"><input type="checkbox" name="<?= lf_e($form['option']['name'] ?? '') ?>" value="1"> <?= lf_e($form['option']['label'] ?? '') ?></label>
+    <?php endif; ?>
     <button class="lf-button lf-bookmark-form__button" type="submit"><?= lf_e($form['submit'] ?? 'Bookmark') ?></button>
 </form>

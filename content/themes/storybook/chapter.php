@@ -27,6 +27,7 @@ lf_get_header();
 
     <?php lf_part('chapter-nav', ['label' => 'Chapters, top']); ?>
     <?php lf_part('bookmark-buttons'); ?>
+    <?php lf_part('resume-button'); ?>
     <?php lf_part('reader-controls'); ?>
 
     <?php if (lf_has('chapter.notes')): ?>

@@ -24,6 +24,7 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Theme\ReadingPositionScript;
 use LumoraFiction\Core\Theme\SafeHtml;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Chapter;
@@ -37,10 +38,13 @@ use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Services\FollowPresenter;
 use LumoraFiction\Services\PublicArchive;
+use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\ReadingProgressService;
 use LumoraFiction\Services\SearchPresenter;
 use LumoraFiction\Services\SearchQueryParser;
+use LumoraFiction\Services\StoryFollowService;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
@@ -56,9 +60,6 @@ final class ArchiveController
 {
     /** How many stories each list on the home page shows. */
     private const HOME_COUNT = 8;
-
-    /** How many "continue reading" links the home page shows. */
-    private const CONTINUE_COUNT = 3;
 
     /** Pages beyond this are refused outright, so a huge number in an address cannot become a huge database offset. */
     private const MAX_PAGE = 10000;
@@ -97,6 +98,10 @@ final class ArchiveController
         private readonly ReadingProgressService $progress,
         private readonly FlashMessages $flash,
         private readonly AuthorProfileService $authorProfiles,
+        private readonly ReadingPositionScript $positionScript,
+        private readonly StoryFollowService $follows,
+        private readonly FollowPresenter $followPresenter,
+        private readonly ReaderPreferences $readerPreferences,
     ) {
     }
 
@@ -150,23 +155,9 @@ final class ArchiveController
             $updated = $this->archive->recent('updated', self::HOME_COUNT);
             $profiles = $this->users->publicProfiles(array_map(static fn (Story $story): int => $story->ownerId, [...$published, ...$updated]));
 
-            // Only a signed-in reader has a place to continue from; a guest is never recorded.
-            $user = $this->auth->user();
-            $continue = [];
-
-            foreach ($user === null ? [] : $this->progress->recent($user, self::CONTINUE_COUNT) as $entry) {
-                $continue[] = [
-                    'story' => $entry['story']->title,
-                    'story_url' => PublicUrl::story($entry['story']->slug),
-                    'title' => $this->chapterLabel($entry['number'], $entry['title']),
-                    'url' => PublicUrl::chapter($entry['story']->slug, $entry['number']),
-                ];
-            }
-
             return $this->themes->render('home', [
                 'stories' => $this->cards($published, $profiles),
                 'updated_stories' => $this->cards($updated, $profiles),
-                'continue_reading' => $continue,
             ]);
         });
     }
@@ -201,6 +192,10 @@ final class ArchiveController
             );
 
             $user = $this->auth->user();
+            $following = $user !== null && $this->follows->isFollowing($user, $story->id);
+
+            // Worked out before the visit is recorded below, so opening the story does not erase the notice unseen.
+            $update = $user !== null && $following && $this->readerPreferences->wantsUpdates($user->id) ? $this->updateNotice($user, $story) : null;
             $readsHere = count($chapters) === 1 && $story->workStatus === WorkStatus::Completed;
 
             // A finished story told in one chapter reads straight away, with its details above the text.
@@ -209,10 +204,15 @@ final class ArchiveController
 
                 if ($user !== null) {
                     $this->progress->record($user, $story->id, $chapters[0]->id);
+                    $data['resume'] = $this->resume($user, $story->id, $chapters[0]->id);
                 }
             }
 
-            $data += $this->readerData($user, $story, null, $request->cookies);
+            $data += $this->readerData($user, $story, null, $request->cookies, $following);
+
+            if ($update !== null) {
+                $data['notices'][] = $update;
+            }
 
             // A place to continue from means nothing on a page that already holds the whole text.
             if ($user !== null && !$readsHere) {
@@ -263,9 +263,10 @@ final class ArchiveController
 
             if ($user !== null) {
                 $this->progress->record($user, $story->id, $chapter->id);
+                $data['resume'] = $this->resume($user, $story->id, $chapter->id);
             }
 
-            $data += $this->readerData($user, $story, $chapter, $request->cookies);
+            $data += $this->readerData($user, $story, $chapter, $request->cookies, $user !== null && $this->follows->isFollowing($user, $story->id));
 
             return $this->themes->render('chapter', $data, 200, ['title' => $this->presenter->chapterTitle($chapter) . ' — ' . $story->title]);
         });
@@ -568,9 +569,9 @@ final class ArchiveController
      * last action. A guest gets empty lists, so a theme can draw them unconditionally.
      *
      * @param array<string, mixed> $cookies the request's cookies
-     * @return array{bookmarks: list<array<string, mixed>>, notices: list<array{type: string, text: string}>, continue: array{title: string, url: string}|null}
+     * @return array{bookmarks: list<array<string, mixed>>, follow: list<array<string, mixed>>, notices: list<array{type: string, text: string}>, continue: array{title: string, url: string}|null}
      */
-    private function readerData(?User $user, Story $story, ?Chapter $chapter, array $cookies): array
+    private function readerData(?User $user, Story $story, ?Chapter $chapter, array $cookies, bool $following): array
     {
         $notices = [];
 
@@ -580,10 +581,49 @@ final class ArchiveController
         }
 
         return [
-            'bookmarks' => $this->bookmarkPresenter->buttons($user, $story->id, $chapter?->number, $chapter?->id),
+            'bookmarks' => $this->bookmarkPresenter->buttons($user, $story->id, $chapter?->number, $chapter?->id, $following ? [] : $this->followPresenter->bookmarkOption()),
+            'follow' => $this->followPresenter->storyButton($user, $story->id, $following),
             'notices' => $notices,
             'continue' => null,
         ];
+    }
+
+    /**
+     * The line on a followed story's page saying what changed since the reader last looked, or null when nothing did.
+     *
+     * @return array{type: string, text: string, url: string, link: string}|null
+     */
+    private function updateNotice(User $user, Story $story): ?array
+    {
+        $change = $this->follows->changes($user, [$story->id])[$story->id] ?? null;
+
+        if ($change === null || ($change['new'] === 0 && !$change['revised'])) {
+            return null;
+        }
+
+        $first = $change['first_new'];
+
+        return [
+            'type' => 'info',
+            'text' => FollowController::describe($change['new'], $change['revised']) . ' since you last read.',
+            'url' => $first === null ? '' : PublicUrl::chapter($story->slug, $first),
+            'link' => $first === null ? '' : 'Read the first new chapter',
+        ];
+    }
+
+    /**
+     * Switches the reading-position script on for this chapter and returns what the theme prints for the resume button:
+     * one bundled array, empty when no place is saved. Whether the place is far enough down to be worth a button is
+     * decided in the browser, which is the only side that knows the window size.
+     *
+     * @return array{label: string, percent: string}|array{}
+     */
+    private function resume(User $user, int $storyId, int $chapterId): array
+    {
+        $position = $this->progress->positionIn($user, $storyId, $chapterId);
+        $this->positionScript->track($storyId, $chapterId, $position);
+
+        return $position > 0 ? ['label' => 'Continue where you left off', 'percent' => (string) intdiv($position, 10)] : [];
     }
 
     private function chapterLabel(int $number, string $title): string

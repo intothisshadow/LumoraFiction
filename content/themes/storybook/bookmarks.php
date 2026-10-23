@@ -36,6 +36,10 @@ lf_get_header();
                         <p class="lf-bookmark-item__chapter">Bookmarked chapter: <a href="<?= lf_e($card['chapter_url']) ?>"><?= lf_e($card['chapter_title'] ?? '') ?></a></p>
                     <?php endif; ?>
                     <?php lf_part('bookmark-form', ['form' => $card['remove'] ?? []]); ?>
+                    <?php if (is_array($card['follow'] ?? null)): ?>
+                        <p class="lf-bookmark-item__follow"><?= !empty($card['follow']['following']) ? 'You are following this story.' : 'Not following this story.' ?></p>
+                        <?php lf_part('bookmark-form', ['form' => $card['follow']['form'] ?? [], 'saved' => !empty($card['follow']['following'])]); ?>
+                    <?php endif; ?>
                 </li>
             <?php endforeach; ?>
         </ol>

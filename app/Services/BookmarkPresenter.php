@@ -39,19 +39,20 @@ final class BookmarkPresenter
     /**
      * The buttons for a story page (one for the story) or a chapter page (one for the story and one for the chapter).
      *
+     * @param array{name: string, label: string}|array{} $option an extra tick box for the forms that add a bookmark
      * @return list<array{scope: string, saved: bool, label: string, form: array<string, mixed>}>
      */
-    public function buttons(?User $user, int $storyId, ?int $chapterNumber, ?int $chapterId): array
+    public function buttons(?User $user, int $storyId, ?int $chapterNumber, ?int $chapterId, array $option = []): array
     {
         if ($user === null || !$user->can(Capability::Bookmark)) {
             return [];
         }
 
         $saved = $this->bookmarks->forStory($user, $storyId);
-        $buttons = [$this->button('story', 'story', $saved[0] ?? null, $storyId, null)];
+        $buttons = [$this->button('story', 'story', $saved[0] ?? null, $storyId, null, $option)];
 
         if ($chapterNumber !== null && $chapterId !== null) {
-            $buttons[] = $this->button('chapter', 'chapter', $saved[$chapterId] ?? null, $storyId, $chapterNumber);
+            $buttons[] = $this->button('chapter', 'chapter', $saved[$chapterId] ?? null, $storyId, $chapterNumber, $option);
         }
 
         return $buttons;
@@ -68,9 +69,10 @@ final class BookmarkPresenter
     }
 
     /**
+     * @param array{name: string, label: string}|array{} $option
      * @return array{scope: string, saved: bool, label: string, form: array<string, mixed>}
      */
-    private function button(string $scope, string $noun, ?int $bookmarkId, int $storyId, ?int $chapterNumber): array
+    private function button(string $scope, string $noun, ?int $bookmarkId, int $storyId, ?int $chapterNumber, array $option): array
     {
         $place = ['story_id' => (string) $storyId] + ($chapterNumber === null ? [] : ['chapter_number' => (string) $chapterNumber]);
 
@@ -87,7 +89,7 @@ final class BookmarkPresenter
             'scope' => $scope,
             'saved' => false,
             'label' => 'Bookmark this ' . $noun,
-            'form' => $this->form(PublicUrl::account('bookmarks/add'), 'Bookmark this ' . $noun, $place),
+            'form' => $this->form(PublicUrl::account('bookmarks/add'), 'Bookmark this ' . $noun, $place) + ($option === [] ? [] : ['option' => $option]),
         ];
     }
 

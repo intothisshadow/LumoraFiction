@@ -35,6 +35,7 @@ $groups = lf_items('term_groups');
             <p class="lf-story__actions"><a class="lf-button" href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>
         <?php endif; ?>
         <?php lf_part('bookmark-buttons'); ?>
+        <?php lf_part('follow-button'); ?>
     </header>
 
     <dl class="lf-story-meta">
@@ -71,6 +72,7 @@ $groups = lf_items('term_groups');
     <?php if (lf_has('chapter.html')): ?>
         <?php // A finished one-chapter story is read on this page, so there is no list of chapters to open. ?>
         <section class="lf-story__section lf-story__section--text" aria-label="The story">
+            <?php lf_part('resume-button'); ?>
             <?php lf_part('reader-controls'); ?>
             <?php if (lf_has('chapter.notes')): ?>
                 <aside class="lf-chapter__notes" aria-label="Author&rsquo;s notes"><p><?php lf_field('chapter.notes'); ?></p></aside>

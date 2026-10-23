@@ -1349,28 +1349,6 @@ a.lf-term-link:hover {
     margin: 0 0 1.25rem;
 }
 
-.lf-continue {
-    margin: 0 0 2rem;
-}
-
-.lf-continue__list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.lf-continue__item {
-    margin: 0 0 0.4rem;
-}
-
-.lf-continue__link {
-    font-weight: 600;
-}
-
-.lf-continue__chapter {
-    color: var(--lf-muted);
-}
-
 .lf-bookmark-item .lf-bookmark-form {
     margin-top: 0.5rem;
 }
@@ -1378,6 +1356,100 @@ a.lf-term-link:hover {
 .lf-bookmark-item__chapter {
     margin: 0.25rem 0 0;
     font-size: 0.95rem;
+}
+
+/* The Continue reading page: each entry is a story card with where the reader stopped and a Forget button. */
+
+.lf-continue-item .lf-bookmark-form {
+    margin-top: 0.5rem;
+}
+
+.lf-continue-item__place {
+    margin: 0.25rem 0 0;
+    font-size: 0.95rem;
+}
+
+.lf-continue-item__progress {
+    color: var(--lf-muted);
+}
+
+.lf-continue-item__finished {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0 0.5rem;
+    border: 1px solid var(--lf-control-border);
+    border-radius: 999px;
+    color: var(--lf-muted);
+    font-size: 0.85rem;
+}
+
+.lf-continue-item__read {
+    margin: 0.25rem 0 0;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-continue-clear {
+    margin: 1.5rem 0 0;
+}
+
+/* Following a story: the button on a story page, the tick box on a bookmark form, the notice link and the Updated stories page. */
+
+.lf-follow {
+    margin: 0.75rem 0 0;
+}
+
+.lf-bookmark-form__option {
+    display: block;
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+}
+
+.lf-notice__link {
+    font-weight: 600;
+}
+
+.lf-updates-item .lf-bookmark-form,
+.lf-bookmark-item .lf-bookmark-form + .lf-bookmark-item__follow {
+    margin-top: 0.5rem;
+}
+
+.lf-updates-item__new,
+.lf-continue-item__new,
+.lf-bookmark-item__follow {
+    margin: 0.25rem 0 0;
+    font-size: 0.95rem;
+}
+
+.lf-continue-item__new {
+    font-weight: 600;
+}
+
+.lf-bookmark-item__follow {
+    color: var(--lf-muted);
+}
+
+.lf-updates-stop-all {
+    margin: 1.5rem 0 0;
+}
+
+/* The button that returns a reader to the place they stopped in a chapter; the reading script shows it when it applies. */
+
+.lf-resume {
+    margin: 0 0 1.25rem;
+    text-align: center;
+}
+
+.lf-resume[hidden] {
+    display: none;
+}
+
+.lf-resume__button {
+    max-width: 100%;
+}
+
+.lf-resume__percent {
+    color: var(--lf-muted);
 }
 
 /* ==========================================================================

@@ -39,6 +39,7 @@ use LumoraFiction\Services\GuardOutcome;
 use LumoraFiction\Services\LoginOutcome;
 use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\RegistrationGuard;
+use LumoraFiction\Services\StoryFollowService;
 use LumoraFiction\Services\UserService;
 
 /**
@@ -62,6 +63,7 @@ final class AccountController
         private readonly ReaderPreferences $readerPreferences,
         private readonly RegistrationGuard $registrationGuard,
         private readonly FormGuard $formGuard,
+        private readonly StoryFollowService $follows,
     ) {
     }
 
@@ -541,10 +543,12 @@ final class AccountController
                 : $this->profilePage($request, $user, ['reading' => ['summary' => self::EXPIRED]], 400);
         }
 
+        // The reading script knows only the three display choices, so it must not wipe the one it cannot see.
         $this->readerPreferences->save($user->id, [
             'scheme' => $request->input('scheme'),
             'size' => $request->input('size'),
             'width' => $request->input('width'),
+            'updates' => $script ? ($this->readerPreferences->forUser($user->id)['updates'] ?? null) : $request->input('updates'),
         ]);
 
         if ($script) {
@@ -599,6 +603,7 @@ final class AccountController
             'scheme' => 'Colours',
             'size' => 'Text size',
             'width' => 'Reading width',
+            'updates' => 'Tell me when a story I\'m reading has been updated',
         ] as $name => $label) {
             $options = [];
 
@@ -606,7 +611,12 @@ final class AccountController
                 $options[] = ['value' => $choice, 'label' => ReaderPreferences::LABELS[$name][$choice], 'selected' => ($saved[$name] ?? ReaderPreferences::CHOICES[$name][0]) === $choice];
             }
 
-            $readingFields[] = $this->field($name, $label, 'select', '', '', $name === 'scheme' ? 'These follow you to any device you sign in on.' : '', '', $options);
+            $hint = match ($name) {
+                'scheme' => 'These follow you to any device you sign in on.',
+                'updates' => 'Applies to the stories you follow. A line on the story page and a count on your account page say when one has something new.',
+                default => '',
+            };
+            $readingFields[] = $this->field($name, $label, 'select', '', '', $hint, '', $options);
         }
 
         $forms[] = $this->form('reader_preferences', PublicUrl::account('profile/reading'), 'Save reading preferences', $readingFields, 'Reading', $summary('reading'));
@@ -636,6 +646,11 @@ final class AccountController
         }
 
         if ($user->can(Capability::Bookmark)) {
+            $shortcuts[] = ['label' => 'Continue reading', 'url' => PublicUrl::account('continue')];
+
+            // The count appears only for a reader who asked to be told, and only when there is something to count.
+            $waiting = $this->readerPreferences->wantsUpdates($user->id) ? $this->follows->countUpdates($user) : 0;
+            $shortcuts[] = ['label' => $waiting > 0 ? 'Updated stories (' . number_format($waiting) . ')' : 'Updated stories', 'url' => PublicUrl::account('updates')];
             $shortcuts[] = ['label' => 'My bookmarks', 'url' => PublicUrl::account('bookmarks')];
         }
 

@@ -19,15 +19,6 @@ lf_get_header();
 ?>
 <section class="lf-home">
     <h1 class="lf-page__title"><?php lf_site_name(); ?></h1>
-    <?php if (lf_has('continue_reading')): ?>
-        <h2 class="lf-story__section-title">Continue reading</h2>
-        <ul class="lf-continue">
-            <?php foreach (lf_items('continue_reading') as $entry): ?>
-                <li class="lf-continue__item"><a href="<?= lf_e($entry['url'] ?? '') ?>"><?= lf_e($entry['story'] ?? '') ?></a> <span class="lf-continue__chapter"><?= lf_e($entry['title'] ?? '') ?></span></li>
-            <?php endforeach; ?>
-        </ul>
-    <?php endif; ?>
-
     <?php if (lf_has('stories')): ?>
         <h2 class="lf-story__section-title">Recently published</h2>
         <ol class="lf-story-list">

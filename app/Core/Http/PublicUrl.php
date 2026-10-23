@@ -62,6 +62,22 @@ final class PublicUrl
 
     public const BOOKMARK_REMOVE = '/account/bookmarks/remove';
 
+    public const CONTINUE = '/account/continue';
+
+    public const CONTINUE_FORGET = '/account/continue/forget';
+
+    public const CONTINUE_CLEAR = '/account/continue/clear';
+
+    public const READING_POSITION = '/account/reading/position';
+
+    public const UPDATES = '/account/updates';
+
+    public const UPDATES_FOLLOW = '/account/updates/follow';
+
+    public const UPDATES_STOP = '/account/updates/stop';
+
+    public const UPDATES_STOP_ALL = '/account/updates/stop-all';
+
     /**
      * The address of an account page, such as account('sign-in') or account('profile/email').
      */

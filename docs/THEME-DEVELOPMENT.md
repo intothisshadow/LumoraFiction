@@ -51,6 +51,8 @@ Each view tries its templates in this order and uses the first one the theme has
 | `page` | `page.php`, `index.php` |
 | `account` | `account.php`, `page.php`, `index.php` |
 | `bookmarks` | `bookmarks.php`, `archive.php`, `index.php` |
+| `continue` | `continue.php`, `bookmarks.php`, `archive.php`, `index.php` |
+| `updates` | `updates.php`, `bookmarks.php`, `archive.php`, `index.php` |
 | `404` | `404.php`, `index.php` |
 
 A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
@@ -163,7 +165,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `term_groups` | A list of `{label, type, terms}`. `terms` is a list of `{name, url}`. Use `lf_term_links('term_groups.0.terms')`, with the index of the group. Only the kinds of term the archive mode allows are listed. |
 | `chapters` | A list of `{number, title, url, words, note}`. `note` is empty except on a preview, where it names a chapter that is not yet published. |
 | `chapter` | Only on a finished story that has a single readable chapter, where the story page is also the place to read it. It holds the same fields as on a chapter page (`chapter.html`, `chapter.notes`, and so on). When `lf_has('chapter.html')` is true, print the text under the details and leave out the chapter list and the start-reading link. |
-| `bookmarks`, `notices`, `continue` | The reader features below. `continue` is `{title, url}` for a signed-in reader who has started the story, and nothing otherwise; check it with `lf_has('continue.url')`. |
+| `bookmarks`, `follow`, `notices`, `continue` | The reader features below. `continue` is `{title, url}` for a signed-in reader who has started the story, and nothing otherwise; check it with `lf_has('continue.url')`. |
 
 ### Chapter (`chapter`)
 
@@ -174,14 +176,14 @@ Never print a value from `lf_items()` without `lf_e()`.
 | `chapter.position`, `chapter.total` | Where the chapter stands among the chapters a reader can open, counting from one, and how many there are. Both are empty on a preview, so check `lf_has('chapter.total')`. A chapter that is hidden leaves no gap, so `position` can differ from `number`. |
 | `chapter.html` | The chapter's text, already sanitised. Print it with `lf_field('chapter.html')`. |
 | `previous`, `next` | `{title, url}`, or nothing at the ends of the story. Check with `lf_has('previous.url')`. |
-| `bookmarks`, `notices` | The reader features below. |
+| `bookmarks`, `notices`, `resume` | The reader features below. |
 
 ### Other views
 
 | View | Data |
 | ---- | ---- |
 | `404` | `message`. |
-| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. `continue_reading` lists up to three places a signed-in reader left off, each `{story, story_url, title, url}`, and is empty for guests. |
+| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. The list of places a signed-in reader left off is no longer part of the home page: it lives on the **Continue reading** page (`continue`), and a theme that still prints `continue_reading` simply finds the key missing. |
 | `author` | The list data below. The page title is "Stories by" and the author's display name. It also receives `author_name`, `author_avatar` (the address of the author's 100 by 100 picture, or empty) and `author_about` (the author's own text as sanitised markup, headings already moved below the page's own, or empty). Print both only when they are not empty (`lf_has()`), in a section above the page title; the picture is decorative, so give it `alt=""` and its size of 100 by 100. A theme that does not print them simply omits the section. |
 | `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |
 
@@ -247,10 +249,18 @@ Signed-in readers can bookmark a story or a chapter, continue where they left of
 | Name | Contents |
 | ---- | -------- |
 | `bookmarks` | On a story or chapter page, the buttons to draw, each `{scope, saved, label, form}`. `scope` is `story` or `chapter`, and `saved` says whether the reader already has the bookmark (the form then removes it). Empty for guests. Draw each with `lf_part('bookmark-form', ['form' => $button['form'], 'saved' => $button['saved']])`, or draw the whole group with a `bookmark-buttons` part. |
-| `notices` | On a story or chapter page, what to tell the reader about their last action, each `{type, text}`. Empty for guests, and drawn once. |
-| `form` | A bookmark form is `{action, csrf_token, submit, hidden}`. Print a `csrf_token` field and one hidden input for each `hidden` entry, and do not change any name or value: the controller reads them. |
+| `follow` | On a story page, a list of one `{following, label, form}` (empty for guests): the **Follow this story** or **Stop following** button. Draw it with `lf_part('bookmark-form', ['form' => $button['form'], 'saved' => $button['following']])`, or with a `follow-button` part. |
+| `notices` | On a story or chapter page, what to tell the reader about their last action, each `{type, text}`; a notice may also carry `url` and `link` (an address and the words for it, empty when there is none), which the `notices` part prints after the text, for example "2 new chapters since you last read." with **Read the first new chapter**. Empty for guests, and drawn once. |
+| `resume` | On a chapter page (and on a story page that holds its single chapter), `{label, percent}` when the signed-in reader has a saved place in that chapter, otherwise empty. Draw it with a `resume-button` part: a paragraph marked `data-lf-resume` and `hidden`, holding a button. The reading-position script shows the paragraph only when the saved place is further down than the first screen, so a theme never decides that. |
+| `form` | A bookmark form is `{action, csrf_token, submit, hidden}`, and a form that adds a bookmark may also carry `option`, `{name, label}`: a tick box to print inside the form (`<input type="checkbox" name="{name}" value="1">`), which follows the story with the bookmark. Print a `csrf_token` field and one hidden input for each `hidden` entry, and do not change any name or value: the controller reads them. |
 
-The **bookmarks** page (`bookmarks.php`, falling back to `archive.php`) receives the story-list data, with `notices`, and each story card also carries `chapter_title` and `chapter_url` (empty when the whole story is bookmarked) and `remove`, a bookmark form to draw next to the card. A theme without `bookmarks.php` still shows the list through `archive.php`, but with no way to remove a bookmark, so supply one.
+The **bookmarks** page (`bookmarks.php`, falling back to `archive.php`) receives the story-list data, with `notices`, and each story card also carries `chapter_title` and `chapter_url` (empty when the whole story is bookmarked) and `remove`, a bookmark form to draw next to the card. A theme without `bookmarks.php` still shows the list through `archive.php`, but with no way to remove a bookmark, so supply one. Each card also carries `follow`, `{following, label, form}`, a form that follows or stops following the story.
+
+The **Continue reading** page (`continue.php`, falling back to `bookmarks.php`) receives the story-list data with `notices` and `clear` (`{url, label}`, a link to the confirmation page, empty when the list is empty). Each card carries `chapter_title` and `chapter_url` (where to resume), `read_on` (a date), `finished` (true when the last published chapter was reached), `progress` (such as "37% through", empty when none or finished), `whats_new` (such as "2 new chapters", empty unless the reader follows the story and asked to be told), and `forget`, a bookmark-style form to draw next to the card.
+
+The **Updated stories** page (`updates.php`, falling back to `bookmarks.php`) receives the story-list data with `notices` and `stop_all` (`{url, label}`). Each card carries `whats_new`, `new_url` (the first new chapter, empty when only a chapter was revised) and `stop`, a bookmark-style form. The confirmation pages that ask before **Clear the list** and **Stop tracking all** reuse the `account` view with one form that has no fields.
+
+The reading-position script (`assets/js/reading-position.js`) is loaded by core on chapter pages for a signed-in reader, from the `lf_footer` hook, and finds the chapter text by the class `lf-chapter__text`, so a theme must keep that class on the element that holds `chapter.html`. It stores how far down that element the reader got, as a whole number from 0 to 1000, and does nothing when the element is missing, when the chapter fits on the screen, or for a guest.
 
 A signed-in reader's saved colour scheme, text size and reading width reach a theme's script as three `<meta>` tags that core writes into the head, before the theme's own `lf_head` output: `lf-reader-prefs` (a JSON object of the saved choices, empty when none), `lf-reader-save` (the address to post a change to) and `lf-reader-token` (a token that works once). A script that stores its own preferences, like Storybook's `js/reader.js`, applies the saved choices first and posts `csrf_token`, `script=1`, `scheme`, `size` and `width` to that address after each change; the reply is JSON holding the token for the next change. The accepted values are `system`, `light`, `dark` for `scheme`; `default`, `small`, `large`, `xlarge` for `size`; and `default`, `narrow`, `wide` for `width`. A theme that ignores the tags still works, and readers can set the same choices on their account page.
 
