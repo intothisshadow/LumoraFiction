@@ -30,4 +30,8 @@ return [
     'table_prefix' => 'lumfic_',
     // Generated at install time; used for signing tokens. Never change it after install.
     'secret_key' => '',
+    // "production" for a live site. Tools meant only for testing, such as the Dummy Content plugin, refuse to
+    // run on anything flagged production, and a missing value counts as production. Set it to "development" by
+    // hand on a throwaway copy; nothing in the admin can change it.
+    'environment' => 'production',
 ];

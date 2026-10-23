@@ -60,6 +60,27 @@ final class AdminView
     }
 
     /**
+     * A screen whose body a plugin already built, shown inside the full layout. The caller is responsible for
+     * escaping everything in $content, which is printed as it is.
+     *
+     * @param list<array{type: string, message: string}> $flash
+     */
+    public function renderContent(string $content, User $user, string $title, string $currentPath, array $flash = [], int $status = 200): Response
+    {
+        return $this->respond($this->include('layout', [
+            'title' => $title,
+            'content' => $content,
+            'user' => $user,
+            'menu' => $this->menu->forUser($user, $currentPath),
+            'flash' => $flash,
+            'siteName' => $this->siteName,
+            'version' => $this->version,
+            'signOutToken' => Csrf::token('admin_logout'),
+            'assetVersion' => $this->version,
+        ]), $status);
+    }
+
+    /**
      * A piece of a screen, such as the chapter editor, returned as trusted markup for another view to print.
      *
      * @param array<string, mixed> $data

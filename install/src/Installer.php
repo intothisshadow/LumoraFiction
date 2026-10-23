@@ -85,6 +85,7 @@ final class Installer
                 'secret_key' => bin2hex(random_bytes(32)),
                 'site_url' => $request->siteUrl,
                 'debug' => false,
+                'environment' => 'production',
             ]);
 
             $wroteConfig = true;

@@ -18,12 +18,12 @@ declare(strict_types=1);
 lf_get_header();
 ?>
 <section class="lf-home">
-    <div class="lf-home__intro">
-        <h1 class="lf-home__title"><?php lf_site_name(); ?></h1>
-        <?php if (!lf_has('stories')): ?>
+    <h1 class="lf-screen-reader-text"><?php lf_site_name(); ?></h1>
+    <?php if (!lf_has('stories')): ?>
+        <div class="lf-home__intro">
             <p class="lf-page__message">Welcome. There are no stories to show yet.</p>
-        <?php endif; ?>
-    </div>
+        </div>
+    <?php endif; ?>
 
     <?php if (lf_has('stories')): ?>
         <section class="lf-home__stories" aria-labelledby="lf-home-stories-title">

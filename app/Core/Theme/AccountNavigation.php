@@ -46,7 +46,7 @@ final class AccountNavigation
         }
 
         if ($this->auth->check()) {
-            $items[] = ['label' => 'Account', 'url' => PublicUrl::account('profile'), 'current' => false];
+            $items[] = ['label' => 'My account', 'url' => PublicUrl::account('profile'), 'current' => false];
 
             return $items;
         }

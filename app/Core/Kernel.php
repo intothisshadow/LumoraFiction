@@ -120,6 +120,11 @@ use LumoraFiction\Services\UserService;
  */
 final class Kernel
 {
+    /**
+     * The admin layout, set once the admin screens are wired, so a plugin's own screen can be shown inside it.
+     */
+    public ?AdminView $admin = null;
+
     public function __construct(
         public readonly Configuration $config,
         public readonly Database $database,
@@ -365,6 +370,7 @@ final class Kernel
     private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles): void
     {
         $view = new AdminView($root . '/admin/views', new AdminMenu($kernel->hooks), (string) $kernel->config->setting('site.name', 'Lumora Fiction'), $version);
+        $kernel->admin = $view;
 
         $editor = new ContentEditor($view, $editorSettings, $version);
 
