@@ -352,6 +352,18 @@ fieldset.lf-card legend {
     margin-bottom: 0;
 }
 
+/* Starter lists on the archive settings screen */
+
+.lf-presets > .lf-hint {
+    margin-bottom: 0.75rem;
+}
+
+.lf-presets__form {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+}
+
 /* Alerts */
 
 .lf-alert-list {
@@ -378,8 +390,17 @@ fieldset.lf-card legend {
     margin: 0.5rem 0 0;
 }
 
-.lf-alert-link {
+/* The header link stands out in the warning colours, which have light and dark values and meet contrast on their own background. */
+.lf-button.lf-alert-link {
+    border-color: var(--warning);
+    background: var(--warning-bg);
+    color: var(--warning);
     font-weight: bold;
+}
+
+.lf-button.lf-alert-link:hover {
+    background: var(--warning);
+    color: var(--warning-bg);
 }
 
 .lf-alert-link__count {

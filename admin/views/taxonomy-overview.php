@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\TermType;
 
@@ -30,7 +31,7 @@ use LumoraFiction\Models\TermType;
 ?>
 <?= $errorSummary ?>
 
-<p class="lf-lead">The lists writers choose from when they classify a story. Writers can add new fandoms, characters, relationships, and tags while writing; those wait here, marked as not yet reviewed, until you approve or merge them.</p>
+<p class="lf-lead">The lists writers choose from when they classify a story. Writers can add new fandoms, characters, relationships, and tags while writing; those wait here, marked as not yet reviewed, until you approve or merge them. Ratings, archive warnings, relationship categories and story status can be filled from ready-made <a href="<?= Html::e(AdminUrl::to('settings/archive')) ?>#lf-presets-heading">starter lists</a> under Settings.</p>
 
 <table class="lf-table lf-table--lists">
     <caption class="lf-visually-hidden">Classification lists</caption>
