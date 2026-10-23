@@ -622,7 +622,10 @@ final class AccountController
         $forms[] = $this->form('reader_preferences', PublicUrl::account('profile/reading'), 'Save reading preferences', $readingFields, 'Reading', $summary('reading'));
         $forms[] = $this->form('account_sign_out', PublicUrl::account('sign-out'), 'Sign out', [], 'Sign out');
 
-        return $this->page($request, 'Your account', 'profile', $forms, $status, [], [], false, '', $this->shortcuts($user));
+        // The one place a person's own login name is printed back to them. The page is private and never cached.
+        $intro = 'Your sign-in name is ' . $user->loginName . '. It is private and only used to sign in.';
+
+        return $this->page($request, 'Your account', 'profile', $forms, $status, [], [], false, $intro, $this->shortcuts($user));
     }
 
     /**

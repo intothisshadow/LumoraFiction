@@ -64,9 +64,10 @@ final class StoryPresenter
      * @param bool $showState whether to mark chapters that are not published, which only a preview does
      * @param (Closure(Term): string)|null $termUrl the address of a term's page; without it a term is printed as plain text
      * @param string $authorUrl the address of the author's page, or empty for none
+     * @param (Closure(Chapter): string)|null $chapterEditUrl the admin address of a chapter, given only when the viewer may change the story; otherwise every chapter's edit_url is empty
      * @return array<string, mixed>
      */
-    public function story(Story $story, string $author, array $terms, array $chapters, string $storyUrl, Closure $chapterUrl, bool $showState = false, ?Closure $termUrl = null, string $authorUrl = ''): array
+    public function story(Story $story, string $author, array $terms, array $chapters, string $storyUrl, Closure $chapterUrl, bool $showState = false, ?Closure $termUrl = null, string $authorUrl = '', ?Closure $chapterEditUrl = null): array
     {
         $groups = [];
 
@@ -88,6 +89,8 @@ final class StoryPresenter
                     'number' => $chapter->number,
                     'title' => $this->chapterTitle($chapter),
                     'url' => $chapterUrl($chapter),
+                    // Empty, not hidden, for everyone else: the address is absent from their markup.
+                    'edit_url' => $chapterEditUrl === null ? '' : $chapterEditUrl($chapter),
                     'words' => number_format($chapter->wordCount),
                     'note' => $showState && $chapter->state !== PublicationState::Published ? strtolower($chapter->state->label()) : '',
                 ],

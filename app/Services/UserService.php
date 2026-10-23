@@ -384,8 +384,9 @@ final class UserService
     }
 
     /**
-     * Accounts for an administrator's list, newest first unless a sort is given. A search matches the display name or
-     * the email address; the login name is never searched, so it cannot be found by guessing.
+     * Accounts for an administrator's list, newest first unless a sort is given. A search matches the display name,
+     * the email address or the login name. Only the administrator's screen calls this, so the login name stays
+     * unsearchable for everyone else.
      *
      * @param array{search?: string, role?: string, status?: string} $filters
      * @return list<User>
@@ -426,8 +427,8 @@ final class UserService
         if ($search !== '') {
             // Distinct names because the server prepares statements itself and cannot reuse one. LIKE already treats a
             // backslash as its escape character, so a typed % or _ is matched as itself.
-            $where[] = '(display_name LIKE :search_name OR email LIKE :search_email)';
-            $params['search_name'] = $params['search_email'] = '%' . addcslashes($search, '%_\\') . '%';
+            $where[] = '(display_name LIKE :search_name OR email LIKE :search_email OR login_name LIKE :search_login)';
+            $params['search_name'] = $params['search_email'] = $params['search_login'] = '%' . addcslashes($search, '%_\\') . '%';
         }
 
         if (UserRole::tryFrom($filters['role'] ?? '') !== null) {

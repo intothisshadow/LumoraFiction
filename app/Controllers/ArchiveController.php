@@ -178,6 +178,9 @@ final class ArchiveController
             $chapters = $this->chapters->listPublic($story->id);
             $profile = $this->users->publicProfiles([$story->ownerId])[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
             $authorUrl = $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']);
+            $user = $this->auth->user();
+            // The same rule the admin uses, so the link appears for exactly the people the admin would let in.
+            $mayEdit = $user !== null && $this->stories->canManage($user, $story);
 
             $data = $this->presenter->story(
                 $story,
@@ -189,9 +192,9 @@ final class ArchiveController
                 false,
                 static fn (Term $term): string => PublicUrl::term($term->type, $term->slug),
                 $authorUrl,
+                $mayEdit ? static fn (Chapter $chapter): string => AdminUrl::to('chapters/' . $chapter->id) : null,
             );
 
-            $user = $this->auth->user();
             $following = $user !== null && $this->follows->isFollowing($user, $story->id);
 
             // Worked out before the visit is recorded below, so opening the story does not erase the notice unseen.

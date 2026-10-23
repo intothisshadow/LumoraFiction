@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Edit links in the chapter list: when a story's author, an Editor or an Administrator looks at the story page (or its preview in the admin), each chapter in the list has a small **Edit** link that opens it in the editor, so there is no need to go back to the admin and find it. Nobody else gets the link, and the address is not in their page at all. Both bundled themes draw it, and the theme guide describes the new `edit_url` field of each chapter.
+
+- Login names: a signed-in person can now see their own login name, as a line at the top of **My account** that says it is private and only used to sign in. Administrators see every login name on the **Users** list and on each person's page, and the Users search also finds a person by login name. Nobody else sees another person's login name, and it still appears on no public page, address, feed, email or error message.
+
 - Sortable columns: the column headings on **Users**, **My stories** / **All stories** and **Awaiting approval** are now links that sort the list by that column, and a second click reverses it. The arrow and a screen-reader announcement show the column in use, the search and filters are kept, and a changed sort starts again at page 1. Each list keeps its usual order until a heading is clicked.
 
 - Footer: on a page too short to fill the screen, the footer now sits at the bottom of the window instead of floating under the content, and its text is centred. Both bundled themes.

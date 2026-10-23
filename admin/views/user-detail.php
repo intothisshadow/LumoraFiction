@@ -58,6 +58,7 @@ $statusClass = match ($person->status) {
     <h2><?= Html::e($person->displayName) ?></h2>
     <table class="lf-table lf-user-summary">
         <tbody>
+            <tr><th scope="row">Login name</th><td><?= Html::e($person->loginName) ?></td></tr>
             <tr><th scope="row">Role</th><td><?= Html::e($person->role->label()) ?></td></tr>
             <tr><th scope="row">Status</th><td><span class="lf-status<?= Html::e($statusClass) ?>"><?= Html::e(ucfirst($person->status->value)) ?></span></td></tr>
             <tr><th scope="row">Joined</th><td><?= Html::e($person->createdAt->format('Y-m-d')) ?></td></tr>

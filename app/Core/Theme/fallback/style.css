@@ -351,6 +351,23 @@ a:focus-visible {
     margin-block: 0.25rem;
 }
 
+.lf-chapter-list__edit {
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.lf-screen-reader-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .lf-chapter__notes {
     margin: 1rem 0;
     padding: 0.5rem 1rem;

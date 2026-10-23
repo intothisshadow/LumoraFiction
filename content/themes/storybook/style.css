@@ -1108,6 +1108,11 @@ a.lf-term-link:hover {
     font-size: 0.85rem;
 }
 
+.lf-chapter-list__edit {
+    color: var(--lf-muted);
+    font-size: 0.85rem;
+}
+
 /* ==========================================================================
    9. Chapter page and reader controls
    ========================================================================== */

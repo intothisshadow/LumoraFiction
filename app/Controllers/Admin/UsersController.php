@@ -40,9 +40,9 @@ use LumoraFiction\Services\UserAdminService;
 use LumoraFiction\Services\UserService;
 
 /**
- * Every action is refused by the service unless the person may manage users, and the screen never shows or accepts a
- * login name: people are found and named by their display name and email address only. Each change asks for its own
- * token, and the two that take someone's access away or give it back have a page of their own.
+ * Every action is refused by the service unless the person may manage users; this is the only screen that prints
+ * other people's login names, so an administrator can tell accounts apart and find one by it. Each change asks for its
+ * own token, and the two that take someone's access away or give it back have a page of their own.
  */
 final class UsersController extends WriterController
 {

@@ -354,6 +354,9 @@ final class StoryController extends WriterController
             AdminUrl::to(self::PATH . '/' . $story->id . '/preview'),
             static fn (Chapter $chapter): string => AdminUrl::to('chapters/' . $chapter->id . '/preview'),
             true,
+            null,
+            '',
+            static fn (Chapter $chapter): string => AdminUrl::to('chapters/' . $chapter->id),
         );
 
         // A preview is the page readers will get, so it goes through the active theme; it is private and never indexed.

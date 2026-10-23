@@ -90,6 +90,9 @@ $groups = lf_items('term_groups');
                     <li class="lf-chapter-list__item">
                         <a class="lf-chapter-list__link" href="<?= lf_e($chapter['url'] ?? '') ?>"><?= lf_e($chapter['title'] ?? '') ?></a>
                         <span class="lf-chapter-list__meta"><?= lf_e($chapter['words'] ?? '') ?> words<?= lf_e(($chapter['note'] ?? '') !== '' ? ' · ' . $chapter['note'] : '') ?></span>
+                        <?php if (($chapter['edit_url'] ?? '') !== ''): ?>
+                            <a class="lf-chapter-list__edit" href="<?= lf_e($chapter['edit_url']) ?>">Edit<span class="lf-screen-reader-text"> <?= lf_e($chapter['title'] ?? '') ?></span></a>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ol>

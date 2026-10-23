@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Admin view: the list of accounts, with search and filters. The login name is never printed.
+ * Admin view: the list of accounts, with search and filters. Administrators only, so it also shows login names.
  *
  * @package LumoraFiction
  * @subpackage Admin
@@ -54,7 +54,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
 ?>
 <form method="get" action="<?= Html::e($listUrl) ?>" class="lf-form lf-filter" role="search">
     <div class="lf-field">
-        <label for="q">Search names and email addresses</label>
+        <label for="q">Search names, login names and email addresses</label>
         <input type="text" id="q" name="q" value="<?= Html::e($filters['search']) ?>" maxlength="100">
     </div>
     <div class="lf-field">
@@ -91,6 +91,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
         <thead>
             <tr>
                 <?= SortHeading::render($sort, 'name', 'Name', $listUrl, $kept) ?>
+                <th scope="col">Login name</th>
                 <?= SortHeading::render($sort, 'email', 'Email address', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'role', 'Role', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
@@ -101,6 +102,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
             <?php foreach ($people as $person): ?>
                 <tr>
                     <th scope="row"><a href="<?= Html::e($personUrl . '/' . $person->id) ?>"><?= Html::e($person->displayName) ?></a><?= $person->id === $selfId ? ' <span class="lf-hint">(you)</span>' : '' ?></th>
+                    <td><?= Html::e($person->loginName) ?></td>
                     <td><?= Html::e($person->email) ?></td>
                     <td><?= Html::e($person->role->label()) ?></td>
                     <td><span class="lf-status<?= Html::e($statusClass($person->status)) ?>"><?= Html::e(ucfirst($person->status->value)) ?></span></td>
