@@ -114,6 +114,10 @@ html {
 }
 
 body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
     background: var(--lf-bg);
     color: var(--lf-text);
@@ -259,7 +263,9 @@ img {
     border-bottom-color: var(--lf-link);
 }
 
+/* Grows to fill a short page so the footer sits at the bottom of the screen. */
 .lf-main {
+    flex: 1 0 auto;
     padding-block: 2rem 4rem;
 }
 
@@ -276,6 +282,7 @@ img {
 
 .lf-site-footer__text {
     margin: 0;
+    text-align: center;
 }
 
 /* ==========================================================================

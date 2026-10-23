@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Footer: on a page too short to fill the screen, the footer now sits at the bottom of the window instead of floating under the content, and its text is centred. Both bundled themes.
+
 - Storybook home page: the large site title above **Recently published** is gone, since the site name already sits in the header. The page keeps a top-level heading for screen readers, hidden from view.
 
 - The menu link to a signed-in person's account page now reads **My account** instead of **Account**, matching the **My account** link in the admin header.

@@ -45,6 +45,10 @@ Description: A plain theme that keeps the site readable when no other theme is a
 }
 
 body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
     background: var(--lf-fb-bg);
     color: var(--lf-fb-text);
@@ -113,11 +117,13 @@ a:focus-visible {
 }
 
 .lf-main {
+    flex: 1 0 auto;
     padding-block: 1.5rem 3rem;
 }
 
 .lf-site-footer {
     padding-block: 1rem 2rem;
+    text-align: center;
     border-top: 1px solid var(--lf-fb-border);
     color: var(--lf-fb-muted);
     font-size: 0.875rem;
