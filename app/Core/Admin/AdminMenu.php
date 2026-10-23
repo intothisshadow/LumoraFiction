@@ -103,13 +103,13 @@ final class AdminMenu
             [
                 'slug' => 'maintenance',
                 'label' => 'Maintenance',
-                'path' => 'maintenance/system-information',
+                'path' => 'maintenance/alerts',
                 'capability' => Capability::ManageSite,
                 'children' => [
+                    ['slug' => 'maintenance-alerts', 'label' => 'Alerts', 'path' => 'maintenance/alerts', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-plugins', 'label' => 'Plugins', 'path' => 'maintenance/plugins', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-security-events', 'label' => 'Security events', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
-                    ['slug' => 'maintenance-alerts', 'label' => 'Alerts', 'path' => 'maintenance/alerts', 'capability' => Capability::ManageSite],
                 ],
             ],
         ];
