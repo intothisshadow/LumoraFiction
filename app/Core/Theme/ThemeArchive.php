@@ -208,17 +208,19 @@ final class ThemeArchive
         $header = $css === false ? null : ThemeCatalog::parseHeader($css);
 
         if ($header === null) {
-            throw new ThemeInstallException('style.css has no usable header. It must start with a comment that gives "Theme Name:" and a "Version:" such as 1.0.0.');
+            throw new ThemeInstallException('style.css has no usable header. It must start with a comment that gives a "Version:" such as 1.0.0.');
         }
 
-        $problems = (new ThemeInfo($slug, $header['name'], $header['version'], '', '', '', false, $header['requires_php'], $header['requires_app']))
+        $name = $header['name'] !== '' ? $header['name'] : $slug;
+
+        $problems = (new ThemeInfo($slug, $name, $header['version'], '', '', '', false, $header['requires_php'], $header['requires_app']))
             ->unmetRequirements($this->phpVersion, $this->appVersion);
 
         if ($problems !== []) {
-            throw new ThemeInstallException('"' . $header['name'] . '" cannot be used on this site. ' . implode(' ', $problems));
+            throw new ThemeInstallException('"' . $name . '" cannot be used on this site. ' . implode(' ', $problems));
         }
 
-        return new ThemePackage($slug, $header['name'], $header['version'], $inside, $total);
+        return new ThemePackage($slug, $name, $header['version'], $inside, $total);
     }
 
     /**

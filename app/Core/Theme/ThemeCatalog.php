@@ -107,7 +107,8 @@ final class ThemeCatalog
         $requiresPhp = $fields['requires php'] ?? '';
         $requiresApp = $fields['requires at least'] ?? '';
 
-        if ($name === '' || preg_match('/^[0-9]+(\.[0-9]+){0,3}(-[A-Za-z0-9.]+)?\z/', $version) !== 1) {
+        // A missing name is not a fault: the caller shows the folder name instead.
+        if (preg_match('/^[0-9]+(\.[0-9]+){0,3}(-[A-Za-z0-9.]+)?\z/', $version) !== 1) {
             return null;
         }
 
@@ -146,7 +147,7 @@ final class ThemeCatalog
 
         return $header === null ? null : new ThemeInfo(
             $slug,
-            $header['name'],
+            $header['name'] !== '' ? $header['name'] : $slug,
             $header['version'],
             $header['author'],
             $header['description'],

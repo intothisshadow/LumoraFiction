@@ -33,7 +33,7 @@ Description: Warm, readable, generous spacing.
 */
 ```
 
-`Theme Name` and `Version` are required. The version must look like a version (`1`, `1.2`, `1.2.3`, `2.0-beta.1`). A folder without a valid header, or without `index.php`, is not offered as a theme. The names `Author` and `Description` are optional and are shown on the Appearance screen, escaped.
+`Version` is required and must look like a version (`1`, `1.2`, `1.2.3`, `2.0-beta.1`). A folder without a valid header, or without `index.php`, is not offered as a theme. `Theme Name` is optional: when it is missing or empty, the theme is shown under its folder name. `Author` and `Description` are optional and are shown on the Appearance screen, escaped.
 
 Two more optional lines state what the theme needs, as plain version numbers (`8.2`, `0.3.0`): `Requires PHP:` and `Requires at least:` (the Lumora Fiction version). A theme that needs more than the site has is shown with the reason, cannot be switched on, and is refused when uploaded.
 
