@@ -19,6 +19,9 @@ namespace LumoraFiction\Core;
 
 use LumoraFiction\Controllers\Admin\AdminRoutes;
 use LumoraFiction\Controllers\Admin\AlertsController;
+use LumoraFiction\Controllers\Admin\NotificationsController;
+use LumoraFiction\Controllers\Admin\RetentionSettingsController;
+use LumoraFiction\Controllers\Admin\TrashController;
 use LumoraFiction\Controllers\Admin\AppearanceController;
 use LumoraFiction\Controllers\Admin\ArchiveSettingsController;
 use LumoraFiction\Controllers\Admin\ChapterController;
@@ -108,6 +111,10 @@ use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\ClassificationPresets;
+use LumoraFiction\Services\NotificationService;
+use LumoraFiction\Services\RetentionSettings;
+use LumoraFiction\Services\StoryNotifier;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Core\Media\AvatarImageStore;
 use LumoraFiction\Core\Media\CoverImageStore;
@@ -187,7 +194,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -210,6 +217,8 @@ final class Kernel
         $mailer = new NativeMailer('noreply@' . (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost'));
         $alerts = new SiteAlerts($database, $config, $hooks, $audit, $mailer, (string) $config->setting('site.name', 'Lumora Fiction'), $siteUrl);
         (new CoreAlerts($config, $root))->register($hooks);
+        $notifications = new NotificationService($database);
+        (new StoryNotifier($notifications, $database))->register($hooks);
         $securityEvents = new SecurityEventLog($database, $config, $alerts);
         $securitySettings = new SecuritySettings($config, $database, $audit);
         $lockout = $securitySettings->current();
@@ -255,7 +264,7 @@ final class Kernel
         $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
         $covers = new CoverImageStore($root . '/content/uploads/covers');
         $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks, $covers);
-        $chapters = new ChapterService($kernel->database, $stories, $kernel->audit);
+        $chapters = new ChapterService($kernel->database, $stories, $kernel->audit, $kernel->config);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $presenter = new StoryPresenter($covers);
         $authorProfiles = new AuthorProfileService($kernel->database, $renderer, new AvatarImageStore($root . '/content/uploads/avatars'), $kernel->audit);
@@ -267,7 +276,7 @@ final class Kernel
         (new PluginNotices($plugins))->register($hooks);
 
         self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $registrationGuard, $formGuard, $authorProfiles);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents, $securitySettings, $authorProfiles, $alerts);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents, $securitySettings, $authorProfiles, $alerts, $notifications);
 
         // Plugins load after the core routes are registered, so none of them can take over a core address.
         $plugins->loadActive();
@@ -381,7 +390,7 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles, SiteAlerts $alerts): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles, SiteAlerts $alerts, NotificationService $notifications): void
     {
         $view = new AdminView(
             $root . '/admin/views',
@@ -389,6 +398,7 @@ final class Kernel
             (string) $kernel->config->setting('site.name', 'Lumora Fiction'),
             $version,
             static fn (User $user): int => $alerts->badgeCount($user),
+            static fn (User $user): int => $notifications->countUnread($user),
         );
         $kernel->admin = $view;
 
@@ -398,7 +408,7 @@ final class Kernel
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
             new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories),
-            new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets')),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
             new TermSuggestController($kernel->auth, $taxonomy),
@@ -415,6 +425,9 @@ final class Kernel
             new SecurityEventsController($kernel->auth, $view, $flash, $securityEvents),
             new SecuritySettingsController($kernel->auth, $view, $flash, $securitySettings),
             new AlertsController($kernel->auth, $view, $flash, $alerts),
+            new TrashController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users, $kernel->config),
+            new NotificationsController($kernel->auth, $view, $flash, $notifications),
+            new RetentionSettingsController($kernel->auth, $view, $flash, new RetentionSettings($kernel->config, $kernel->database, $kernel->audit)),
         );
     }
 

@@ -52,7 +52,7 @@ final class StoryService
 
     public const REASON_MAX = 1000;
 
-    private const CHAPTER_TOTAL = '(SELECT COUNT(*) FROM {prefix}chapters c WHERE c.story_id = s.id)';
+    private const CHAPTER_TOTAL = '(SELECT COUNT(*) FROM {prefix}chapters c WHERE c.story_id = s.id AND c.trashed_at IS NULL)';
 
     public const COVER_ALT_MAX = 250;
 
@@ -462,6 +462,19 @@ final class StoryService
     }
 
     /**
+     * Where a story can stand, as the form offers it: ongoing, completed and on hiatus always, and abandoned only when the
+     * administrator allows it or the story already is.
+     *
+     * @return list<WorkStatus>
+     */
+    public function offeredStatuses(?Story $story = null): array
+    {
+        $allowAbandoned = $this->config->setting('stories.allow_abandoned') === true || $story?->workStatus === WorkStatus::Abandoned;
+
+        return array_values(array_filter(WorkStatus::cases(), static fn (WorkStatus $status): bool => $status !== WorkStatus::Abandoned || $allowAbandoned));
+    }
+
+    /**
      * The sortable columns of the writer's story list. Most recently changed first stays the default.
      */
     public static function writerSort(?string $sort, ?string $direction): ColumnSort
@@ -506,22 +519,185 @@ final class StoryService
      */
     public function delete(User $actor, int $storyId, string $ipAddress = ''): void
     {
+        $this->remove($this->manageableIncludingTrashed($actor, $storyId), $actor, $ipAddress);
+    }
+
+    /**
+     * Moves a story to the trash. It leaves every list and every public page at once, a published story becomes
+     * unpublished and one waiting for approval goes back to a draft, and nothing is deleted: restoring it brings it back
+     * as it was, apart from being unpublished. A story already in the trash is left alone.
+     *
+     * @throws StoryPermissionException
+     */
+    public function trash(User $actor, int $storyId, string $ipAddress = ''): Story
+    {
         $story = $this->manageable($actor, $storyId);
 
         $this->database->transaction(function () use ($actor, $story, $ipAddress): void {
+            $now = date('Y-m-d H:i:s');
+            $state = PublicationRules::withdraw($story->state) ?? $story->state;
+
+            $this->database->execute(
+                'UPDATE {prefix}stories SET trashed_at = :trashed, publication_state = :state, updated_at = :updated WHERE id = :id',
+                ['trashed' => $now, 'state' => $state->value, 'updated' => $now, 'id' => $story->id],
+            );
+            $this->taxonomy->refreshCountsForStory($story->id);
+            $this->audit->record($actor->id, 'story.trash', 'story', (string) $story->id, ['title' => $story->title, 'from' => $story->state->value], $ipAddress);
+        });
+
+        $this->hooks?->doAction('story_trashed', $story->id);
+
+        return $this->mustFind($story->id);
+    }
+
+    /**
+     * Removes a story that is in the trash for good. A story that is not in the trash is refused, so a stale or forged
+     * request from the trash screen cannot delete a live story.
+     *
+     * @throws StoryPermissionException
+     */
+    public function purge(User $actor, int $storyId, string $ipAddress = ''): void
+    {
+        $story = $this->manageableIncludingTrashed($actor, $storyId);
+
+        if (!$story->isTrashed()) {
+            throw new StoryPermissionException('That story is not in the trash.');
+        }
+
+        $this->remove($story, $actor, $ipAddress);
+    }
+
+    /**
+     * Brings a story back from the trash as a draft or unpublished story, never straight to readers.
+     *
+     * @throws StoryPermissionException
+     */
+    public function restore(User $actor, int $storyId, string $ipAddress = ''): Story
+    {
+        $story = $this->manageableIncludingTrashed($actor, $storyId);
+
+        if (!$story->isTrashed()) {
+            return $story;
+        }
+
+        $this->database->transaction(function () use ($actor, $story, $ipAddress): void {
+            $this->database->execute('UPDATE {prefix}stories SET trashed_at = NULL, updated_at = :updated WHERE id = :id', ['updated' => date('Y-m-d H:i:s'), 'id' => $story->id]);
+            $this->audit->record($actor->id, 'story.restore', 'story', (string) $story->id, ['title' => $story->title], $ipAddress);
+        });
+
+        return $this->mustFind($story->id);
+    }
+
+    /**
+     * What is in the trash for this person: their own stories, or with $all and the right to edit every story, everyone's.
+     *
+     * @return list<Story> most recently trashed first
+     */
+    public function listTrashed(User $actor, bool $all = false, int $limit = 100): array
+    {
+        if (!$actor->can(Capability::WriteStories)) {
+            return [];
+        }
+
+        $everyone = $all && $actor->can(Capability::EditAnyStory);
+
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}stories WHERE trashed_at IS NOT NULL' . ($everyone ? '' : ' AND owner_id = :owner')
+            . ' ORDER BY trashed_at DESC, id DESC LIMIT ' . max(1, min(200, $limit)),
+            $everyone ? [] : ['owner' => $actor->id],
+        ));
+    }
+
+    /**
+     * Permanently removes every trashed story that has been there longer than the retention period. A period of zero keeps
+     * them until someone deletes them. Nothing here depends on who is asking, so it runs on any visit to the trash.
+     *
+     * @return int how many were removed
+     */
+    public function purgeExpiredTrash(): int
+    {
+        $days = RetentionSettings::trashDays($this->config);
+
+        if ($days < 1) {
+            return 0;
+        }
+
+        $removed = 0;
+
+        foreach ($this->database->fetchAll(
+            'SELECT * FROM {prefix}stories WHERE trashed_at IS NOT NULL AND trashed_at < :cutoff ORDER BY trashed_at LIMIT 100',
+            ['cutoff' => date('Y-m-d H:i:s', time() - $days * 86400)],
+        ) as $row) {
+            $this->remove($this->hydrate($row), null, '');
+            $removed++;
+        }
+
+        return $removed;
+    }
+
+    /**
+     * A copy of a story the actor may change, owned by the actor, as a new draft: its details, classification and
+     * chapters (all as drafts). The cover picture and everything readers did (bookmarks, follows) stay with the original.
+     *
+     * @throws StoryPermissionException
+     */
+    public function duplicate(User $actor, int $storyId, string $ipAddress = ''): Story
+    {
+        $source = $this->manageable($actor, $storyId);
+        $title = mb_substr('Copy of ' . $source->title, 0, self::TITLE_MAX, 'UTF-8');
+        $now = date('Y-m-d H:i:s');
+
+        $id = (int) $this->database->transaction(function () use ($actor, $source, $title, $now, $ipAddress): int {
+            $id = $this->insert($actor->id, [
+                'title' => $title,
+                'summary' => $source->summary,
+                'notes' => $source->notes,
+                'disclaimer' => $source->disclaimer,
+                'language' => $source->language,
+                'work_status' => $source->workStatus->value,
+            ], $now);
+
+            $this->database->execute(
+                'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, word_count, publication_state, published_at, created_at, updated_at)
+                 SELECT :new_story, number, title, content, content_format, notes, word_count, \'draft\', NULL, :created, :updated
+                 FROM {prefix}chapters WHERE story_id = :old_story AND trashed_at IS NULL ORDER BY number',
+                ['new_story' => $id, 'created' => $now, 'updated' => $now, 'old_story' => $source->id],
+            );
+            $this->database->execute(
+                'INSERT INTO {prefix}story_terms (story_id, term_id) SELECT :new_story, term_id FROM {prefix}story_terms WHERE story_id = :old_story',
+                ['new_story' => $id, 'old_story' => $source->id],
+            );
+            $this->refreshWordCount($id);
+            $this->audit->record($actor->id, 'story.duplicate', 'story', (string) $id, ['from' => $source->id], $ipAddress);
+
+            return $id;
+        });
+
+        return $this->mustFind($id);
+    }
+
+    /**
+     * Deletes a story and everything that hangs off it. $actor is null when the retention period does the removing.
+     */
+    private function remove(Story $story, ?User $actor, string $ipAddress): void
+    {
+        $this->database->transaction(function () use ($actor, $story, $ipAddress): void {
             $this->taxonomy->removeStoryLinks($story->id);
+            $this->database->execute('DELETE r FROM {prefix}chapter_revisions r JOIN {prefix}chapters c ON c.id = r.chapter_id WHERE c.story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}chapters WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}bookmarks WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}reading_progress WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}story_follows WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
-            $this->audit->record($actor->id, 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
+            $this->audit->record($actor?->id, $actor === null ? 'story.purge' : 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
         });
 
         // After the rows are gone, so a rolled-back deletion never loses the picture of a story that still exists.
         if ($story->hasCover()) {
             $this->covers?->delete($story->coverFile);
         }
+
+        $this->hooks?->doAction('story_deleted', $story->id);
     }
 
     /**
@@ -568,7 +744,7 @@ final class StoryService
     public function listForOwner(int $ownerId): array
     {
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT * FROM {prefix}stories WHERE owner_id = :owner ORDER BY updated_at DESC, id DESC',
+            'SELECT * FROM {prefix}stories WHERE owner_id = :owner AND trashed_at IS NULL ORDER BY updated_at DESC, id DESC',
             ['owner' => $ownerId],
         ));
     }
@@ -618,7 +794,7 @@ final class StoryService
         $counts = array_fill_keys(array_map(static fn (PublicationState $state): string => $state->value, PublicationState::cases()), 0);
 
         foreach ($this->database->fetchAll(
-            'SELECT publication_state, COUNT(*) AS total FROM {prefix}stories WHERE owner_id = :owner GROUP BY publication_state',
+            'SELECT publication_state, COUNT(*) AS total FROM {prefix}stories WHERE owner_id = :owner AND trashed_at IS NULL GROUP BY publication_state',
             ['owner' => $ownerId],
         ) as $row) {
             if (isset($counts[$row['publication_state']])) {
@@ -647,6 +823,7 @@ final class StoryService
                     'publish' => $this->publish($actor, $id, $ipAddress),
                     'unpublish' => $this->unpublish($actor, $id, $ipAddress),
                     'delete' => $this->delete($actor, $id, $ipAddress),
+                    'trash' => $this->trash($actor, $id, $ipAddress),
                     default => throw new StoryValidationException(['bulk_action' => 'Choose what to do with the selected stories.']),
                 };
                 $done++;
@@ -693,7 +870,7 @@ final class StoryService
     public function refreshWordCount(int $storyId): void
     {
         $this->database->execute(
-            'UPDATE {prefix}stories SET word_count = (SELECT COALESCE(SUM(word_count), 0) FROM {prefix}chapters WHERE story_id = :chapter_story),
+            'UPDATE {prefix}stories SET word_count = (SELECT COALESCE(SUM(word_count), 0) FROM {prefix}chapters WHERE story_id = :chapter_story AND trashed_at IS NULL),
              updated_at = :updated WHERE id = :id',
             ['chapter_story' => $storyId, 'updated' => date('Y-m-d H:i:s'), 'id' => $storyId],
         );
@@ -703,6 +880,23 @@ final class StoryService
      * @throws StoryPermissionException when the story is missing or the caller may not change it
      */
     public function manageable(User $actor, int $storyId): Story
+    {
+        $story = $this->manageableIncludingTrashed($actor, $storyId);
+
+        // A trashed story is changed only by restoring it or deleting it for good.
+        if ($story->isTrashed()) {
+            throw new StoryPermissionException('That story is not available.');
+        }
+
+        return $story;
+    }
+
+    /**
+     * Like manageable(), but also for a story in the trash, for restoring and deleting it.
+     *
+     * @throws StoryPermissionException
+     */
+    public function manageableIncludingTrashed(User $actor, int $storyId): Story
     {
         $story = $this->find($storyId);
 
@@ -719,7 +913,8 @@ final class StoryService
      */
     private function writerFilter(User $actor, array $filters): array
     {
-        $where = ['1 = 1'];
+        // Trashed stories have their own screen and never appear among the ones being written.
+        $where = ['s.trashed_at IS NULL'];
         $params = [];
 
         if (($filters['scope'] ?? 'mine') !== 'all' || !$actor->can(Capability::EditAnyStory)) {
@@ -975,6 +1170,7 @@ final class StoryService
             // A name that is not one the store made is treated as no cover, so a damaged row cannot point anywhere.
             coverFile: is_string($row['cover_file'] ?? null) && CoverImageStore::isValidName($row['cover_file']) ? $row['cover_file'] : '',
             coverAlt: is_string($row['cover_alt'] ?? null) ? $row['cover_alt'] : '',
+            trashedAt: is_string($row['trashed_at'] ?? null) && $row['trashed_at'] !== '' ? new DateTimeImmutable($row['trashed_at']) : null,
         );
     }
 }

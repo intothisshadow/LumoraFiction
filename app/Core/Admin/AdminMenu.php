@@ -55,6 +55,8 @@ final class AdminMenu
                     ['slug' => 'stories-new', 'label' => 'Add a story', 'path' => 'stories/new', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-all', 'label' => 'All stories', 'path' => 'stories/all', 'capability' => Capability::EditAnyStory],
                     ['slug' => 'stories-review', 'label' => 'Awaiting approval', 'path' => 'review', 'capability' => Capability::ModerateStories],
+                    ['slug' => 'stories-notifications', 'label' => 'Notifications', 'path' => 'notifications', 'capability' => Capability::WriteStories],
+                    ['slug' => 'stories-trash', 'label' => 'Trash', 'path' => 'trash', 'capability' => Capability::WriteStories],
                 ],
             ],
             [
@@ -98,6 +100,7 @@ final class AdminMenu
                     ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-security', 'label' => 'Security', 'path' => 'settings/security', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
                 ],
             ],
             [

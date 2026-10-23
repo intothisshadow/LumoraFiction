@@ -46,6 +46,9 @@ final class AdminRoutes
         SecurityEventsController $securityEvents,
         SecuritySettingsController $security,
         AlertsController $alerts,
+        TrashController $trash,
+        NotificationsController $notifications,
+        RetentionSettingsController $retention,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -53,6 +56,7 @@ final class AdminRoutes
         $router->post('/admin/logout', $auth->logout(...), 'admin.logout');
         $router->get('/admin/settings/archive', $archive->show(...), 'admin.settings.archive');
         $router->post('/admin/settings/archive', $archive->update(...));
+        $router->post('/admin/settings/archive/presets', $archive->applyPreset(...), 'admin.settings.archive.presets');
         $router->get('/admin/settings/editor', $editor->show(...), 'admin.settings.editor');
         $router->post('/admin/settings/editor', $editor->update(...));
         $router->get('/admin/settings/security', $security->show(...), 'admin.settings.security');
@@ -61,6 +65,13 @@ final class AdminRoutes
         $router->post('/admin/settings/spam', $spam->update(...));
         $router->post('/admin/settings/spam/resume', $spam->resume(...), 'admin.settings.spam.resume');
         $router->get('/admin/maintenance/security-events', $securityEvents->index(...), 'admin.security-events');
+        $router->get('/admin/trash', $trash->index(...), 'admin.trash');
+        $router->post('/admin/trash/act', $trash->act(...), 'admin.trash.act');
+        $router->get('/admin/notifications', $notifications->index(...), 'admin.notifications');
+        $router->post('/admin/notifications/read', $notifications->read(...), 'admin.notifications.read');
+        $router->post('/admin/notifications/read-all', $notifications->readAll(...), 'admin.notifications.read-all');
+        $router->get('/admin/settings/retention', $retention->show(...), 'admin.settings.retention');
+        $router->post('/admin/settings/retention', $retention->update(...));
         $router->get('/admin/maintenance/alerts', $alerts->index(...), 'admin.alerts');
         $router->post('/admin/maintenance/alerts/email', $alerts->saveEmail(...), 'admin.alerts.email');
         $router->post('/admin/maintenance/alerts/{id}/dismiss', $alerts->dismiss(...), 'admin.alerts.dismiss');
@@ -76,6 +87,9 @@ final class AdminRoutes
         $router->get('/admin/taxonomy/term/{id}', $taxonomy->showEdit(...), 'admin.taxonomy.term');
         $router->post('/admin/taxonomy/term/{id}', $taxonomy->update(...));
         $router->post('/admin/taxonomy/term/{id}/aliases', $taxonomy->addAlias(...));
+        $router->post('/admin/taxonomy/term/{id}/move', $taxonomy->move(...), 'admin.taxonomy.move');
+        $router->post('/admin/stories/{id}/trash', $stories->trash(...), 'admin.stories.trash');
+        $router->post('/admin/stories/{id}/duplicate', $stories->duplicate(...), 'admin.stories.duplicate');
         $router->get('/admin/taxonomy/term/{id}/merge', $taxonomy->showMerge(...));
         $router->post('/admin/taxonomy/term/{id}/merge', $taxonomy->merge(...));
         $router->get('/admin/taxonomy/term/{id}/delete', $taxonomy->showDelete(...));
@@ -105,6 +119,10 @@ final class AdminRoutes
         $router->post('/admin/chapters/{id}', $chapters->update(...));
         $router->get('/admin/chapters/{id}/delete', $chapters->showDelete(...));
         $router->post('/admin/chapters/{id}/delete', $chapters->delete(...));
+        $router->post('/admin/chapters/{id}/trash', $chapters->trash(...), 'admin.chapters.trash');
+        $router->get('/admin/chapters/{id}/revisions', $chapters->revisions(...), 'admin.chapters.revisions');
+        $router->get('/admin/chapters/{id}/revisions/{revision}', $chapters->revision(...), 'admin.chapters.revision');
+        $router->post('/admin/chapters/{id}/revisions/{revision}/restore', $chapters->restoreRevision(...), 'admin.chapters.revision.restore');
         $router->post('/admin/chapters/{id}/publish', $chapters->publish(...));
         $router->post('/admin/chapters/{id}/unpublish', $chapters->unpublish(...));
         $router->get('/admin/chapters/{id}/preview', $chapters->preview(...), 'admin.chapters.preview');

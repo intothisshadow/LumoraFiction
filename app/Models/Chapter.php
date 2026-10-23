@@ -34,6 +34,12 @@ final readonly class Chapter
         public ?DateTimeImmutable $publishedAt,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?DateTimeImmutable $trashedAt = null,
     ) {
+    }
+
+    public function isTrashed(): bool
+    {
+        return $this->trashedAt !== null;
     }
 }

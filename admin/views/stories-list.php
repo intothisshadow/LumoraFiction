@@ -123,7 +123,8 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
                 <option value="">Choose&hellip;</option>
                 <option value="publish">Publish (or send for approval)</option>
                 <option value="unpublish">Unpublish</option>
-                <option value="delete">Delete&hellip;</option>
+                <option value="trash">Move to the trash</option>
+                <option value="delete">Delete for good&hellip;</option>
             </select>
             <button type="submit" class="lf-button lf-button--secondary">Apply</button>
         </div>

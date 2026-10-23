@@ -1,0 +1,27 @@
+{
+    "format": 1,
+    "kind": "status",
+    "presets": [
+        {
+            "key": "standard",
+            "label": "Ongoing, completed, on hiatus",
+            "description": "Writers can say a story is ongoing, completed or on hiatus.",
+            "values": [
+                { "key": "ongoing", "name": "Ongoing", "description": "New chapters are still coming." },
+                { "key": "completed", "name": "Completed", "description": "The story is finished." },
+                { "key": "on_hiatus", "name": "On hiatus", "description": "The author has paused the story and may return to it." }
+            ]
+        },
+        {
+            "key": "with_abandoned",
+            "label": "With abandoned",
+            "description": "The same three, and writers can also mark a story abandoned.",
+            "values": [
+                { "key": "ongoing", "name": "Ongoing", "description": "New chapters are still coming." },
+                { "key": "completed", "name": "Completed", "description": "The story is finished." },
+                { "key": "on_hiatus", "name": "On hiatus", "description": "The author has paused the story and may return to it." },
+                { "key": "abandoned", "name": "Abandoned", "description": "The author does not plan to finish the story." }
+            ]
+        }
+    ]
+}

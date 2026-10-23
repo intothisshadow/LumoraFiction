@@ -33,6 +33,13 @@ final class InstallValidator
     private const GUESSABLE_LOGINS = ['admin', 'administrator', 'root', 'webmaster', 'sysadmin', 'owner', 'user', 'test', 'demo', 'editor', 'moderator', 'support'];
 
     /**
+     * @param array<string, list<string>> $presetKeys the starter lists on offer: the preset keys each list accepts
+     */
+    public function __construct(private readonly array $presetKeys = [])
+    {
+    }
+
+    /**
      * @param array<string, mixed> $input
      * @return array{errors: array<string, string>, request: InstallRequest|null}
      */
@@ -121,13 +128,32 @@ final class InstallValidator
             $errors['admin_password_confirm'] = 'The two passwords do not match.';
         }
 
+        // A starter list is only ever a choice: nothing chosen leaves that list empty, and a name that is not on offer is refused.
+        $presets = [];
+
+        foreach ($this->presetKeys as $kind => $keys) {
+            $chosen = $text('preset_' . $kind);
+
+            if ($chosen === '') {
+                continue;
+            }
+
+            if (!in_array($chosen, $keys, true)) {
+                $errors['preset_' . $kind] = 'Choose one of the starter lists shown, or none.';
+
+                continue;
+            }
+
+            $presets[$kind] = $chosen;
+        }
+
         if ($errors !== []) {
             return ['errors' => $errors, 'request' => null];
         }
 
         return [
             'errors' => [],
-            'request' => new InstallRequest($host, (int) $port, $name, $user, $raw('db_password'), $prefix, $siteName, $siteUrl, $timezone, $mode, $login, $display, $email, $password),
+            'request' => new InstallRequest($host, (int) $port, $name, $user, $raw('db_password'), $prefix, $siteName, $siteUrl, $timezone, $mode, $login, $display, $email, $password, $presets),
         ];
     }
 }

@@ -28,6 +28,7 @@ use LumoraFiction\Installer\InstallValidator;
 use LumoraFiction\Installer\Installer;
 use LumoraFiction\Installer\RequirementsCheck;
 use LumoraFiction\Installer\TablePrefix;
+use LumoraFiction\Services\ClassificationPresets;
 
 $root = dirname(__DIR__);
 
@@ -79,6 +80,9 @@ if (!isset($_SESSION['install_prefix']) || !is_string($_SESSION['install_prefix'
 }
 
 $suggestedPrefix = $_SESSION['install_prefix'];
+
+// The starter lists are read from files, so the form can offer them before any database exists.
+$presetCatalogue = ClassificationPresets::catalogueFromFiles($root . '/app/Data/presets');
 $errors = [];
 $formErrors = [];
 $values = [];
@@ -90,7 +94,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     if (!Csrf::verify('install', is_string($token) ? $token : null)) {
         $formErrors[] = 'Your session expired. Please check the details and try again.';
     } else {
-        $result = (new InstallValidator())->validate($_POST);
+        $result = (new InstallValidator(array_map(static fn (array $presets): array => array_keys($presets), $presetCatalogue)))->validate($_POST);
         $errors = $result['errors'];
 
         if ($result['request'] !== null) {

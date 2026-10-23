@@ -31,6 +31,10 @@ final readonly class Term
         public int $storyCount,
         public ?int $createdBy,
         public DateTimeImmutable $createdAt,
+        public string $description = '',
+        public int $sortOrder = 0,
+        public bool $hidden = false,
+        public string $presetKey = '',
     ) {
     }
 }

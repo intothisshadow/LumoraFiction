@@ -205,7 +205,10 @@ final class TaxonomyService
     }
 
     /**
-     * @param array{search?: string, unreviewed?: bool, parent?: int} $filters
+     * Terms in the order the administrator set (the short lists such as ratings), then by name, which is the whole
+     * order for the open lists where no order was ever set. "visible" leaves out hidden terms.
+     *
+     * @param array{search?: string, unreviewed?: bool, parent?: int, visible?: bool} $filters
      * @return list<Term>
      */
     public function list(TermType $type, array $filters = [], int $limit = 50, int $offset = 0): array
@@ -213,13 +216,13 @@ final class TaxonomyService
         [$where, $params] = $this->filter($type, $filters);
 
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT t.* FROM {prefix}terms t WHERE ' . $where . ' ORDER BY t.name_key, t.id LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
+            'SELECT t.* FROM {prefix}terms t WHERE ' . $where . ' ORDER BY t.sort_order, t.name_key, t.id LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
             $params,
         ));
     }
 
     /**
-     * @param array{search?: string, unreviewed?: bool, parent?: int} $filters
+     * @param array{search?: string, unreviewed?: bool, parent?: int, visible?: bool} $filters
      */
     public function count(TermType $type, array $filters = []): int
     {
@@ -253,7 +256,7 @@ final class TaxonomyService
     {
         $counts = [];
 
-        foreach ($this->database->fetchAll('SELECT t.type, COUNT(*) AS total FROM {prefix}terms t WHERE t.reviewed = 1 AND t.story_count > 0 GROUP BY t.type') as $row) {
+        foreach ($this->database->fetchAll('SELECT t.type, COUNT(*) AS total FROM {prefix}terms t WHERE t.reviewed = 1 AND t.hidden = 0 AND t.story_count > 0 GROUP BY t.type') as $row) {
             $counts[(string) $row['type']] = (int) $row['total'];
         }
 
@@ -271,7 +274,7 @@ final class TaxonomyService
         $groups = [];
 
         foreach ($this->database->fetchAll(
-            'SELECT LEFT(t.name_key, 1) AS c FROM {prefix}terms t WHERE t.type = :type AND t.reviewed = 1 AND t.story_count > 0 GROUP BY LEFT(t.name_key, 1) ORDER BY c LIMIT 200',
+            'SELECT LEFT(t.name_key, 1) AS c FROM {prefix}terms t WHERE t.type = :type AND t.reviewed = 1 AND t.hidden = 0 AND t.story_count > 0 GROUP BY LEFT(t.name_key, 1) ORDER BY c LIMIT 200',
             ['type' => $type->value],
         ) as $row) {
             $char = (string) $row['c'];
@@ -327,7 +330,7 @@ final class TaxonomyService
     public function relatedTerms(int $fandomId, TermType $type, int $limit): array
     {
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT t.* FROM {prefix}terms t WHERE t.type = :type AND t.parent_id = :parent AND t.reviewed = 1 AND t.story_count > 0
+            'SELECT t.* FROM {prefix}terms t WHERE t.type = :type AND t.parent_id = :parent AND t.reviewed = 1 AND t.hidden = 0 AND t.story_count > 0
              ORDER BY t.story_count DESC, t.name_key, t.id LIMIT ' . max(1, min(100, $limit)),
             ['type' => $type->value, 'parent' => $fandomId],
         ));
@@ -458,7 +461,7 @@ final class TaxonomyService
      */
     private function browseCondition(TermType $type, array $chars): array
     {
-        $where = 't.type = :type AND t.reviewed = 1 AND t.story_count > 0';
+        $where = 't.type = :type AND t.reviewed = 1 AND t.hidden = 0 AND t.story_count > 0';
         $params = ['type' => $type->value];
 
         if ($chars !== []) {
@@ -594,6 +597,150 @@ final class TaxonomyService
         }
 
         return $this->mustFind($term->id);
+    }
+
+    public const DESCRIPTION_MAX = 300;
+
+    /**
+     * Hiding takes a term out of what writers can choose and out of the public indexes and filters. Stories that
+     * already use it keep it, and it is still shown on them.
+     *
+     * @throws TaxonomyException
+     */
+    public function setHidden(User $actor, int $termId, bool $hidden, string $ipAddress = ''): Term
+    {
+        $this->requireCurator($actor);
+
+        $term = $this->mustFind($termId);
+
+        if ($term->hidden !== $hidden) {
+            $this->database->transaction(function () use ($actor, $term, $hidden, $ipAddress): void {
+                $this->database->execute('UPDATE {prefix}terms SET hidden = :hidden WHERE id = :id', ['hidden' => $hidden ? 1 : 0, 'id' => $term->id]);
+                $this->audit->record($actor->id, 'term.hide', 'term', (string) $term->id, ['hidden' => $hidden], $ipAddress);
+            });
+        }
+
+        return $this->mustFind($term->id);
+    }
+
+    /**
+     * @throws TaxonomyException
+     */
+    public function setDescription(User $actor, int $termId, string $description, string $ipAddress = ''): Term
+    {
+        $this->requireCurator($actor);
+
+        $term = $this->mustFind($termId);
+        $description = $this->cleanDescription($description);
+
+        if ($term->description !== $description) {
+            $this->database->transaction(function () use ($actor, $term, $description, $ipAddress): void {
+                $this->database->execute('UPDATE {prefix}terms SET description = :description WHERE id = :id', ['description' => $description, 'id' => $term->id]);
+                $this->audit->record($actor->id, 'term.describe', 'term', (string) $term->id, [], $ipAddress);
+            });
+        }
+
+        return $this->mustFind($term->id);
+    }
+
+    /**
+     * Moves a term one place up or down in its list. Only the short lists the administrator orders by hand can be
+     * moved: the open lists stay alphabetical.
+     *
+     * @param string $direction "up" or "down"
+     * @throws TaxonomyException
+     */
+    public function move(User $actor, int $termId, string $direction, string $ipAddress = ''): void
+    {
+        $this->requireCurator($actor);
+
+        $term = $this->mustFind($termId);
+
+        if ($term->type->writersMayPropose() || ($direction !== 'up' && $direction !== 'down')) {
+            throw new TaxonomyException('This list is kept in alphabetical order.');
+        }
+
+        $this->database->transaction(function () use ($actor, $term, $direction, $ipAddress): void {
+            // Locked so two moves at once cannot number two terms the same.
+            $ids = array_map(
+                static fn (array $row): int => (int) $row['id'],
+                $this->database->fetchAll('SELECT id FROM {prefix}terms WHERE type = :type ORDER BY sort_order, name_key, id FOR UPDATE', ['type' => $term->type->value]),
+            );
+
+            $position = array_search($term->id, $ids, true);
+
+            if ($position === false) {
+                return;
+            }
+
+            $swapWith = $direction === 'up' ? $position - 1 : $position + 1;
+
+            if (!isset($ids[$swapWith])) {
+                return;
+            }
+
+            [$ids[$position], $ids[$swapWith]] = [$ids[$swapWith], $ids[$position]];
+
+            foreach ($ids as $index => $id) {
+                $this->database->execute('UPDATE {prefix}terms SET sort_order = :order WHERE id = :id AND sort_order <> :order_now', ['order' => $index + 1, 'order_now' => $index + 1, 'id' => $id]);
+            }
+
+            $this->audit->record($actor->id, 'term.move', 'term', (string) $term->id, ['direction' => $direction], $ipAddress);
+        });
+    }
+
+    public function findByPresetKey(TermType $type, string $presetKey): ?Term
+    {
+        if ($presetKey === '') {
+            return null;
+        }
+
+        $row = $this->database->fetchOne('SELECT * FROM {prefix}terms WHERE type = :type AND preset_key = :preset ORDER BY id LIMIT 1', ['type' => $type->value, 'preset' => $presetKey]);
+
+        return $row === null ? null : $this->hydrate($row);
+    }
+
+    /**
+     * Adds a value from a starter list, already reviewed. The caller (applying the list) writes the one audit entry.
+     *
+     * @throws TaxonomyException
+     */
+    public function createFromPreset(TermType $type, string $name, string $description, string $presetKey, ?int $actorId): Term
+    {
+        $name = $this->cleanName($name);
+        $this->assertNameFree($type, 0, $name, null);
+
+        return $this->mustFind($this->insertTerm($type, 0, $name, true, $actorId, $this->cleanDescription($description), $presetKey));
+    }
+
+    /**
+     * Marks a term the administrator already made by hand as belonging to a starter-list value, without changing its
+     * name or anything else they set; a description is only filled in when theirs is empty.
+     */
+    public function adoptPresetKey(Term $term, string $presetKey, string $description): void
+    {
+        $this->database->execute(
+            'UPDATE {prefix}terms SET preset_key = :preset, description = IF(description = \'\', :description, description) WHERE id = :id AND preset_key = \'\'',
+            ['preset' => $presetKey, 'description' => $this->cleanDescription($description), 'id' => $term->id],
+        );
+    }
+
+    /**
+     * @throws TaxonomyException
+     */
+    private function cleanDescription(string $description): string
+    {
+        $description = trim((string) preg_replace('/\s+/u', ' ', $description));
+
+        if (preg_match(self::FORBIDDEN_CHARACTERS, $description) === 1) {
+            throw new TaxonomyException('The description contains characters that cannot be used.');
+        }
+
+        if (mb_strlen($description, 'UTF-8') > self::DESCRIPTION_MAX) {
+            throw new TaxonomyException('Keep the description to ' . self::DESCRIPTION_MAX . ' characters or fewer.');
+        }
+
+        return $description;
     }
 
     /**
@@ -765,6 +912,8 @@ final class TaxonomyService
     {
         $errors = [];
         $desired = [];
+        // A hidden term can no longer be chosen, but a story that already has it keeps it when the form is saved again.
+        $linked = $this->linkedTermIds($storyId);
 
         foreach ($this->enabledTypes() as $type) {
             if (!array_key_exists($type->value, $selection)) {
@@ -785,6 +934,11 @@ final class TaxonomyService
 
             foreach ($entries as $entry) {
                 $term = $this->selected($actor, $type, $entry, $parent, $ipAddress, $errors);
+
+                if ($term !== null && $term->hidden && !in_array($term->id, $linked, true)) {
+                    $errors[$type->value] = '"' . $term->name . '" is no longer offered. Choose another from the list.';
+                    $term = null;
+                }
 
                 if ($term !== null) {
                     $ids[$term->id] = $term->id;
@@ -827,7 +981,7 @@ final class TaxonomyService
                 continue;
             }
 
-            if (!$type->writersMayPropose() && $this->count($type) === 0) {
+            if (!$type->writersMayPropose() && $this->count($type, ['visible' => true]) === 0) {
                 continue;
             }
 
@@ -1073,6 +1227,10 @@ final class TaxonomyService
             $where[] = 't.reviewed = 0';
         }
 
+        if (($filters['visible'] ?? false) === true) {
+            $where[] = 't.hidden = 0';
+        }
+
         $search = trim($filters['search'] ?? '');
 
         if ($search !== '') {
@@ -1131,17 +1289,20 @@ final class TaxonomyService
         }
     }
 
-    private function insertTerm(TermType $type, int $parentId, string $name, bool $reviewed, ?int $createdBy): int
+    private function insertTerm(TermType $type, int $parentId, string $name, bool $reviewed, ?int $createdBy, string $description = '', string $presetKey = ''): int
     {
         $base = Slug::fromText($name, self::SLUG_BASE_MAX, 'term');
+
+        // A short list that is ordered by hand puts a new value last. The open lists stay alphabetical, so their order is 0.
+        $order = $type->writersMayPropose() ? 0 : 1 + (int) $this->database->fetchColumn('SELECT COALESCE(MAX(sort_order), 0) FROM {prefix}terms WHERE type = :type', ['type' => $type->value]);
 
         for ($attempt = 0; $attempt < self::SLUG_ATTEMPTS; $attempt++) {
             $slug = $attempt === 0 ? $this->freeSlug($type, $base) : $base . '-' . bin2hex(random_bytes(3));
 
             try {
                 return (int) $this->database->insertGetId(
-                    'INSERT INTO {prefix}terms (type, parent_id, name, name_key, slug, reviewed, story_count, created_by, created_at)
-                     VALUES (:type, :parent, :name, :key, :slug, :reviewed, 0, :creator, :created)',
+                    'INSERT INTO {prefix}terms (type, parent_id, name, name_key, slug, reviewed, story_count, created_by, created_at, description, sort_order, preset_key)
+                     VALUES (:type, :parent, :name, :key, :slug, :reviewed, 0, :creator, :created, :description, :order, :preset)',
                     [
                         'type' => $type->value,
                         'parent' => $parentId,
@@ -1151,6 +1312,9 @@ final class TaxonomyService
                         'reviewed' => $reviewed ? 1 : 0,
                         'creator' => $createdBy,
                         'created' => date('Y-m-d H:i:s'),
+                        'description' => $description,
+                        'order' => $order,
+                        'preset' => $presetKey,
                     ],
                 );
             } catch (PDOException $exception) {
@@ -1242,6 +1406,10 @@ final class TaxonomyService
             storyCount: (int) $row['story_count'],
             createdBy: $row['created_by'] === null ? null : (int) $row['created_by'],
             createdAt: new DateTimeImmutable((string) $row['created_at']),
+            description: (string) ($row['description'] ?? ''),
+            sortOrder: (int) ($row['sort_order'] ?? 0),
+            hidden: (int) ($row['hidden'] ?? 0) === 1,
+            presetKey: (string) ($row['preset_key'] ?? ''),
         );
     }
 }

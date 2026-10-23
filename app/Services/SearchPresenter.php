@@ -70,13 +70,16 @@ final class SearchPresenter
             if (in_array($type, self::PICKED, true)) {
                 $options = [['value' => '', 'label' => 'Any', 'selected' => $typed === '']];
 
-                foreach ($this->taxonomy->list($type, [], 200) as $term) {
+                foreach ($this->taxonomy->list($type, ['visible' => true], 200) as $term) {
                     if ($term->storyCount > 0) {
                         $options[] = ['value' => $term->name, 'label' => $term->name, 'selected' => mb_strtolower($term->name) === mb_strtolower($typed)];
                     }
                 }
 
-                $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $type->label(), 'type' => 'select', 'options' => $options];
+                // A list with nothing in it, or nothing used yet, has nothing to filter by, so it is left off rather than shown empty.
+                if (count($options) > 1 || $typed !== '') {
+                    $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $type->label(), 'type' => 'select', 'options' => $options];
+                }
             } else {
                 $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $type->label(), 'type' => 'text', 'value' => $typed];
             }

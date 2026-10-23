@@ -36,7 +36,16 @@ final class AdminView
         private readonly string $siteName,
         private readonly string $version,
         private readonly ?Closure $alertCount = null,
+        private readonly ?Closure $notificationCount = null,
     ) {
+    }
+
+    /**
+     * The number of unread notifications the header shows, or null for anyone who has no inbox.
+     */
+    private function notificationCountFor(User $user): ?int
+    {
+        return $this->notificationCount !== null && $user->can(Capability::WriteStories) ? ($this->notificationCount)($user) : null;
     }
 
     /**
@@ -68,6 +77,7 @@ final class AdminView
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
             'alertCount' => $this->alertCountFor($user),
+            'notificationCount' => $this->notificationCountFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }
@@ -90,6 +100,7 @@ final class AdminView
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
             'alertCount' => $this->alertCountFor($user),
+            'notificationCount' => $this->notificationCountFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }

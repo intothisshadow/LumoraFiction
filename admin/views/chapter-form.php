@@ -29,6 +29,7 @@ use LumoraFiction\Models\Story;
 /** @var string $action */
 /** @var string $listUrl */
 /** @var array<string, string> $urls */
+/** @var int $revisionCount earlier versions kept of this chapter */
 /** @var array{title: int, notes: int} $limits */
 
 $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class="lf-error" id="' . Html::e($name) . '_error">' . Html::e($errors[$name]) . '</p>' : '';
@@ -66,6 +67,11 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
 <?php if ($chapter !== null): ?>
     <p>
         <a href="<?= Html::e($urls['preview']) ?>">Preview this chapter</a> &middot;
+        <a href="<?= Html::e($urls['revisions']) ?>">Earlier versions (<?= (int) $revisionCount ?>)</a> &middot;
         <a href="<?= Html::e($urls['delete']) ?>">Delete this chapter</a>
     </p>
+    <form method="post" action="<?= Html::e($urls['trash']) ?>" class="lf-inline-form">
+        <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+        <button type="submit" class="lf-button lf-button--secondary">Move to the trash</button>
+    </form>
 <?php endif; ?>

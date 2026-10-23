@@ -133,6 +133,7 @@ final class TaxonomyController extends AdminController
             'newUrl' => AdminUrl::to(self::PATH . '/' . $type->value . '/new'),
             'overviewUrl' => AdminUrl::to(self::PATH),
             'termUrl' => AdminUrl::to(self::PATH . '/term'),
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
         ], $user, $type->pluralLabel(), self::PATH, $this->flash->pull($request->cookies));
     }
 
@@ -214,8 +215,50 @@ final class TaxonomyController extends AdminController
             $this->taxonomy->rename($user, $term->id, $request->input('name') ?? '', $request->ip());
             $this->taxonomy->setReviewed($user, $term->id, $request->checked('reviewed'), $request->ip());
 
+            // Only the short lists have these fields, so a form for an open list must not blank them.
+            if (!$term->type->writersMayPropose()) {
+                $this->taxonomy->setDescription($user, $term->id, $request->input('description') ?? '', $request->ip());
+                $this->taxonomy->setHidden($user, $term->id, $request->checked('hidden'), $request->ip());
+            }
+
             return 'Saved.';
         });
+    }
+
+    /**
+     * Moves a value one place up or down in a short list.
+     *
+     * @param array<string, string> $params
+     */
+    public function move(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $term = $this->term($params);
+
+        if ($term === null) {
+            return $this->missing('That term no longer exists.');
+        }
+
+        $back = Response::redirect(AdminUrl::to(self::PATH . '/' . $term->type->value), 303);
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return $back;
+        }
+
+        try {
+            $this->taxonomy->move($user, $term->id, $request->input('direction') ?? '', $request->ip());
+        } catch (TaxonomyException $exception) {
+            $this->flash->add('error', $exception->getMessage());
+        }
+
+        return $back;
     }
 
     /**
@@ -382,7 +425,7 @@ final class TaxonomyController extends AdminController
             return $this->missing('That term no longer exists.');
         }
 
-        $values = ['name' => $request->input('name') ?? $term->name, 'alias' => $request->input('alias') ?? ''];
+        $values = ['name' => $request->input('name') ?? $term->name, 'alias' => $request->input('alias') ?? '', 'description' => $request->input('description') ?? $term->description, 'hidden' => $request->checked('hidden')];
 
         if (!$this->validToken($request, self::TOKEN_ACTION)) {
             return $this->editPage($request, $user, $term, $values, ['form' => self::STALE_FORM], 400);

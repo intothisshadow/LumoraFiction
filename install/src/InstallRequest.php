@@ -35,6 +35,8 @@ final readonly class InstallRequest
         public string $adminEmail,
         #[\SensitiveParameter]
         public string $adminPassword,
+        /** @var array<string, string> starter list chosen for each list, by list; a list with no choice is absent */
+        public array $presets = [],
     ) {
     }
 }

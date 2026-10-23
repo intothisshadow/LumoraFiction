@@ -1,0 +1,19 @@
+{
+    "format": 1,
+    "kind": "relationship_category",
+    "presets": [
+        {
+            "key": "standard",
+            "label": "Standard",
+            "description": "The usual six categories.",
+            "values": [
+                { "key": "ff", "name": "F/F", "description": "Romantic or sexual relationships between women." },
+                { "key": "fm", "name": "F/M", "description": "Romantic or sexual relationships between a woman and a man." },
+                { "key": "gen", "name": "Gen", "description": "No romantic or sexual relationship is the focus." },
+                { "key": "mm", "name": "M/M", "description": "Romantic or sexual relationships between men." },
+                { "key": "multi", "name": "Multi", "description": "More than one kind of relationship, or relationships between more than two people." },
+                { "key": "other", "name": "Other", "description": "A relationship that fits none of the other categories." }
+            ]
+        }
+    ]
+}

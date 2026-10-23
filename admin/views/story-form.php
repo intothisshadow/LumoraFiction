@@ -175,28 +175,36 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                 $kind = $type->value;
                 $label = $type->isSingleChoice() ? $type->label() : $type->pluralLabel();
                 $required = $field['required'] ? ' <span class="lf-required">(needed before publishing)</span>' : '';
+
+                // A list with nothing to choose from is left off the form, not shown empty, and is never required.
+                if ($field['style'] !== 'names' && $field['options'] === []) {
+                    continue;
+                }
+
+                $described = array_values(array_filter($field['options'], static fn (Term $term): bool => $term->description !== ''));
                 ?>
                 <?php if ($field['style'] === 'single'): ?>
                     <div class="lf-field<?= isset($errors[$kind]) ? ' lf-field--error' : '' ?>">
                         <label for="<?= Html::e($kind) ?>"><?= Html::e($label) ?><?= $required ?></label>
-                        <select id="<?= Html::e($kind) ?>" name="term_<?= Html::e($kind) ?>"<?= $describe($kind, false) ?>>
+                        <select id="<?= Html::e($kind) ?>" name="term_<?= Html::e($kind) ?>"<?= $describe($kind, $described !== []) ?>>
                             <option value="">Not chosen</option>
                             <?php foreach ($field['options'] as $term): ?>
-                                <option value="<?= (int) $term->id ?>"<?= in_array($term->id, $field['ids'], true) ? ' selected' : '' ?>><?= Html::e($term->name) ?></option>
+                                <option value="<?= (int) $term->id ?>"<?= in_array($term->id, $field['ids'], true) ? ' selected' : '' ?>><?= Html::e($term->name) ?><?= $term->hidden ? ' (no longer offered)' : '' ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <?php if ($described !== []): ?>
+                            <p class="lf-hint" id="<?= Html::e($kind) ?>_hint"><?= Html::e(implode(' ', array_map(static fn (Term $term): string => $term->name . ': ' . $term->description, $described))) ?></p>
+                        <?php endif; ?>
                         <?= $problem($kind) ?>
                     </div>
                 <?php elseif ($field['style'] === 'choices'): ?>
                     <fieldset class="lf-fieldset<?= isset($errors[$kind]) ? ' lf-field--error' : '' ?>" id="<?= Html::e($kind) ?>" tabindex="-1"<?= $describe($kind, false) ?>>
                         <legend><?= Html::e($label) ?><?= $required ?></legend>
-                        <?php if ($field['options'] === []): ?>
-                            <p class="lf-hint">None have been set up yet.</p>
-                        <?php endif; ?>
                         <?php foreach ($field['options'] as $term): ?>
                             <div class="lf-choice">
-                                <input type="checkbox" id="<?= Html::e($kind) ?>_<?= (int) $term->id ?>" name="terms_<?= Html::e($kind) ?>[]" value="<?= (int) $term->id ?>"<?= in_array($term->id, $field['ids'], true) ? ' checked' : '' ?>>
-                                <label for="<?= Html::e($kind) ?>_<?= (int) $term->id ?>"><?= Html::e($term->name) ?></label>
+                                <input type="checkbox" id="<?= Html::e($kind) ?>_<?= (int) $term->id ?>" name="terms_<?= Html::e($kind) ?>[]" value="<?= (int) $term->id ?>"<?= in_array($term->id, $field['ids'], true) ? ' checked' : '' ?><?= $term->description !== '' ? ' aria-describedby="' . Html::e($kind) . '_' . (int) $term->id . '_hint"' : '' ?>>
+                                <label for="<?= Html::e($kind) ?>_<?= (int) $term->id ?>"><?= Html::e($term->name) ?><?= $term->hidden ? ' (no longer offered)' : '' ?></label>
+                                <?php if ($term->description !== ''): ?><p class="lf-hint" id="<?= Html::e($kind) ?>_<?= (int) $term->id ?>_hint"><?= Html::e($term->description) ?></p><?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                         <?= $problem($kind) ?>
@@ -272,5 +280,16 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
     <section class="lf-card" aria-labelledby="more-heading">
         <h2 id="more-heading">More</h2>
         <p><a href="<?= Html::e($urls['preview']) ?>">Preview the story</a> &middot; <a href="<?= Html::e($urls['delete']) ?>">Delete the story</a></p>
+        <div class="lf-inline-actions">
+            <form method="post" action="<?= Html::e($urls['duplicate']) ?>" class="lf-inline-form">
+                <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                <button type="submit" class="lf-button lf-button--secondary">Make a copy</button>
+            </form>
+            <form method="post" action="<?= Html::e($urls['trash']) ?>" class="lf-inline-form">
+                <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                <button type="submit" class="lf-button lf-button--secondary">Move to the trash</button>
+            </form>
+        </div>
+        <p class="lf-hint">A copy has the same details and classification, and its chapters as drafts, but no cover picture. The trash keeps a story, unpublished, until you restore it or the retention period ends.</p>
     </section>
 <?php endif; ?>

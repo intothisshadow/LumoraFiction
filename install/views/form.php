@@ -142,9 +142,28 @@ require __DIR__ . '/_head.php';
                 </fieldset>
             </fieldset>
 
+            <?php if (!empty($presetCatalogue)): ?>
+                <fieldset>
+                    <legend>Starter lists</legend>
+                    <p class="hint">Ready-made values for ratings, warnings and the like, so you do not have to type them. Every one is optional: choose none to start with an empty list and make your own later. You can add a starter list at any time under Settings.</p>
+                    <?php foreach ($presetCatalogue as $kind => $presets): ?>
+                        <div class="field<?= isset($errors['preset_' . $kind]) ? ' field--error' : '' ?>">
+                            <label for="preset_<?= Html::e($kind) ?>"><?= Html::e(LumoraFiction\Services\ClassificationPresets::KIND_LABELS[$kind] ?? $kind) ?></label>
+                            <select id="preset_<?= Html::e($kind) ?>" name="preset_<?= Html::e($kind) ?>"<?= isset($errors['preset_' . $kind]) ? ' aria-invalid="true" aria-describedby="preset_' . Html::e($kind) . '-error"' : '' ?>>
+                                <option value="">No starter list</option>
+                                <?php foreach ($presets as $key => $preset): ?>
+                                    <option value="<?= Html::e($key) ?>"<?= ($values['preset_' . $kind] ?? '') === $key ? ' selected' : '' ?>><?= Html::e($preset['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (isset($errors['preset_' . $kind])): ?><p class="error" id="preset_<?= Html::e($kind) ?>-error"><?= Html::e($errors['preset_' . $kind]) ?></p><?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </fieldset>
+            <?php endif; ?>
+
             <fieldset>
                 <legend>Administrator account</legend>
-                <?= $field('admin_login_name', 'Login name', 'text', $value('admin_login_name'), 'Used only to sign in. It is never shown to anyone, so keep it different from your display name and avoid obvious choices like "admin".', ['required' => '', 'autocomplete' => 'username', 'autocapitalize' => 'none', 'spellcheck' => 'false']) ?>
+                <?= $field('admin_login_name', 'Login name', 'text', $value('admin_login_name'), 'Used only to sign in. It is never shown publicly, so keep it different from your display name and avoid obvious choices like "admin".', ['required' => '', 'autocomplete' => 'username', 'autocapitalize' => 'none', 'spellcheck' => 'false']) ?>
                 <?= $field('admin_display_name', 'Display name', 'text', $value('admin_display_name'), 'Shown publicly as your name on the site.', ['required' => '', 'autocomplete' => 'nickname', 'maxlength' => '100']) ?>
                 <?= $field('admin_email', 'Email address', 'email', $value('admin_email'), '', ['required' => '', 'autocomplete' => 'email']) ?>
                 <?= $field('admin_password', 'Password', 'password', '', 'At least 10 characters. A few ordinary words strung together works well.', ['required' => '', 'autocomplete' => 'new-password']) ?>

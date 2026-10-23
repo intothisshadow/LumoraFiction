@@ -1,0 +1,30 @@
+{
+    "format": 1,
+    "kind": "warning",
+    "presets": [
+        {
+            "key": "ao3",
+            "label": "AO3-style",
+            "description": "The usual archive warnings, including the choice not to use any.",
+            "values": [
+                { "key": "creator_chose_not", "name": "Creator Chose Not To Use Archive Warnings", "description": "The author has left it to readers to decide whether a story is right for them." },
+                { "key": "violence", "name": "Graphic Depictions Of Violence", "description": "Violence is shown in vivid, unsparing detail." },
+                { "key": "major_death", "name": "Major Character Death", "description": "A main character dies in the story." },
+                { "key": "none_apply", "name": "No Archive Warnings Apply", "description": "None of the other warnings apply to this story." },
+                { "key": "non_con", "name": "Rape/Non-Con", "description": "Includes sexual assault or sex without consent." },
+                { "key": "underage", "name": "Underage", "description": "Includes sexual content involving characters under eighteen." }
+            ]
+        },
+        {
+            "key": "minimal",
+            "label": "Minimal",
+            "description": "A short list of the warnings readers ask for most.",
+            "values": [
+                { "key": "violence", "name": "Graphic Violence", "description": "Violence is shown in vivid detail." },
+                { "key": "major_death", "name": "Major Character Death", "description": "A main character dies in the story." },
+                { "key": "sexual_violence", "name": "Sexual Violence", "description": "Includes sexual assault or sex without consent." },
+                { "key": "none_apply", "name": "None Apply", "description": "None of the other warnings apply to this story." }
+            ]
+        }
+    ]
+}

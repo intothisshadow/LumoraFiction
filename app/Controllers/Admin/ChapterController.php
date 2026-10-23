@@ -27,6 +27,7 @@ use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\SafeHtml;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Chapter;
+use LumoraFiction\Models\ChapterRevision;
 use LumoraFiction\Models\ContentFormat;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
@@ -311,6 +312,145 @@ final class ChapterController extends WriterController
     }
 
     /**
+     * Moves the chapter to the trash. Nothing is lost, so there is nothing to confirm.
+     *
+     * @param array<string, string> $params
+     */
+    public function trash(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $chapter = $this->chapterFrom($user, $params);
+        $story = $chapter === null ? null : $this->stories->find($chapter->storyId);
+
+        if ($chapter === null || $story === null) {
+            return $this->missing('That chapter is not available.');
+        }
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->formPage($request, $user, $story, $chapter, $this->valuesOf($chapter), ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $this->chapters->trash($user, $chapter->id, $request->ip());
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        }
+
+        $this->flash->add('success', 'The chapter was moved to the trash. You can restore it from the Trash page.');
+
+        return Response::redirect(AdminUrl::to(self::PATH . '/' . $story->id . '/chapters'), 303);
+    }
+
+    /**
+     * The earlier versions of a chapter.
+     *
+     * @param array<string, string> $params
+     */
+    public function revisions(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $chapter = $this->chapterFrom($user, $params);
+
+        if ($chapter === null) {
+            return $this->missing('That chapter is not available.');
+        }
+
+        return $this->view->render('chapter-revisions', [
+            'chapter' => $chapter,
+            'revisions' => $this->chapters->revisions($user, $chapter->id),
+            'authors' => $this->users->displayNames(array_map(static fn (ChapterRevision $revision): int => $revision->createdBy ?? 0, $this->chapters->revisions($user, $chapter->id))),
+            'baseUrl' => AdminUrl::to('chapters/' . $chapter->id . '/revisions'),
+            'backUrl' => AdminUrl::to('chapters/' . $chapter->id),
+        ], $user, 'Earlier versions of chapter ' . $chapter->number, self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * One earlier version, shown as it would read, with a button to go back to it.
+     *
+     * @param array<string, string> $params
+     */
+    public function revision(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $chapter = $this->chapterFrom($user, $params);
+        $revisionId = ctype_digit($params['revision'] ?? '') ? (int) $params['revision'] : 0;
+
+        if ($chapter === null || $revisionId < 1) {
+            return $this->missing('That chapter is not available.');
+        }
+
+        try {
+            $revision = $this->chapters->revision($user, $chapter->id, $revisionId);
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        }
+
+        return $this->view->render('chapter-revision', [
+            'chapter' => $chapter,
+            'revision' => $revision,
+            // Rendered through the same sanitiser as the live chapter, so an old version can never carry anything a new one cannot.
+            'body' => $this->renderer->render($revision->content, $revision->format),
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'action' => AdminUrl::to('chapters/' . $chapter->id . '/revisions/' . $revision->id . '/restore'),
+            'listUrl' => AdminUrl::to('chapters/' . $chapter->id . '/revisions'),
+        ], $user, 'An earlier version of chapter ' . $chapter->number, self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Goes back to an earlier version.
+     *
+     * @param array<string, string> $params
+     */
+    public function restoreRevision(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $chapter = $this->chapterFrom($user, $params);
+        $revisionId = ctype_digit($params['revision'] ?? '') ? (int) $params['revision'] : 0;
+
+        if ($chapter === null || $revisionId < 1) {
+            return $this->missing('That chapter is not available.');
+        }
+
+        $back = Response::redirect(AdminUrl::to('chapters/' . $chapter->id . '/revisions'), 303);
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return $back;
+        }
+
+        try {
+            $this->chapters->restoreRevision($user, $chapter->id, $revisionId, $request->ip());
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        }
+
+        $this->flash->add('success', 'The chapter now has the text of that earlier version. The text it had before is kept as another earlier version.');
+
+        return Response::redirect(AdminUrl::to('chapters/' . $chapter->id), 303);
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function preview(array $params, Request $request): Response
@@ -498,7 +638,10 @@ final class ChapterController extends WriterController
             'urls' => $chapter === null ? [] : [
                 'preview' => AdminUrl::to('chapters/' . $chapter->id . '/preview'),
                 'delete' => AdminUrl::to('chapters/' . $chapter->id . '/delete'),
+                'trash' => AdminUrl::to('chapters/' . $chapter->id . '/trash'),
+                'revisions' => AdminUrl::to('chapters/' . $chapter->id . '/revisions'),
             ],
+            'revisionCount' => $chapter === null ? 0 : $this->chapters->countRevisions($chapter->id),
             'limits' => ['title' => ChapterService::TITLE_MAX, 'notes' => ChapterService::NOTES_MAX],
         ], $user, $chapter === null ? 'New chapter' : 'Edit chapter', self::PATH, $this->flash->pull($request->cookies), $status);
     }

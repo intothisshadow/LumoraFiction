@@ -40,7 +40,13 @@ final readonly class Story
         public ?DateTimeImmutable $rejectedAt = null,
         public string $coverFile = '',
         public string $coverAlt = '',
+        public ?DateTimeImmutable $trashedAt = null,
     ) {
+    }
+
+    public function isTrashed(): bool
+    {
+        return $this->trashedAt !== null;
     }
 
     public function hasCover(): bool

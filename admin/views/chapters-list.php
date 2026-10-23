@@ -48,6 +48,7 @@ $last = count($chapters) - 1;
                 <th scope="col">Words</th>
                 <th scope="col">Order</th>
                 <th scope="col">Visibility</th>
+                <th scope="col">Trash</th>
             </tr>
         </thead>
         <tbody>
@@ -70,6 +71,12 @@ $last = count($chapters) - 1;
                         <form method="post" action="<?= Html::e($urls['chapter'] . '/' . $chapter->id . '/' . ($chapter->state === PublicationState::Published ? 'unpublish' : 'publish')) ?>" class="lf-inline-form">
                             <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
                             <button type="submit" class="lf-button lf-button--quiet" aria-label="<?= $chapter->state === PublicationState::Published ? 'Unpublish' : 'Publish' ?> <?= Html::e($name) ?>"><?= $chapter->state === PublicationState::Published ? 'Unpublish' : 'Publish' ?></button>
+                        </form>
+                    </td>
+                    <td>
+                        <form method="post" action="<?= Html::e($urls['chapter'] . '/' . $chapter->id . '/trash') ?>" class="lf-inline-form">
+                            <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                            <button type="submit" class="lf-button lf-button--quiet" aria-label="Move <?= Html::e($name) ?> to the trash">Move to the trash</button>
                         </form>
                     </td>
                 </tr>

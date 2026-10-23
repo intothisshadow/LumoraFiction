@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 
 /** @var array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool} $values */
@@ -23,6 +24,10 @@ use LumoraFiction\Helpers\Html;
 /** @var list<array{value: string, label: string}> $roles */
 /** @var string $csrfToken */
 /** @var string $action */
+/** @var array<string, array<string, array{label: string, description: string, values: list<array{key: string, name: string, description: string}>}>> $catalogue starter lists by list, then preset key */
+/** @var array<string, string> $applied the starter list last applied to each list */
+/** @var string $presetUrl */
+/** @var string $presetToken */
 
 $modeHints = [
     'both' => 'Both kinds of story, with the fields each needs.',
@@ -106,3 +111,34 @@ $modeHints = [
 
     <p><button type="submit" class="lf-button">Save settings</button></p>
 </form>
+
+<?php if ($catalogue !== []): ?>
+    <section class="lf-card lf-presets" aria-labelledby="lf-presets-heading">
+        <h2 id="lf-presets-heading">Starter lists</h2>
+        <p class="lf-hint">A starter list adds a ready-made set of values to a list so you do not have to type them. It is always optional: leave a list empty to make your own values under <a href="<?= Html::e(AdminUrl::to('taxonomy')) ?>">Classification</a>, where every value can be renamed, described, put in order or hidden. Adding a list never removes or changes anything you have already edited, and adding it again only restores values you deleted.</p>
+        <p class="lf-hint">Starter lists exist for <strong>ratings</strong> (AO3-style, FanFiction.net-style, movie-style or a minimal three-value set), <strong>archive warnings</strong> (AO3-style or minimal), <strong>relationship categories</strong> (the standard six) and <strong>story status</strong> (with or without &ldquo;abandoned&rdquo;). Fandoms, characters, relationships, tags, genres and categories have none: writers propose the first four as they write, and you add genres and categories yourself under <a href="<?= Html::e(AdminUrl::to('taxonomy')) ?>">Classification</a>.</p>
+
+        <?php foreach ($catalogue as $kind => $presets): ?>
+            <form method="post" action="<?= Html::e($presetUrl) ?>" class="lf-form lf-presets__form">
+                <input type="hidden" name="csrf_token" value="<?= Html::e($presetToken) ?>">
+                <input type="hidden" name="kind" value="<?= Html::e($kind) ?>">
+                <div class="lf-field">
+                    <label for="preset_<?= Html::e($kind) ?>"><?= Html::e(LumoraFiction\Services\ClassificationPresets::KIND_LABELS[$kind] ?? $kind) ?></label>
+                    <select id="preset_<?= Html::e($kind) ?>" name="preset" aria-describedby="preset_<?= Html::e($kind) ?>_hint">
+                        <option value="">No starter list</option>
+                        <?php foreach ($presets as $key => $preset): ?>
+                            <option value="<?= Html::e($key) ?>"><?= Html::e($preset['label']) ?> (<?= count($preset['values']) ?> values)</option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="lf-hint" id="preset_<?= Html::e($kind) ?>_hint">
+                        <?php foreach ($presets as $key => $preset): ?>
+                            <?= Html::e($preset['label']) ?>: <?= Html::e(implode(', ', array_column($preset['values'], 'name'))) ?>.
+                        <?php endforeach; ?>
+                        <?php if (isset($applied[$kind], $presets[$applied[$kind]])): ?>Last added: <?= Html::e($presets[$applied[$kind]]['label']) ?>.<?php endif; ?>
+                    </p>
+                </div>
+                <p><button type="submit" class="lf-button lf-button--secondary">Add<span class="lf-visually-hidden"> to <?= Html::e(strtolower(LumoraFiction\Services\ClassificationPresets::KIND_LABELS[$kind] ?? $kind)) ?></span></button></p>
+            </form>
+        <?php endforeach; ?>
+    </section>
+<?php endif; ?>

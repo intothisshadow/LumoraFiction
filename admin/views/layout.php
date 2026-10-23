@@ -29,6 +29,7 @@ use LumoraFiction\Models\User;
 /** @var string $signOutToken */
 /** @var string $assetVersion */
 /** @var int|null $alertCount alerts needing attention; null for anyone who may not see alerts */
+/** @var int|null $notificationCount unread notifications; null for anyone who has no inbox */
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,6 +50,9 @@ use LumoraFiction\Models\User;
         <div class="lf-admin__tools">
             <a class="lf-button lf-button--quiet lf-admin__site-link" href="<?= Html::e(AdminUrl::site()) ?>">View site</a>
             <a class="lf-button lf-button--quiet lf-admin__account-link" href="<?= Html::e(AdminUrl::account()) ?>">My account</a>
+            <?php if ($notificationCount !== null && $notificationCount > 0): ?>
+                <a class="lf-button lf-button--quiet lf-notification-link" href="<?= Html::e(AdminUrl::to('notifications')) ?>">Notifications<span class="lf-notification-link__count"> (<?= (int) $notificationCount ?>)</span></a>
+            <?php endif; ?>
             <?php if ($alertCount !== null && $alertCount > 0): ?>
                 <a class="lf-button lf-button--quiet lf-alert-link" href="<?= Html::e(AdminUrl::to('maintenance/alerts')) ?>">Alerts<span class="lf-alert-link__count"> (<?= (int) $alertCount ?>)</span></a>
             <?php endif; ?>

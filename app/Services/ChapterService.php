@@ -18,9 +18,12 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Helpers\WordCounter;
+use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\Chapter;
+use LumoraFiction\Models\ChapterRevision;
 use LumoraFiction\Models\ContentFormat;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\User;
@@ -45,10 +48,14 @@ final class ChapterService
 
     private const NUMBER_ATTEMPTS = 3;
 
+    /** A trashed chapter is parked at a number far outside the story's own 1 to n, which is also past the renumbering offset. */
+    private const TRASH_NUMBER_BASE = 2000000;
+
     public function __construct(
         private readonly Database $database,
         private readonly StoryService $stories,
         private readonly AuditLogService $audit,
+        private readonly ?Configuration $config = null,
     ) {
     }
 
@@ -88,6 +95,11 @@ final class ChapterService
         $values = $this->validated($input, $chapter);
 
         $this->database->transaction(function () use ($actor, $chapter, $values, $ipAddress): void {
+            // What is about to be replaced is kept first, only when something it holds actually changes.
+            if ($values['title'] !== $chapter->title || $values['content'] !== $chapter->content || $values['format'] !== $chapter->format || $values['notes'] !== $chapter->notes) {
+                $this->keepRevision($chapter, $actor->id);
+            }
+
             $this->database->execute(
                 'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes,
                  word_count = :words, updated_at = :updated WHERE id = :id',
@@ -121,7 +133,7 @@ final class ChapterService
         $story = $this->stories->manageable($actor, $storyId);
 
         $current = array_map('intval', array_column($this->database->fetchAll(
-            'SELECT id FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            'SELECT id FROM {prefix}chapters WHERE story_id = :story AND trashed_at IS NULL ORDER BY number',
             ['story' => $story->id],
         ), 'id'));
 
@@ -140,7 +152,7 @@ final class ChapterService
             // Two steps because (story, number) is unique: moving every chapter out of range first means no
             // chapter ever briefly shares a number with another.
             $this->database->execute(
-                'UPDATE {prefix}chapters SET number = number + ' . self::RENUMBER_OFFSET . ' WHERE story_id = :story',
+                'UPDATE {prefix}chapters SET number = number + ' . self::RENUMBER_OFFSET . ' WHERE story_id = :story AND trashed_at IS NULL',
                 ['story' => $story->id],
             );
 
@@ -173,7 +185,7 @@ final class ChapterService
         }
 
         $order = array_map('intval', array_column($this->database->fetchAll(
-            'SELECT id FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            'SELECT id FROM {prefix}chapters WHERE story_id = :story AND trashed_at IS NULL ORDER BY number',
             ['story' => $chapter->storyId],
         ), 'id'));
 
@@ -219,7 +231,7 @@ final class ChapterService
 
         foreach ($this->database->fetchAll(
             "SELECT story_id, COUNT(*) AS total, SUM(CASE WHEN publication_state = 'published' THEN 1 ELSE 0 END) AS published
-             FROM {prefix}chapters WHERE story_id IN (" . implode(', ', array_map(static fn (string $key): string => ':' . $key, array_keys($params))) . ') GROUP BY story_id',
+             FROM {prefix}chapters WHERE trashed_at IS NULL AND story_id IN (" . implode(', ', array_map(static fn (string $key): string => ':' . $key, array_keys($params))) . ') GROUP BY story_id',
             $params,
         ) as $row) {
             $counts[(int) $row['story_id']] = ['total' => (int) $row['total'], 'published' => (int) $row['published']];
@@ -259,20 +271,287 @@ final class ChapterService
      */
     public function delete(User $actor, int $chapterId, string $ipAddress = ''): void
     {
+        $this->remove($this->manageableIncludingTrashed($actor, $chapterId), $actor, $ipAddress);
+    }
+
+    /**
+     * Moves a chapter to the trash. It leaves the story at once, a published chapter becomes unpublished, later chapters
+     * move up, and the chapter and its earlier versions are kept so it can be restored. Bookmarks and reading places
+     * pointing at it are dropped, as they are when a chapter is deleted.
+     *
+     * @throws StoryPermissionException
+     */
+    public function trash(User $actor, int $chapterId, string $ipAddress = ''): Chapter
+    {
         $chapter = $this->manageable($actor, $chapterId);
 
         $this->database->transaction(function () use ($actor, $chapter, $ipAddress): void {
-            $this->database->execute('DELETE FROM {prefix}chapters WHERE id = :id', ['id' => $chapter->id]);
+            $now = date('Y-m-d H:i:s');
+            $state = $chapter->state === PublicationState::Published ? PublicationState::Unpublished : $chapter->state;
+
+            // Moved out of the story's numbering first, so closing the gap below can never meet it.
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET trashed_at = :trashed, number = :parked, publication_state = :state, updated_at = :updated WHERE id = :id',
+                ['trashed' => $now, 'parked' => self::TRASH_NUMBER_BASE + $chapter->id, 'state' => $state->value, 'updated' => $now, 'id' => $chapter->id],
+            );
             $this->database->execute('DELETE FROM {prefix}bookmarks WHERE chapter_id = :id', ['id' => $chapter->id]);
             $this->database->execute('DELETE FROM {prefix}reading_progress WHERE chapter_id = :id', ['id' => $chapter->id]);
             $this->database->execute(
-                'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number ORDER BY number ASC',
+                'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number AND trashed_at IS NULL ORDER BY number ASC',
                 ['story' => $chapter->storyId, 'number' => $chapter->number],
             );
             $this->stories->refreshWordCount($chapter->storyId);
             $this->stories->refreshTermCounts($chapter->storyId);
-            $this->audit->record($actor->id, 'chapter.delete', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
+            $this->audit->record($actor->id, 'chapter.trash', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
         });
+
+        return $this->mustFind($chapter->id);
+    }
+
+    /**
+     * Removes a chapter that is in the trash for good; one that is not is refused, so a stale or forged request from the
+     * trash screen cannot delete a live chapter.
+     *
+     * @throws StoryPermissionException
+     */
+    public function purge(User $actor, int $chapterId, string $ipAddress = ''): void
+    {
+        $chapter = $this->manageableIncludingTrashed($actor, $chapterId);
+
+        if (!$chapter->isTrashed()) {
+            throw new StoryPermissionException('That chapter is not in the trash.');
+        }
+
+        $this->remove($chapter, $actor, $ipAddress);
+    }
+
+    /**
+     * Brings a chapter back from the trash as a draft at the end of its story. Its story must not be in the trash itself.
+     *
+     * @throws StoryPermissionException
+     * @throws StoryValidationException when the story is in the trash
+     */
+    public function restore(User $actor, int $chapterId, string $ipAddress = ''): Chapter
+    {
+        $chapter = $this->manageableIncludingTrashed($actor, $chapterId);
+
+        if (!$chapter->isTrashed()) {
+            return $chapter;
+        }
+
+        if ($this->stories->find($chapter->storyId)?->isTrashed() === true) {
+            throw new StoryValidationException(['chapter' => 'Restore the story first.']);
+        }
+
+        $this->database->transaction(function () use ($actor, $chapter, $ipAddress): void {
+            $next = (int) $this->database->fetchColumn(
+                'SELECT COALESCE(MAX(number), 0) + 1 FROM {prefix}chapters WHERE story_id = :story AND trashed_at IS NULL',
+                ['story' => $chapter->storyId],
+            );
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET trashed_at = NULL, number = :number, updated_at = :updated WHERE id = :id',
+                ['number' => $next, 'updated' => date('Y-m-d H:i:s'), 'id' => $chapter->id],
+            );
+            $this->stories->refreshWordCount($chapter->storyId);
+            $this->audit->record($actor->id, 'chapter.restore', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId], $ipAddress);
+        });
+
+        return $this->mustFind($chapter->id);
+    }
+
+    /**
+     * Chapters in the trash that the person may restore: those of their own stories, or with $all and the right to edit
+     * every story, anyone's. Each comes with the title of its story and whether that story is in the trash too.
+     *
+     * @return list<array{chapter: Chapter, story_id: int, story_title: string, story_trashed: bool}> most recently trashed first
+     */
+    public function listTrashed(User $actor, bool $all = false, int $limit = 100): array
+    {
+        if (!$actor->can(Capability::WriteStories)) {
+            return [];
+        }
+
+        $everyone = $all && $actor->can(Capability::EditAnyStory);
+        $rows = $this->database->fetchAll(
+            'SELECT c.*, s.title AS story_title, s.trashed_at AS story_trashed_at FROM {prefix}chapters c JOIN {prefix}stories s ON s.id = c.story_id
+             WHERE c.trashed_at IS NOT NULL' . ($everyone ? '' : ' AND s.owner_id = :owner') . ' ORDER BY c.trashed_at DESC, c.id DESC LIMIT ' . max(1, min(200, $limit)),
+            $everyone ? [] : ['owner' => $actor->id],
+        );
+
+        return array_map(fn (array $row): array => [
+            'chapter' => $this->hydrate($row),
+            'story_id' => (int) $row['story_id'],
+            'story_title' => (string) $row['story_title'],
+            'story_trashed' => $row['story_trashed_at'] !== null,
+        ], $rows);
+    }
+
+    /**
+     * Permanently removes the trashed chapters kept longer than the retention period; zero days keeps them.
+     *
+     * @return int how many were removed
+     */
+    public function purgeExpiredTrash(): int
+    {
+        $days = $this->config === null ? RetentionSettings::DEFAULT_TRASH_DAYS : RetentionSettings::trashDays($this->config);
+
+        if ($days < 1) {
+            return 0;
+        }
+
+        $removed = 0;
+
+        foreach ($this->database->fetchAll(
+            'SELECT * FROM {prefix}chapters WHERE trashed_at IS NOT NULL AND trashed_at < :cutoff ORDER BY trashed_at LIMIT 200',
+            ['cutoff' => date('Y-m-d H:i:s', time() - $days * 86400)],
+        ) as $row) {
+            $this->remove($this->hydrate($row), null, '');
+            $removed++;
+        }
+
+        return $removed;
+    }
+
+    /**
+     * Earlier versions of a chapter, newest first, without their text.
+     *
+     * @return list<ChapterRevision>
+     * @throws StoryPermissionException
+     */
+    public function revisions(User $actor, int $chapterId): array
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+
+        return array_map(
+            fn (array $row): ChapterRevision => $this->hydrateRevision($row),
+            $this->database->fetchAll('SELECT * FROM {prefix}chapter_revisions WHERE chapter_id = :chapter ORDER BY id DESC', ['chapter' => $chapter->id]),
+        );
+    }
+
+    public function countRevisions(int $chapterId): int
+    {
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}chapter_revisions WHERE chapter_id = :chapter', ['chapter' => $chapterId]);
+    }
+
+    /**
+     * @throws StoryPermissionException when the chapter, or the version of it, is not there or not the caller's to see
+     */
+    public function revision(User $actor, int $chapterId, int $revisionId): ChapterRevision
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+        $row = $this->database->fetchOne('SELECT * FROM {prefix}chapter_revisions WHERE id = :id AND chapter_id = :chapter', ['id' => $revisionId, 'chapter' => $chapter->id]);
+
+        if ($row === null) {
+            throw new StoryPermissionException('That earlier version is not available.');
+        }
+
+        return $this->hydrateRevision($row);
+    }
+
+    /**
+     * Puts an earlier version back as the chapter's text. The text it replaces is kept as a version too, so going back
+     * can itself be undone. The chapter keeps its state, so a published chapter shows the older text straight away.
+     *
+     * @throws StoryPermissionException
+     */
+    public function restoreRevision(User $actor, int $chapterId, int $revisionId, string $ipAddress = ''): Chapter
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+        $revision = $this->revision($actor, $chapterId, $revisionId);
+
+        $this->database->transaction(function () use ($actor, $chapter, $revision, $ipAddress): void {
+            $this->keepRevision($chapter, $actor->id);
+            $this->database->execute(
+                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes,
+                 word_count = :words, updated_at = :updated WHERE id = :id',
+                [
+                    'title' => $revision->title,
+                    'content' => $revision->content,
+                    'format' => $revision->format->value,
+                    'notes' => $revision->notes,
+                    'words' => WordCounter::count($revision->content, $revision->format),
+                    'updated' => date('Y-m-d H:i:s'),
+                    'id' => $chapter->id,
+                ],
+            );
+            $this->stories->refreshWordCount($chapter->storyId);
+            $this->audit->record($actor->id, 'chapter.revision_restore', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'revision' => $revision->id], $ipAddress);
+        });
+
+        return $this->mustFind($chapter->id);
+    }
+
+    /**
+     * Saves the chapter as it stands, then drops the oldest versions beyond the number the administrator keeps.
+     */
+    private function keepRevision(Chapter $chapter, ?int $userId): void
+    {
+        $this->database->execute(
+            'INSERT INTO {prefix}chapter_revisions (chapter_id, title, content, content_format, notes, word_count, created_by, created_at)
+             VALUES (:chapter, :title, :content, :format, :notes, :words, :user, :created)',
+            [
+                'chapter' => $chapter->id,
+                'title' => $chapter->title,
+                'content' => $chapter->content,
+                'format' => $chapter->format->value,
+                'notes' => $chapter->notes,
+                'words' => $chapter->wordCount,
+                'user' => $userId,
+                'created' => date('Y-m-d H:i:s'),
+            ],
+        );
+
+        $kept = $this->config === null ? RetentionSettings::DEFAULT_REVISIONS : RetentionSettings::revisionsKept($this->config);
+
+        foreach (array_column($this->database->fetchAll(
+            'SELECT id FROM {prefix}chapter_revisions WHERE chapter_id = :chapter ORDER BY id DESC LIMIT 1000 OFFSET ' . $kept,
+            ['chapter' => $chapter->id],
+        ), 'id') as $old) {
+            $this->database->execute('DELETE FROM {prefix}chapter_revisions WHERE id = :id', ['id' => (int) $old]);
+        }
+    }
+
+    /**
+     * Deletes a chapter and its earlier versions. $actor is null when the retention period does the removing. A chapter
+     * that is in the trash is outside the story's numbering, so only a live one closes a gap.
+     */
+    private function remove(Chapter $chapter, ?User $actor, string $ipAddress): void
+    {
+        $this->database->transaction(function () use ($actor, $chapter, $ipAddress): void {
+            $this->database->execute('DELETE FROM {prefix}chapters WHERE id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}chapter_revisions WHERE chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}bookmarks WHERE chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}reading_progress WHERE chapter_id = :id', ['id' => $chapter->id]);
+
+            if (!$chapter->isTrashed()) {
+                $this->database->execute(
+                    'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number AND trashed_at IS NULL ORDER BY number ASC',
+                    ['story' => $chapter->storyId, 'number' => $chapter->number],
+                );
+            }
+
+            $this->stories->refreshWordCount($chapter->storyId);
+            $this->stories->refreshTermCounts($chapter->storyId);
+            $this->audit->record($actor?->id, $actor === null ? 'chapter.purge' : 'chapter.delete', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function hydrateRevision(array $row): ChapterRevision
+    {
+        return new ChapterRevision(
+            id: (int) $row['id'],
+            chapterId: (int) $row['chapter_id'],
+            title: (string) $row['title'],
+            content: (string) $row['content'],
+            format: ContentFormat::tryFrom((string) $row['content_format']) ?? ContentFormat::Plain,
+            notes: (string) $row['notes'],
+            wordCount: (int) $row['word_count'],
+            createdBy: $row['created_by'] === null ? null : (int) $row['created_by'],
+            createdAt: new DateTimeImmutable((string) $row['created_at']),
+        );
     }
 
     public function find(int $id): ?Chapter
@@ -293,7 +572,7 @@ final class ChapterService
         $story = $this->stories->manageable($actor, $storyId);
 
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT * FROM {prefix}chapters WHERE story_id = :story ORDER BY number',
+            'SELECT * FROM {prefix}chapters WHERE story_id = :story AND trashed_at IS NULL ORDER BY number',
             ['story' => $story->id],
         ));
     }
@@ -330,11 +609,30 @@ final class ChapterService
     {
         $chapter = $this->find($chapterId);
 
-        if ($chapter === null) {
+        // A chapter in the trash is changed only by restoring it or deleting it for good.
+        if ($chapter === null || $chapter->isTrashed()) {
             throw new StoryPermissionException('That chapter is not available.');
         }
 
         $this->stories->manageable($actor, $chapter->storyId);
+
+        return $chapter;
+    }
+
+    /**
+     * Like manageable(), but also for a chapter in the trash, and for one whose story is.
+     *
+     * @throws StoryPermissionException
+     */
+    public function manageableIncludingTrashed(User $actor, int $chapterId): Chapter
+    {
+        $chapter = $this->find($chapterId);
+
+        if ($chapter === null) {
+            throw new StoryPermissionException('That chapter is not available.');
+        }
+
+        $this->stories->manageableIncludingTrashed($actor, $chapter->storyId);
 
         return $chapter;
     }
@@ -399,7 +697,7 @@ final class ChapterService
 
         for ($attempt = 1; ; $attempt++) {
             $next = (int) $this->database->fetchColumn(
-                'SELECT COALESCE(MAX(number), 0) + 1 FROM {prefix}chapters WHERE story_id = :story',
+                'SELECT COALESCE(MAX(number), 0) + 1 FROM {prefix}chapters WHERE story_id = :story AND trashed_at IS NULL',
                 ['story' => $storyId],
             );
 
@@ -490,6 +788,7 @@ final class ChapterService
             publishedAt: is_string($row['published_at']) && $row['published_at'] !== '' ? new DateTimeImmutable($row['published_at']) : null,
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
+            trashedAt: is_string($row['trashed_at'] ?? null) && $row['trashed_at'] !== '' ? new DateTimeImmutable($row['trashed_at']) : null,
         );
     }
 }

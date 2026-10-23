@@ -23,9 +23,13 @@ use LumoraFiction\Core\Database\DatabaseConnectionException;
 use LumoraFiction\Core\Database\Migrator;
 use LumoraFiction\Core\Errors\ErrorHandler;
 use LumoraFiction\Core\Security\PasswordPolicy;
+use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
 use LumoraFiction\Models\UserStatus;
+use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\ClassificationPresets;
+use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
 use Throwable;
 
@@ -40,6 +44,7 @@ final class Installer
         private readonly string $root,
         private readonly ErrorHandler $errors,
         private readonly ?string $migrationsPath = null,
+        private readonly ?string $presetsPath = null,
     ) {
     }
 
@@ -71,8 +76,9 @@ final class Installer
             $config = new Configuration($configFile);
             $config->bindDatabase($database);
 
-            $this->createAdministrator($database, $config, $request);
+            $administrator = $this->createAdministrator($database, $config, $request);
             $this->saveSettings($config, $request);
+            $this->applyStarterLists($database, $config, $administrator, $request);
 
             Configuration::generate($configFile, [
                 'db_host' => $request->dbHost,
@@ -109,7 +115,7 @@ final class Installer
         }
     }
 
-    private function createAdministrator(Database $database, Configuration $config, InstallRequest $request): void
+    private function createAdministrator(Database $database, Configuration $config, InstallRequest $request): User
     {
         $users = new UserService($database, new PasswordPolicy($config));
 
@@ -124,6 +130,25 @@ final class Installer
 
         // The person installing controls this address by definition, so it needs no confirmation email.
         $users->markEmailVerified($user->id);
+
+        return $users->findById($user->id) ?? $user;
+    }
+
+    /**
+     * Adds the starter lists the person chose, if any. Choosing none leaves a list empty, which the site handles.
+     */
+    private function applyStarterLists(Database $database, Configuration $config, User $administrator, InstallRequest $request): void
+    {
+        if ($request->presets === []) {
+            return;
+        }
+
+        $audit = new AuditLogService($database);
+        $presets = new ClassificationPresets($database, $config, new TaxonomyService($database, $config, $audit), $audit, $this->presetsPath ?? $this->root . '/app/Data/presets');
+
+        foreach ($request->presets as $kind => $key) {
+            $presets->apply($administrator, $kind, $key);
+        }
     }
 
     private function saveSettings(Configuration $config, InstallRequest $request): void

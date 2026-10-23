@@ -24,7 +24,7 @@ use LumoraFiction\Models\TermType;
 /** @var Term|null $term */
 /** @var list<array{id: int, alias: string}> $aliases */
 /** @var string $parentName */
-/** @var array{name: string, fandom: string, alias: string} $values */
+/** @var array{name: string, fandom: string, alias: string, description?: string, hidden?: bool} $values */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
 /** @var string $csrfToken */
@@ -60,6 +60,20 @@ $editing = $mode === 'edit' && $term !== null;
             </div>
         <?php elseif ($editing && $type->belongsToFandom()): ?>
             <p><strong>Fandom:</strong> <?= Html::e($parentName !== '' ? $parentName : 'None') ?></p>
+        <?php endif; ?>
+
+        <?php if ($editing && !$type->writersMayPropose()): ?>
+            <div class="lf-field<?= isset($errors['name']) && str_contains($errors['name'], 'description') ? ' lf-field--error' : '' ?>">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="2" maxlength="300" aria-describedby="description_hint"><?= Html::e((string) ($values['description'] ?? $term->description)) ?></textarea>
+                <p class="lf-hint" id="description_hint">Shown to writers next to this choice. Up to 300 characters. Optional.</p>
+            </div>
+
+            <div class="lf-choice">
+                <input type="checkbox" id="hidden" name="hidden" value="1"<?= ($values['hidden'] ?? $term->hidden) ? ' checked' : '' ?>>
+                <label for="hidden">Hidden</label>
+                <p class="lf-hint">A hidden <?= Html::e(strtolower($type->label())) ?> cannot be chosen for new stories and is left out of the public indexes and filters. Stories that already have it keep it.</p>
+            </div>
         <?php endif; ?>
 
         <?php if ($editing): ?>

@@ -275,6 +275,74 @@ final class StoryController extends WriterController
     }
 
     /**
+     * Moves the story to the trash. Nothing is lost, so there is nothing to confirm.
+     *
+     * @param array<string, string> $params
+     */
+    public function trash(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $story = $this->storyFrom($user, $params);
+
+        if ($story === null) {
+            return $this->missing('That story is not available.');
+        }
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->formPage($request, $user, $story, $this->valuesOf($story), $this->termState(null, $story), ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $this->stories->trash($user, $story->id, $request->ip());
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        }
+
+        $this->flash->add('success', '"' . $story->title . '" was moved to the trash. You can restore it from the Trash page.');
+
+        return Response::redirect(AdminUrl::to(self::PATH), 303);
+    }
+
+    /**
+     * Makes a copy of the story, with its chapters as drafts, and opens it.
+     *
+     * @param array<string, string> $params
+     */
+    public function duplicate(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $story = $this->storyFrom($user, $params);
+
+        if ($story === null) {
+            return $this->missing('That story is not available.');
+        }
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->formPage($request, $user, $story, $this->valuesOf($story), $this->termState(null, $story), ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $copy = $this->stories->duplicate($user, $story->id, $request->ip());
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        }
+
+        $this->flash->add('success', 'This is a copy of "' . $story->title . '". Its chapters are drafts, and it has no cover picture.');
+
+        return Response::redirect(AdminUrl::to(self::PATH . '/' . $copy->id), 303);
+    }
+
+    /**
      * Deleting asks for confirmation on a page of its own, so the first post only shows that page.
      *
      * @param array<string, string> $params
@@ -296,7 +364,7 @@ final class StoryController extends WriterController
             return Response::redirect(AdminUrl::to(self::PATH), 303);
         }
 
-        if (!in_array($action, ['publish', 'unpublish', 'delete'], true)) {
+        if (!in_array($action, ['publish', 'unpublish', 'trash', 'delete'], true)) {
             $this->flash->add('error', 'Choose what to do with the selected stories.');
 
             return Response::redirect(AdminUrl::to(self::PATH), 303);
@@ -322,7 +390,7 @@ final class StoryController extends WriterController
 
         $this->flash->add(
             $result['done'] > 0 ? 'success' : 'warning',
-            $result['done'] . ($result['done'] === 1 ? ' story was ' : ' stories were ') . ['publish' => 'published or sent for approval', 'unpublish' => 'unpublished', 'delete' => 'deleted'][$action] . '.'
+            $result['done'] . ($result['done'] === 1 ? ' story was ' : ' stories were ') . ['publish' => 'published or sent for approval', 'unpublish' => 'unpublished', 'trash' => 'moved to the trash', 'delete' => 'deleted'][$action] . '.'
             . ($result['skipped'] > 0 ? ' ' . $result['skipped'] . ' could not be changed (it may not be yours, or it still lacks required classification).' : ''),
         );
 
@@ -478,7 +546,20 @@ final class StoryController extends WriterController
         foreach ($this->taxonomy->enabledTypes() as $type) {
             $single = $type->isSingleChoice();
             $names = !$single && $type->writersMayPropose();
-            $options = $names ? [] : $this->taxonomy->list($type, [], 200);
+            $options = $names ? [] : $this->taxonomy->list($type, ['visible' => true], 200);
+
+            // A value that was hidden after this story chose it stays on the list, so saving the form does not drop it.
+            if (!$names) {
+                $listed = array_map(static fn (Term $term): int => $term->id, $options);
+
+                foreach ($state[$type->value]['ids'] ?? [] as $chosen) {
+                    $kept = in_array($chosen, $listed, true) ? null : $this->taxonomy->find($chosen);
+
+                    if ($kept !== null && $kept->type === $type) {
+                        $options[] = $kept;
+                    }
+                }
+            }
 
             $fields[] = [
                 'type' => $type,
@@ -505,7 +586,7 @@ final class StoryController extends WriterController
             'values' => $values,
             'fields' => $fields,
             'languages' => $languages,
-            'workStatuses' => WorkStatus::cases(),
+            'workStatuses' => $this->stories->offeredStatuses($story),
             'errors' => $errors,
             'errorSummary' => $this->errorSummary($errors),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
@@ -517,6 +598,8 @@ final class StoryController extends WriterController
                 'addChapter' => $base . '/chapters/new',
                 'preview' => $base . '/preview',
                 'delete' => $base . '/delete',
+                'trash' => $base . '/trash',
+                'duplicate' => $base . '/duplicate',
                 'publish' => $base . '/publish',
                 'unpublish' => $base . '/unpublish',
             ],
