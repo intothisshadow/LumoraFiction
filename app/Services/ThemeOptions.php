@@ -144,6 +144,14 @@ final class ThemeOptions
     }
 
     /**
+     * Drops everything stored for a theme, used when the theme is deleted so a later install starts clean.
+     */
+    public function forget(string $themeSlug): void
+    {
+        $this->config->forgetSetting(self::settingName($themeSlug));
+    }
+
+    /**
      * The stylesheet for a theme's options, empty while nothing has been chosen.
      */
     public function css(string $themeSlug): string

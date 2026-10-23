@@ -26,6 +26,9 @@ final class ThemeCatalog
 {
     public const FALLBACK_SLUG = 'fallback';
 
+    /** Themes that ship with the application; deleting one is allowed but comes back with the next update. */
+    public const BUNDLED = ['storybook'];
+
     /** The header sits at the top of the stylesheet; reading more than this would only be reading CSS. */
     private const HEADER_BYTES = 8192;
 
@@ -79,7 +82,7 @@ final class ThemeCatalog
      * Reads the comment at the top of a stylesheet. Returns null when there is no usable header: a name and a
      * version are both required, and a version must look like one.
      *
-     * @return array{name: string, version: string, author: string, description: string}|null
+     * @return array{name: string, version: string, author: string, description: string, requires_php: string, requires_app: string}|null
      */
     public static function parseHeader(string $css): ?array
     {
@@ -94,29 +97,41 @@ final class ThemeCatalog
         $fields = [];
 
         foreach (preg_split('/\R/', $comment) ?: [] as $line) {
-            if (preg_match('/^[\s*]*(Theme Name|Version|Author|Description)\s*:\s*(.*?)\s*\z/i', $line, $match) === 1) {
+            if (preg_match('/^[\s*]*(Theme Name|Version|Author|Description|Requires PHP|Requires at least)\s*:\s*(.*?)\s*\z/i', $line, $match) === 1) {
                 $fields[strtolower($match[1])] ??= self::clean($match[2]);
             }
         }
 
         $name = $fields['theme name'] ?? '';
         $version = $fields['version'] ?? '';
+        $requiresPhp = $fields['requires php'] ?? '';
+        $requiresApp = $fields['requires at least'] ?? '';
 
         if ($name === '' || preg_match('/^[0-9]+(\.[0-9]+){0,3}(-[A-Za-z0-9.]+)?\z/', $version) !== 1) {
             return null;
         }
+
+        // A requirement that is not a plain version number is dropped rather than failing the theme.
+        $plainVersion = '/^[0-9]+(\.[0-9]+){0,2}\z/';
 
         return [
             'name' => mb_substr($name, 0, 80),
             'version' => $version,
             'author' => mb_substr($fields['author'] ?? '', 0, 80),
             'description' => mb_substr($fields['description'] ?? '', 0, 300),
+            'requires_php' => preg_match($plainVersion, $requiresPhp) === 1 ? $requiresPhp : '',
+            'requires_app' => preg_match($plainVersion, $requiresApp) === 1 ? $requiresApp : '',
         ];
+    }
+
+    public static function isValidSlug(string $slug): bool
+    {
+        return preg_match('/^[a-z][a-z0-9-]{0,49}\z/', $slug) === 1 && $slug !== self::FALLBACK_SLUG;
     }
 
     private function load(string $slug): ?ThemeInfo
     {
-        if (preg_match('/^[a-z][a-z0-9-]{0,49}\z/', $slug) !== 1 || $slug === self::FALLBACK_SLUG) {
+        if (!self::isValidSlug($slug)) {
             return null;
         }
 
@@ -129,7 +144,18 @@ final class ThemeCatalog
         $css = file_get_contents($path . '/style.css', false, null, 0, self::HEADER_BYTES);
         $header = $css === false ? null : self::parseHeader($css);
 
-        return $header === null ? null : new ThemeInfo($slug, $header['name'], $header['version'], $header['author'], $header['description'], $path);
+        return $header === null ? null : new ThemeInfo(
+            $slug,
+            $header['name'],
+            $header['version'],
+            $header['author'],
+            $header['description'],
+            $path,
+            false,
+            $header['requires_php'],
+            $header['requires_app'],
+            in_array($slug, self::BUNDLED, true),
+        );
     }
 
     /**

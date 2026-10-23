@@ -35,6 +35,28 @@ Description: Warm, readable, generous spacing.
 
 `Theme Name` and `Version` are required. The version must look like a version (`1`, `1.2`, `1.2.3`, `2.0-beta.1`). A folder without a valid header, or without `index.php`, is not offered as a theme. The names `Author` and `Description` are optional and are shown on the Appearance screen, escaped.
 
+Two more optional lines state what the theme needs, as plain version numbers (`8.2`, `0.3.0`): `Requires PHP:` and `Requires at least:` (the Lumora Fiction version). A theme that needs more than the site has is shown with the reason, cannot be switched on, and is refused when uploaded.
+
+### The preview picture
+
+A theme may carry a picture that the Appearance screen shows on its card and in its details: `screenshot.webp`, `screenshot.jpg` or `screenshot.png` in the theme folder (the first one found, in that order). The file must really be that kind of image, at most 1 MB, and between 100 and 4,000 pixels on each side; anything else is ignored and the card shows a plain placeholder. About 800 by 600 works well. The picture is sent to administrators only, from a fixed address, with a type worked out from its contents.
+
+### Packaging a theme as a ZIP
+
+An administrator can add a theme from a ZIP, and update an installed one from a newer ZIP, on the Appearance screen (a host can switch this off with `theme_uploads` in `config/config.php`). Pack the theme **folder**, so the ZIP holds exactly one top-level folder whose name is the theme's identifier:
+
+```
+storybook-2.zip
+└── storybook/
+    ├── style.css
+    ├── index.php
+    └── …
+```
+
+The ZIP is refused, with a reason and nothing written, when it holds files outside that folder or a second folder, has no `index.php` or no valid `style.css` header, has a folder name that is not a valid identifier, contains a path that is absolute or uses `..`, a symbolic link, or a server settings file (`.htaccess`, `.user.ini`, `php.ini`, `web.config`), or is too big (20 MB zipped, 30 MB unpacked, 10 MB for one file, 1,500 entries). Leftovers from file managers (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are skipped.
+
+An update replaces the theme's files and nothing else. The options saved for the theme and whether it is the theme in use are kept, because they are stored by the theme's folder name, not in the folder. The update needs a higher `Version` than the installed one unless the administrator ticks the box to allow the same or an older one, and the old files are kept until the new ones are in place. Deleting a theme removes its folder and its saved options.
+
 ## The template hierarchy
 
 Each view tries its templates in this order and uses the first one the theme has:

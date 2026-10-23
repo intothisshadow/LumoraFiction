@@ -937,6 +937,120 @@ fieldset.lf-card legend {
     vertical-align: middle;
 }
 
+.lf-theme-card {
+    position: relative;
+}
+
+.lf-theme-card__select {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.75rem;
+    z-index: 1;
+    display: flex;
+    padding: 0.3rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+}
+
+.lf-theme-card__select input {
+    width: 1.15rem;
+    height: 1.15rem;
+    margin: 0;
+}
+
+.lf-theme-card__shot,
+.lf-theme-details__shot {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    margin: 0 0 0.75rem;
+    object-fit: cover;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+.lf-theme-details__shot {
+    max-width: 30rem;
+}
+
+.lf-theme-card__actions,
+.lf-theme-details__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.lf-theme-card__actions form,
+.lf-theme-details__actions form {
+    margin: 0;
+}
+
+.lf-theme-install,
+.lf-theme-details-area {
+    margin-top: 1.5rem;
+}
+
+/* The script turns the details into a dialog; until it does, they are ordinary sections on the page. */
+.lf-theme-details-area--dialog {
+    display: none;
+}
+
+.lf-theme-details:target {
+    border-color: var(--accent);
+    border-width: 2px;
+}
+
+.lf-theme-details h3 {
+    margin: 0 0 0.75rem;
+    font: 1.3rem/1.3 Georgia, "Times New Roman", serif;
+}
+
+.lf-theme-details__facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.3rem 1rem;
+    margin: 0 0 1rem;
+}
+
+.lf-theme-details__facts dt {
+    font-weight: bold;
+}
+
+.lf-theme-details__facts dd {
+    margin: 0;
+}
+
+.lf-theme-details__update {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.lf-dialog {
+    width: min(40rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    padding: 0;
+    overflow: auto;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+.lf-dialog::backdrop {
+    background: rgb(0 0 0 / 0.55);
+}
+
+.lf-dialog .lf-theme-details {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+}
+
 /* Plugins */
 
 .lf-plugin-list {

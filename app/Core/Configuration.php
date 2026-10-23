@@ -128,6 +128,19 @@ final class Configuration
     }
 
     /**
+     * Removes a stored setting, so the registered default (or the caller's fallback) applies again.
+     */
+    public function forgetSetting(string $name): void
+    {
+        $this->assertValidSettingName($name);
+        $this->ensureSettingsLoaded();
+
+        unset($this->settings[$name]);
+
+        $this->database?->execute('DELETE FROM {prefix}settings WHERE setting_name = :name', ['name' => $name]);
+    }
+
+    /**
      * Writes config/config.php. Used by the installer.
      *
      * @param array<string, mixed> $data

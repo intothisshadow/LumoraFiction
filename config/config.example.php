@@ -34,4 +34,8 @@ return [
     // run on anything flagged production, and a missing value counts as production. Set it to "development" by
     // hand on a throwaway copy; nothing in the admin can change it.
     'environment' => 'production',
+    // Set to false to switch off installing and updating themes from a ZIP on the Appearance screen. A theme
+    // is PHP that runs on the site, so a host that wants themes copied in by hand sets this. A missing value
+    // counts as true, and nothing in the admin can change it.
+    'theme_uploads' => true,
 ];

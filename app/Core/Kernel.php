@@ -74,9 +74,12 @@ use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
 use LumoraFiction\Core\Theme\FormProtectionFields;
 use LumoraFiction\Core\Theme\StaffNavigation;
+use LumoraFiction\Core\Theme\ThemeArchive;
 use LumoraFiction\Core\Theme\ThemeCatalog;
+use LumoraFiction\Core\Theme\ThemeInstaller;
 use LumoraFiction\Core\Theme\ReadingPositionScript;
 use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Core\Theme\ThemeScreenshot;
 use LumoraFiction\Controllers\AccountController;
 use LumoraFiction\Controllers\ArchiveController;
 use LumoraFiction\Core\Theme\AccountNavigation;
@@ -121,6 +124,7 @@ use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
+use LumoraFiction\Services\ThemeManager;
 use LumoraFiction\Services\ThemeOptions;
 use LumoraFiction\Services\ThemeSettings;
 use LumoraFiction\Services\UserService;
@@ -403,6 +407,7 @@ final class Kernel
         $kernel->admin = $view;
 
         $editor = new ContentEditor($view, $editorSettings, $version);
+        $themeSettings = new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit);
 
         AdminRoutes::register(
             $kernel->router,
@@ -418,7 +423,16 @@ final class Kernel
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
             new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config, $authorProfiles),
-            new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit), $themeOptions),
+            new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, $themeSettings, $themeOptions, new ThemeManager(
+                new ThemeInstaller($root . '/content/themes', new ThemeArchive($version), $themeCatalog),
+                $themeCatalog,
+                $kernel->themes,
+                $themeSettings,
+                $themeOptions,
+                $kernel->audit,
+                $kernel->config,
+                $version,
+            ), new ThemeScreenshot()),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
             new PluginsController($kernel->auth, $view, $flash, $plugins),
             new SpamSettingsController($kernel->auth, $view, $flash, $spamSettings, $registrationThrottle, $akismet, $kernel->audit),

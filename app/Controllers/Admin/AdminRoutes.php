@@ -142,6 +142,10 @@ final class AdminRoutes
         $router->post('/admin/users/{id}/reinstate', $users->reinstate(...));
         $router->get('/admin/appearance', $appearance->themes(...), 'admin.appearance');
         $router->post('/admin/appearance/activate', $appearance->activate(...), 'admin.appearance.activate');
+        $router->post('/admin/appearance/install', $appearance->install(...), 'admin.appearance.install');
+        $router->post('/admin/appearance/update', $appearance->update(...), 'admin.appearance.update');
+        $router->post('/admin/appearance/bulk', $appearance->bulk(...), 'admin.appearance.bulk');
+        $router->get('/admin/appearance/screenshot/{slug}', $appearance->screenshot(...), 'admin.appearance.screenshot');
         $router->get('/admin/appearance/options', $appearance->showOptions(...), 'admin.appearance.options');
         $router->post('/admin/appearance/options', $appearance->saveOptions(...));
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
