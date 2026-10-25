@@ -400,6 +400,50 @@ a:focus-visible {
     margin-block: 0.5rem;
 }
 
+.lf-home__columns {
+    display: grid;
+    gap: 0 2rem;
+}
+
+.lf-home__main,
+.lf-home__aside {
+    min-width: 0;
+}
+
+/* Stories on the left, news on the right; the columns stack, stories first, on a narrow screen. */
+@media (min-width: 40rem) {
+    .lf-home:not(.lf-home--single) .lf-home__columns {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        align-items: start;
+    }
+}
+
+.lf-news-list {
+    padding-left: 1.25rem;
+}
+
+.lf-news-list__item {
+    margin-block: 0.5rem;
+}
+
+.lf-news-list__meta,
+.lf-news-post__meta {
+    color: var(--lf-fb-muted);
+}
+
+.lf-news-list__excerpt {
+    margin: 0.25rem 0 0;
+}
+
+.lf-news-list__more,
+.lf-news-post__back {
+    margin-top: 1rem;
+}
+
+.lf-news-post__body {
+    line-height: 1.7;
+}
+
 .lf-author-about {
     display: flex;
     align-items: flex-start;

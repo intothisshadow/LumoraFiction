@@ -39,6 +39,9 @@ use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\FollowPresenter;
+use LumoraFiction\Services\NewsPresenter;
+use LumoraFiction\Services\NewsService;
+use LumoraFiction\Services\NewsSettings;
 use LumoraFiction\Services\PublicArchive;
 use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\ReadingProgressService;
@@ -102,6 +105,8 @@ final class ArchiveController
         private readonly StoryFollowService $follows,
         private readonly FollowPresenter $followPresenter,
         private readonly ReaderPreferences $readerPreferences,
+        private readonly NewsService $news,
+        private readonly NewsPresenter $newsPresenter,
     ) {
     }
 
@@ -155,9 +160,13 @@ final class ArchiveController
             $updated = $this->archive->recent('updated', self::HOME_COUNT);
             $profiles = $this->users->publicProfiles(array_map(static fn (Story $story): int => $story->ownerId, [...$published, ...$updated]));
 
+            // Zero hides the block, and switching news off hides it whatever the count.
+            $newsCount = NewsSettings::enabled($this->config) ? NewsSettings::homeCount($this->config) : 0;
+
             return $this->themes->render('home', [
                 'stories' => $this->cards($published, $profiles),
                 'updated_stories' => $this->cards($updated, $profiles),
+                'news' => $newsCount === 0 ? [] : $this->newsPresenter->block($this->news->listPublic($newsCount)),
             ]);
         });
     }

@@ -38,6 +38,10 @@ final class PublicUrl
 
     public const BROWSE_PAGE = '/browse/{page}';
 
+    public const NEWS = '/news';
+
+    public const NEWS_POST = '/news/{slug}';
+
     public const SIGN_IN = '/account/sign-in';
 
     public const SIGN_OUT = '/account/sign-out';
@@ -132,6 +136,16 @@ final class PublicUrl
         $query = array_filter($query, static fn (string|int|null $value): bool => $value !== null && $value !== '');
 
         return BasePath::get() . self::BROWSE . ($page === '' ? '' : '/' . $page) . ($query === [] ? '' : '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
+    }
+
+    public static function news(): string
+    {
+        return BasePath::get() . self::NEWS;
+    }
+
+    public static function newsPost(string $slug): string
+    {
+        return BasePath::get() . '/news/' . rawurlencode($slug);
     }
 
     public static function story(string $slug): string

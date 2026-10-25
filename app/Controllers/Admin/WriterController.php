@@ -47,11 +47,22 @@ abstract class WriterController extends AdminController
      */
     protected function writer(Request $request, string $currentPath, string $returnPath = '', array $keep = []): User|Response
     {
+        return $this->personWith(Capability::WriteStories, $request, $currentPath, $returnPath, $keep);
+    }
+
+    /**
+     * The same rule for a screen guarded by another capability, such as the news form, so long text typed there
+     * survives a session that ended too.
+     *
+     * @param list<string> $keep
+     */
+    protected function personWith(Capability $capability, Request $request, string $currentPath, string $returnPath = '', array $keep = []): User|Response
+    {
         if ($request->isPost() && $keep !== [] && $this->auth->user($request->cookies) === null) {
             return $this->sessionEnded($request, $returnPath, $keep);
         }
 
-        return $this->guard($request, Capability::WriteStories, $currentPath);
+        return $this->guard($request, $capability, $currentPath);
     }
 
     /**

@@ -130,6 +130,14 @@ if (!function_exists('lf_site_url')) {
     }
 }
 
+if (!function_exists('lf_news_url')) {
+    /** Prints the address of the News page, which answers only while news is switched on. */
+    function lf_news_url(): void
+    {
+        echo Html::e(ThemeContext::current()?->siteUrl('news') ?? '');
+    }
+}
+
 if (!function_exists('lf_theme_url')) {
     /** Prints the address of a file in the active theme's folder. */
     function lf_theme_url(string $path = ''): void

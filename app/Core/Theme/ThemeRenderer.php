@@ -24,6 +24,7 @@ use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\BasePath;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Services\NewsSettings;
 use LumoraFiction\Services\ThemeOptions;
 use Throwable;
 
@@ -54,6 +55,9 @@ final class ThemeRenderer
         'bookmarks' => ['bookmarks', 'archive', 'index'],
         'continue' => ['continue', 'bookmarks', 'archive', 'index'],
         'updates' => ['updates', 'bookmarks', 'archive', 'index'],
+        // No generic template fits an announcement, so a theme should supply these; without them index.php draws only the title.
+        'news-archive' => ['news-archive', 'index'],
+        'news-single' => ['news-single', 'index'],
         '404' => ['404', 'index'],
     ];
 
@@ -280,11 +284,18 @@ final class ThemeRenderer
     private function navigation(string $view): array
     {
         $home = BasePath::get() . '/';
-        $items = $this->hooks->applyFilters('lf_navigation_items', [
+        $menu = [
             ['label' => 'Home', 'url' => $home, 'current' => $view === 'home'],
             ['label' => 'Browse', 'url' => BasePath::get() . PublicUrl::BROWSE, 'current' => $view === 'browse'],
             ['label' => 'Search', 'url' => BasePath::get() . PublicUrl::SEARCH, 'current' => $view === 'search'],
-        ]);
+        ];
+
+        // Switching news off takes the link away with the pages, so no menu entry leads to a not-found page.
+        if (NewsSettings::enabled($this->config)) {
+            $menu[] = ['label' => 'News', 'url' => PublicUrl::news(), 'current' => in_array($view, ['news-archive', 'news-single'], true)];
+        }
+
+        $items = $this->hooks->applyFilters('lf_navigation_items', $menu);
         $clean = [];
 
         foreach (is_array($items) ? $items : [] as $item) {

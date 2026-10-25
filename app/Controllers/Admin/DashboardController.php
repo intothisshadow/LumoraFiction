@@ -27,6 +27,7 @@ use LumoraFiction\Models\SiteAlert;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\SiteAlerts;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\UserService;
@@ -44,6 +45,7 @@ final class DashboardController extends AdminController
         private readonly AuditLogService $audit,
         private readonly SiteAlerts $alerts,
         private readonly StoryService $stories,
+        private readonly NewsService $news,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -73,6 +75,9 @@ final class DashboardController extends AdminController
             'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
             'awaitingApproval' => $user->can(Capability::ModerateStories) ? $this->stories->countPending($user) : null,
             'reviewUrl' => AdminUrl::to('review'),
+            'newsCounts' => $user->can(Capability::PublishNews) ? $this->news->countsByState() : null,
+            'newsUrl' => AdminUrl::to('news'),
+            'newNewsUrl' => AdminUrl::to('news/new'),
             'storiesUrl' => AdminUrl::to('stories'),
             'newStoryUrl' => AdminUrl::to('stories/new'),
             'activity' => $isAdministrator ? $this->audit->recent(8) : [],

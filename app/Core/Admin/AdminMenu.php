@@ -60,6 +60,16 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'news',
+                'label' => 'News',
+                'path' => 'news',
+                'capability' => Capability::PublishNews,
+                'children' => [
+                    ['slug' => 'news-all', 'label' => 'All news', 'path' => 'news', 'capability' => Capability::PublishNews],
+                    ['slug' => 'news-new', 'label' => 'Add a news post', 'path' => 'news/new', 'capability' => Capability::PublishNews],
+                ],
+            ],
+            [
                 'slug' => 'profile',
                 'label' => 'Author profile',
                 'path' => 'profile',
@@ -101,6 +111,7 @@ final class AdminMenu
                     ['slug' => 'settings-security', 'label' => 'Security', 'path' => 'settings/security', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-news', 'label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
                 ],
             ],
             [

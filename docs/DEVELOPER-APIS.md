@@ -64,6 +64,8 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `kernel_booted` | `Kernel $kernel` | When the core services are ready, after plugins have loaded. |
 | `story_trashed` | `int $storyId` | After a story has been moved to the trash and saved. It is already unpublished by then. |
 | `story_deleted` | `int $storyId` | After a story and everything of it has been deleted for good, by a person or by the retention period. Use it to remove what a plugin keeps about the story. |
+| `news_published` | `NewsPost $post`, `User $actor` | After a news post has been published for the first time or published again, and saved. It does not fire for a draft that is saved, or for a post that is already published. A callback that fails cannot undo the change. |
+| `news_deleted` | `int $postId` | After a news post has been deleted. Use it to remove what a plugin keeps about the post. |
 | `story_state_changed` | `Story $story`, `PublicationState $from`, `User $actor`, `string $reason` | After a story's publication state has changed and been saved: submitted, published, approved, sent back, withdrawn or unpublished. `$story` is the story as it is now and `$from` its earlier state. `$reason` is the reviewer's note when a story is sent back or taken down in bulk, and an empty string otherwise. Use it to notify people; a callback that fails cannot undo the change. |
 | `user_role_changed` | `User $user`, `UserRole $from`, `User $actor`, `string $reason` | After an administrator has changed an account's role and it has been saved. `$user` is the account as it is now, and `$reason` is empty when none was given. |
 | `user_status_changed` | `User $user`, `UserStatus $from`, `User $actor`, `string $reason` | After an administrator has suspended or reinstated an account. `$from` is the status the account had before; read the new one from `$user`. |
@@ -81,7 +83,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `lf_scripts` | `array<string, string>` handle => path | Add scripts to every public page, loaded with `defer`. Same rule for paths. |
 | `lf_body_class` | `list<string>`, plus the view | Add classes to the body of a public page. Names that are not plain class names are dropped. |
 | `lf_document_title` | `string`, plus the view | Change the whole `<title>` of a public page. The result is escaped. |
-| `lf_navigation_items` | list of `{label, url, current?}` | Add items to the public main menu. An entry whose address is not a path on this site is dropped. Core starts the list with Home and Search, adds Sign in and Register for visitors, Account for signed-in members, and Admin for staff. |
+| `lf_navigation_items` | list of `{label, url, current?}` | Add items to the public main menu. An entry whose address is not a path on this site is dropped. Core starts the list with Home, Browse and Search (and News while news is on), adds Sign in and Register for visitors, Account for signed-in members, and Admin for staff. |
 | `theme_option_fields` | list of field definitions | Declare the options of the active theme. See `THEME-DEVELOPMENT.md`. |
 | `csp_directives` | `array<string, string>` directive name => value | Widen the default same-origin Content-Security-Policy, for example to allow images from one extra host. A value that is not an array is ignored and the default stays. |
 | `admin_menu` | list of menu entries | Add screens to the admin sidebar. See "Admin screens" below. |
@@ -113,6 +115,7 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `ModerateStories`, `EditAnyStory`, `PublishWithoutReview` | yes | yes | | |
 | `WriteStories` | yes | yes | yes | |
 | `Bookmark` | yes | yes | yes | yes |
+| `PublishNews` | yes | yes | | |
 
 - A capability says what a role may do in general. Whether someone may change one particular story (ownership) is checked separately by the code that loads the story.
 - A suspended or unconfirmed account holds no capabilities.
@@ -196,6 +199,17 @@ Changes to these are written to the audit log as `settings.spam.update`, with on
 - `StoryService::listForWriter()`, `countForWriter()` and `countsByState()` feed the writer screens. The scope `all` is honoured only for users with `EditAnyStory`; for anyone else the list is always limited to their own stories, whatever the request asks. `bulk($actor, 'publish'|'unpublish'|'delete', $ids)` applies one action to up to 100 stories, checking each on its own, and returns `done` and `skipped` counts.
 - `ChapterService::move($actor, $chapterId, 'up'|'down')` swaps a chapter with its neighbour through `reorder()`, and `countsForStories()` gives chapter totals for a page of stories in one query. `UserService::displayNames()` returns public names only, in one query.
 - The writer screens are `StoryController` and `ChapterController`, which extend `WriterController`. Its `writer()` method is the permission check for a screen that has a form: a guest who posts one of the listed fields gets the 401 `session-ended` page that returns the text and sends no token, instead of a redirect that would discard it. Name the fields to keep and the screen to return to when you build another form that holds long text. `Request::inputList()` reads a posted `name[]` list as text values only.
+
+## News
+
+A news post is a staff announcement with its own table (`news_posts`), so no story query, count or search sees it. `NewsService` is the only code that reads or changes posts.
+
+- Every change needs `Capability::PublishNews` (Editors and Administrators) and throws `NewsPermissionException` otherwise, with the same message for a post that does not exist. News is site-wide, so any holder of the capability may change any post; ownership is not checked. Invalid details throw `NewsValidationException` with a message per field (`title`, `content`, `format`).
+- A post is `draft` or `published`. `unpublish()` returns it to a draft and keeps its address and first publication date. The address (`slug`) starts with the post's number, follows the title until the first publication, and never changes after.
+- Public code reads only through `findPublicBySlug()`, `listPublic()` and `countPublic()`, which return published posts only, pinned first and then newest. A draft must never be returned by a public address. `NewsSettings::enabled()` and `NewsSettings::homeCount()` read the two settings (`news.enabled`, `news.home_count`); check `enabled()` before drawing any public news page.
+- Changes are written to the audit log as `news.create`, `news.update`, `news.publish`, `news.unpublish` and `news.delete`. The actions `news_published` and `news_deleted` tell plugins (see Actions).
+- Post text is stored raw and rendered by `ContentRenderer`, like a chapter. `NewsPresenter` builds the data a theme receives and is the one place that decides which fields it may see: the author is the display name only.
+- A plugin that wants a news feed or sitemap entries can use `NewsService::listPublic()`; core does not build either yet.
 
 ## Classification
 

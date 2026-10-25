@@ -28,6 +28,9 @@ use LumoraFiction\Models\User;
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
 /** @var int|null $awaitingApproval stories in the approval queue; null for someone who may not review */
 /** @var string $reviewUrl */
+/** @var array{draft: int, published: int}|null $newsCounts news posts by state; null for someone who may not manage news */
+/** @var string $newsUrl */
+/** @var string $newNewsUrl */
 /** @var string $storiesUrl */
 /** @var string $newStoryUrl */
 /** @var list<array{action: string, actor: string|null, target_type: string|null, target_id: string|null, details: array<string, mixed>, at: DateTimeImmutable}> $activity */
@@ -73,6 +76,21 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
             </ul>
         <?php endif; ?>
         <p><a href="<?= Html::e($newStoryUrl) ?>" class="lf-button lf-button--secondary">Add a story</a> <a href="<?= Html::e($storiesUrl) ?>">All your stories</a></p>
+    </section>
+<?php endif; ?>
+
+<?php if ($newsCounts !== null): ?>
+    <section aria-labelledby="lf-news-heading" class="lf-card">
+        <h2 id="lf-news-heading">News</h2>
+        <?php if (array_sum($newsCounts) === 0): ?>
+            <p>No news has been posted yet.</p>
+        <?php else: ?>
+            <ul class="lf-writing-counts">
+                <li><a href="<?= Html::e($newsUrl . '?state=published') ?>"><?= (int) $newsCounts['published'] ?> published</a></li>
+                <li><a href="<?= Html::e($newsUrl . '?state=draft') ?>"><?= (int) $newsCounts['draft'] ?> <?= $newsCounts['draft'] === 1 ? 'draft' : 'drafts' ?></a></li>
+            </ul>
+        <?php endif; ?>
+        <p><a href="<?= Html::e($newNewsUrl) ?>" class="lf-button lf-button--secondary">Add a news post</a> <a href="<?= Html::e($newsUrl) ?>">All news</a></p>
     </section>
 <?php endif; ?>
 

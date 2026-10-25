@@ -75,6 +75,8 @@ Each view tries its templates in this order and uses the first one the theme has
 | `bookmarks` | `bookmarks.php`, `archive.php`, `index.php` |
 | `continue` | `continue.php`, `bookmarks.php`, `archive.php`, `index.php` |
 | `updates` | `updates.php`, `bookmarks.php`, `archive.php`, `index.php` |
+| `news-archive` | `news-archive.php`, `index.php` |
+| `news-single` | `news-single.php`, `index.php` |
 | `404` | `404.php`, `index.php` |
 
 A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
@@ -145,6 +147,7 @@ Tags that print, print escaped text. A tag that returns a value returns it alrea
 | `lf_site_name()` | The site's name. |
 | `lf_title()` | The title of this page, without the site name. |
 | `lf_site_url(string $path = '')` | An address on this site, with the install's base directory. Anything that could name another site is dropped. |
+| `lf_news_url()` | The address of the News page. It answers only while news is switched on in the settings, so print a link to it only inside `lf_has('news.posts')` or when the page's data gave you a news link. |
 | `lf_theme_url(string $path = '')` | The address of a file in the theme's folder, such as `lf_theme_url('img/logo.svg')`. |
 | `lf_asset_url(string $path)` | The address of a file in the shared `assets/` folder, with a version for cache busting. |
 
@@ -205,7 +208,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | View | Data |
 | ---- | ---- |
 | `404` | `message`. |
-| `home` | `stories` (the most recently published) and `updated_stories` (the most recently changed), each a list of story cards. Either list is empty on a new site. The list of places a signed-in reader left off is no longer part of the home page: it lives on the **Continue reading** page (`continue`), and a theme that still prints `continue_reading` simply finds the key missing. |
+| `home` | `stories` (the most recently published), `updated_stories` (the most recently changed), each a list of story cards, and `news`, the latest announcements (see "News" below). Either story list is empty on a new site, and `news` is empty when there is no news, when the home page block is set to 0, or when news is switched off, so test it with `lf_has('news.posts')`. The list of places a signed-in reader left off is no longer part of the home page: it lives on the **Continue reading** page (`continue`), and a theme that still prints `continue_reading` simply finds the key missing. |
 | `author` | The list data below. The page title is "Stories by" and the author's display name. It also receives `author_name`, `author_avatar` (the address of the author's 100 by 100 picture, or empty) and `author_about` (the author's own text as sanitised markup, headings already moved below the page's own, or empty). Print both only when they are not empty (`lf_has()`), in a section above the page title; the picture is decorative, so give it `alt=""` and its size of 100 by 100. A theme that does not print them simply omits the section. |
 | `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |
 
@@ -219,6 +222,22 @@ A view with a list of stories receives:
 | `total` | How many public stories the list holds, formatted. |
 | `sorts` | The ways to order the list, each `{label, url, current}`. Show them as links and mark the current one in a way that does not rely on colour alone. |
 | `pagination` | `{page, pages, url}`, where `url` is an address with a `{page}` marker. `lf_pagination()` reads it. |
+
+### News (`news-archive`, `news-single` and the home block)
+
+News posts are announcements from the staff, kept apart from stories. A theme draws them with two templates and a small block on the home page. Unlike most views, a theme with only `index.php` draws a news page as just a title, so a theme should supply `news-archive.php` and `news-single.php`. A post that is not published, or any post while news is switched off, is never in the data; there is nothing for a theme to check.
+
+A news card is `{title, url, date, datetime, author, excerpt, pinned}`. `date` reads "23 October 2026" and `datetime` is the same day as `2026-10-23` for a `<time>` element. `author` is the display name only. `excerpt` is plain text of about two hundred characters, so print it with `lf_e()`. `pinned` is the word "Pinned" for a post kept at the top and empty otherwise; mark it in a way that does not rely on colour alone.
+
+| View | Data |
+| ---- | ---- |
+| `home` | `news` is `{posts, url}`: a list of news cards and the address of the News page, or an empty array. Draw a block only when `lf_has('news.posts')` and link to `lf_field('news.url')`. |
+| `news-archive` | `posts`, a list of news cards (pinned first, then newest), and `pagination` as for the story lists. The page title is "News". |
+| `news-single` | `post` is `{title, url, date, datetime, author, pinned, body, list_url}`. `body` is sanitised markup: print it with `lf_field('post.body')`. A staff preview of a draft uses the same data, with the usual preview notice. |
+
+The main menu gets a **News** link from core while news is on, so a theme does not add one.
+
+Both bundled themes draw the home page in two columns: the stories on the left and the news in a narrower column on the right, inside `lf-home__columns` (`lf-home__main` and `lf-home__aside`). The stories come first in the source so a narrow screen, which stacks the columns, reads them before the news. When `news.posts` is empty the page has no aside and carries `lf-home--single`, so the stories keep a comfortable single-column width. A theme is free to lay the page out differently; nothing in the data depends on it.
 
 ### Browse (`browse`)
 

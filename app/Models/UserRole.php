@@ -53,6 +53,7 @@ enum UserRole: string
                 Capability::WriteStories,
                 Capability::PublishWithoutReview,
                 Capability::Bookmark,
+                Capability::PublishNews,
             ],
             self::Author => [Capability::AccessAdmin, Capability::WriteStories, Capability::Bookmark],
             self::Reader => [Capability::Bookmark],

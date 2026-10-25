@@ -27,4 +27,5 @@ enum Capability: string
     case WriteStories = 'write_stories';
     case PublishWithoutReview = 'publish_without_review';
     case Bookmark = 'bookmark';
+    case PublishNews = 'publish_news';
 }

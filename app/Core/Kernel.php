@@ -19,6 +19,12 @@ namespace LumoraFiction\Core;
 
 use LumoraFiction\Controllers\Admin\AdminRoutes;
 use LumoraFiction\Controllers\Admin\AlertsController;
+use LumoraFiction\Controllers\Admin\NewsController as AdminNewsController;
+use LumoraFiction\Controllers\Admin\NewsSettingsController;
+use LumoraFiction\Controllers\NewsController;
+use LumoraFiction\Services\NewsPresenter;
+use LumoraFiction\Services\NewsService;
+use LumoraFiction\Services\NewsSettings;
 use LumoraFiction\Controllers\Admin\NotificationsController;
 use LumoraFiction\Controllers\Admin\RetentionSettingsController;
 use LumoraFiction\Controllers\Admin\TrashController;
@@ -198,7 +204,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -271,6 +277,8 @@ final class Kernel
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit, $kernel->config);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $presenter = new StoryPresenter($covers);
+        $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks);
+        $newsPresenter = new NewsPresenter($renderer, $kernel->users);
         $authorProfiles = new AuthorProfileService($kernel->database, $renderer, new AvatarImageStore($root . '/content/uploads/avatars'), $kernel->audit);
         $flash = new FlashMessages($sessions);
         $editorSettings = new EditorSettings($config, $database, $audit);
@@ -279,8 +287,8 @@ final class Kernel
         $plugins = new PluginManager($config, $pluginCatalog, new PluginLoader($kernel, $pluginCatalog, $version['version'], $root), $audit, $hooks, $errors, $version['version']);
         (new PluginNotices($plugins))->register($hooks);
 
-        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $registrationGuard, $formGuard, $authorProfiles);
-        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents, $securitySettings, $authorProfiles, $alerts, $notifications);
+        self::registerPublic($kernel, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $registrationGuard, $formGuard, $authorProfiles, $news, $newsPresenter);
+        self::registerAdmin($kernel, $root, $version['version'], $themeCatalog, $themeOptions, $taxonomy, $stories, $chapters, $renderer, $presenter, $flash, $editorSettings, $plugins, $spamSettings, $registrationThrottle, $akismet, $securityEvents, $securitySettings, $authorProfiles, $alerts, $notifications, $news, $newsPresenter);
 
         // Plugins load after the core routes are registered, so none of them can take over a core address.
         $plugins->loadActive();
@@ -296,7 +304,7 @@ final class Kernel
     /**
      * The public site's own addresses. Plugins add theirs through routes_register, after these.
      */
-    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, RegistrationGuard $registrationGuard, FormGuard $formGuard, AuthorProfileService $authorProfiles): void
+    private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, RegistrationGuard $registrationGuard, FormGuard $formGuard, AuthorProfileService $authorProfiles, NewsService $news, NewsPresenter $newsPresenter): void
     {
         $readerPreferences = new ReaderPreferences($kernel->database);
         $bookmarks = new BookmarkService($kernel->database, $stories);
@@ -337,7 +345,10 @@ final class Kernel
             $storyFollows,
             $followPresenter,
             $readerPreferences,
+            $news,
+            $newsPresenter,
         );
+        $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config);
 
         $kernel->router->get('/', $archive->home(...), 'home');
         $kernel->router->get(PublicUrl::SEARCH, $archive->search(...), 'search');
@@ -381,6 +392,9 @@ final class Kernel
         $kernel->router->get(PublicUrl::UPDATES_STOP_ALL, $follow->confirmStopAll(...), 'account.updates.stop_all');
         $kernel->router->post(PublicUrl::UPDATES_STOP_ALL, $follow->stopAll(...), 'account.updates.stop_all.submit');
 
+        $kernel->router->get(PublicUrl::NEWS, $newsPages->archive(...), 'news');
+        $kernel->router->get(PublicUrl::NEWS_POST, $newsPages->post(...), 'news.post');
+
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
         $kernel->router->get(PublicUrl::AUTHOR, $archive->author(...), 'author');
@@ -394,7 +408,7 @@ final class Kernel
     /**
      * Wires the admin screens and adds their addresses to the router.
      */
-    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles, SiteAlerts $alerts, NotificationService $notifications): void
+    private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles, SiteAlerts $alerts, NotificationService $notifications, NewsService $news, NewsPresenter $newsPresenter): void
     {
         $view = new AdminView(
             $root . '/admin/views',
@@ -412,7 +426,7 @@ final class Kernel
         AdminRoutes::register(
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
-            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories),
+            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news),
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets')),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
@@ -442,6 +456,8 @@ final class Kernel
             new TrashController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users, $kernel->config),
             new NotificationsController($kernel->auth, $view, $flash, $notifications),
             new RetentionSettingsController($kernel->auth, $view, $flash, new RetentionSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config),
+            new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
         );
     }
 

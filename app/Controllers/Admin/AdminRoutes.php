@@ -49,6 +49,8 @@ final class AdminRoutes
         TrashController $trash,
         NotificationsController $notifications,
         RetentionSettingsController $retention,
+        NewsController $news,
+        NewsSettingsController $newsSettings,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -72,6 +74,19 @@ final class AdminRoutes
         $router->post('/admin/notifications/read-all', $notifications->readAll(...), 'admin.notifications.read-all');
         $router->get('/admin/settings/retention', $retention->show(...), 'admin.settings.retention');
         $router->post('/admin/settings/retention', $retention->update(...));
+        $router->get('/admin/settings/news', $newsSettings->show(...), 'admin.settings.news');
+        $router->post('/admin/settings/news', $newsSettings->update(...));
+        // The fixed word "new" comes before {id} so it is never read as a post number.
+        $router->get('/admin/news', $news->index(...), 'admin.news');
+        $router->get('/admin/news/new', $news->showCreate(...), 'admin.news.new');
+        $router->post('/admin/news/new', $news->create(...));
+        $router->get('/admin/news/{id}', $news->showEdit(...), 'admin.news.edit');
+        $router->post('/admin/news/{id}', $news->update(...));
+        $router->get('/admin/news/{id}/delete', $news->showDelete(...));
+        $router->post('/admin/news/{id}/delete', $news->delete(...));
+        $router->post('/admin/news/{id}/publish', $news->publish(...));
+        $router->post('/admin/news/{id}/unpublish', $news->unpublish(...));
+        $router->get('/admin/news/{id}/preview', $news->preview(...), 'admin.news.preview');
         $router->get('/admin/maintenance/alerts', $alerts->index(...), 'admin.alerts');
         $router->post('/admin/maintenance/alerts/email', $alerts->saveEmail(...), 'admin.alerts.email');
         $router->post('/admin/maintenance/alerts/{id}/dismiss', $alerts->dismiss(...), 'admin.alerts.dismiss');

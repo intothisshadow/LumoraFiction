@@ -494,8 +494,32 @@ img {
     margin-inline: auto;
 }
 
-.lf-archive {
+.lf-archive,
+.lf-home {
     max-width: var(--lf-page-width);
+}
+
+/* Without news there is only one column, so the page keeps the comfortable reading width. */
+.lf-home--single {
+    max-width: var(--lf-reading-width);
+}
+
+/* Stories on the left, news on the right. The columns stack on a narrow screen, stories first. */
+.lf-home__columns {
+    display: grid;
+    gap: 0 2.5rem;
+}
+
+.lf-home__main,
+.lf-home__aside {
+    min-width: 0;
+}
+
+@media (min-width: 52rem) {
+    .lf-home:not(.lf-home--single) .lf-home__columns {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        align-items: start;
+    }
 }
 
 .lf-page__title,
@@ -909,6 +933,97 @@ img {
         linear-gradient(var(--lf-border), var(--lf-border)) 0.6rem 0.9rem / calc(100% - 1.2rem) 2px no-repeat,
         linear-gradient(var(--lf-border), var(--lf-border)) 0.6rem 1.4rem / calc(60% - 0.6rem) 2px no-repeat,
         var(--lf-surface-strong);
+}
+
+/* News: cards on the home page and the News page, and a single post. All colours come from the tokens, so dark mode follows. */
+.lf-home__news {
+    margin-top: 1rem;
+}
+
+.lf-home__more {
+    margin: 1rem 0 0;
+}
+
+.lf-news-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-news-list__item {
+    margin: 0;
+}
+
+.lf-news-card {
+    padding: 1rem 1.25rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-news-card--pinned {
+    border-color: var(--lf-info-border);
+    background: var(--lf-info-bg);
+}
+
+.lf-news-card__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.2rem;
+}
+
+.lf-news-card__title a {
+    color: var(--lf-text);
+    text-decoration: none;
+}
+
+.lf-news-card__title a:hover {
+    color: var(--lf-link);
+    text-decoration: underline;
+}
+
+.lf-news-card__meta {
+    margin: 0 0 0.5rem;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-news-card__excerpt {
+    margin: 0;
+}
+
+.lf-news-post {
+    max-width: var(--lf-reading-width);
+    margin-inline: auto;
+}
+
+.lf-news-post__header {
+    margin-bottom: 1.5rem;
+}
+
+.lf-news-post__title {
+    margin: 0 0 0.25rem;
+    font-size: 2rem;
+}
+
+.lf-news-post__meta {
+    margin: 0;
+    color: var(--lf-muted);
+}
+
+.lf-news-post__pinned {
+    font-weight: 600;
+}
+
+.lf-news-post__body {
+    font-family: var(--lf-font-story);
+    font-size: 1.125rem;
+    line-height: 1.8;
+}
+
+.lf-news-post__back {
+    margin-top: 2rem;
 }
 
 /* ==========================================================================
@@ -1475,6 +1590,7 @@ a.lf-term-link:hover {
 @media (forced-colors: active) {
     .lf-term-link,
     .lf-story-card,
+    .lf-news-card,
     .lf-browse__card,
     .lf-letters__link,
     .lf-chapter-nav__link {
