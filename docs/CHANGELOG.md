@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] — 2026-10-25
+
+First public release. Everything below is new in it.
 
 - Settings > Front page: an Administrator can now choose how many recently published and how many recently updated stories the home page lists (8 each by default, from 0 to 30). A list set to 0 is left off the page, and the welcome line shows only when both are empty. Registration can still be opened or closed under Settings > Archive.
 
