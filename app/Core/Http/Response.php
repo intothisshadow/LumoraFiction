@@ -33,6 +33,7 @@ final class Response
         public readonly string $body = '',
         public readonly int $status = 200,
         public readonly array $headers = [],
+        public readonly ?string $file = null,
     ) {
         if ($status < 100 || $status > 599) {
             throw new InvalidArgumentException('Invalid HTTP status.');
@@ -84,9 +85,25 @@ final class Response
         ]);
     }
 
+    /**
+     * A file on disk the browser saves, sent in pieces so a large one never has to fit in memory. The caller has already
+     * decided the path is one that may be sent.
+     */
+    public static function file(string $path, string $filename, string $contentType): self
+    {
+        $safe = trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $filename), '.-') ?: 'download';
+
+        return new self('', 200, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'attachment; filename="' . $safe . '"',
+            'Content-Length' => (string) filesize($path),
+            'Cache-Control' => 'private, no-store',
+        ], $path);
+    }
+
     public function withHeader(string $name, string $value): self
     {
-        return new self($this->body, $this->status, [$name => $value] + $this->headers);
+        return new self($this->body, $this->status, [$name => $value] + $this->headers, $this->file);
     }
 
     public function header(string $name): ?string
@@ -111,5 +128,9 @@ final class Response
         }
 
         echo $this->body;
+
+        if ($this->file !== null) {
+            readfile($this->file);
+        }
     }
 }

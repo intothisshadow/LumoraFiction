@@ -78,6 +78,7 @@ Each view tries its templates in this order and uses the first one the theme has
 | `news-archive` | `news-archive.php`, `index.php` |
 | `news-single` | `news-single.php`, `index.php` |
 | `404` | `404.php`, `index.php` |
+| `maintenance` | `maintenance.php`, `404.php`, `index.php` |
 
 A view can name a variant, and then `{view}-{variant}.php` is tried first: the archive of a fandom tries `archive-fandom.php` before `archive.php`.
 
@@ -208,6 +209,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | View | Data |
 | ---- | ---- |
 | `404` | `message`. |
+| `maintenance` | `message`, the administrator's text for visitors (plain text, escaped by `lf_field()`). The page is drawn with status 503 and is not indexed; the theme prints only the notice, with no link into the site, since every public page is closed to the visitor. A theme without `maintenance.php` shows its `404.php`, which prints the same title and message. During an update the site shows a plain page instead of any theme, because the database may be changing underneath it. |
 | `home` | `stories` (the most recently published), `updated_stories` (the most recently changed), each a list of story cards, and `news`, the latest announcements (see "News" below). Either story list is empty on a new site, and `news` is empty when there is no news, when the home page block is set to 0, or when news is switched off, so test it with `lf_has('news.posts')`. The list of places a signed-in reader left off is no longer part of the home page: it lives on the **Continue reading** page (`continue`), and a theme that still prints `continue_reading` simply finds the key missing. |
 | `author` | The list data below. The page title is "Stories by" and the author's display name. It also receives `author_name`, `author_avatar` (the address of the author's 100 by 100 picture, or empty) and `author_about` (the author's own text as sanitised markup, headings already moved below the page's own, or empty). Print both only when they are not empty (`lf_has()`), in a section above the page title; the picture is decorative, so give it `alt=""` and its size of 100 by 100. A theme that does not print them simply omits the section. |
 | `archive` | The list data below, for one term. The variant is the kind of term, so the fandom page tries `archive-fandom.php` first; a kind written with an underscore uses a hyphen (`archive-relationship-category`). The page title is the kind and the term, such as "Fandom: Good Omens". |

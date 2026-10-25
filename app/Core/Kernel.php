@@ -18,6 +18,21 @@ declare(strict_types=1);
 namespace LumoraFiction\Core;
 
 use LumoraFiction\Controllers\Admin\AdminRoutes;
+use LumoraFiction\Controllers\Admin\BackupsController;
+use LumoraFiction\Controllers\Admin\MaintenanceModeController;
+use LumoraFiction\Controllers\Admin\UpdatesController;
+use LumoraFiction\Core\Database\Migrator;
+use LumoraFiction\Core\Http\MaintenanceFlag;
+use LumoraFiction\Core\Update\CompatibilityChecker;
+use LumoraFiction\Core\Update\HttpClient;
+use LumoraFiction\Core\Update\PackageInspector;
+use LumoraFiction\Core\Update\ReleaseFeed;
+use LumoraFiction\Core\Update\UpdateStorage;
+use LumoraFiction\Services\BackupService;
+use LumoraFiction\Services\MaintenanceMode;
+use LumoraFiction\Services\UpdateChecker;
+use LumoraFiction\Services\UpdateService;
+use Throwable;
 use LumoraFiction\Controllers\Admin\AlertsController;
 use LumoraFiction\Controllers\Admin\NewsController as AdminNewsController;
 use LumoraFiction\Controllers\Admin\NewsSettingsController;
@@ -153,6 +168,11 @@ final class Kernel
      */
     public ?SiteAlerts $alerts = null;
 
+    /**
+     * Whether visitors are being turned away, set once the kernel has booted; the front controller's own check runs earlier.
+     */
+    public ?MaintenanceMode $maintenance = null;
+
     public function __construct(
         public readonly Configuration $config,
         public readonly Database $database,
@@ -206,7 +226,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -269,6 +289,7 @@ final class Kernel
 
         $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps, $proxies);
         $kernel->alerts = $alerts;
+        $kernel->maintenance = new MaintenanceMode($config, $database, $audit);
 
         (new StaffNavigation($auth))->register($hooks);
 
@@ -423,6 +444,22 @@ final class Kernel
         $kernel->admin = $view;
 
         $editor = new ContentEditor($view, $editorSettings, $version);
+
+        $updateStorage = new UpdateStorage($root);
+        $backups = new BackupService($updateStorage, $kernel->database, $version);
+        $updates = new UpdateService(
+            $updateStorage,
+            $backups,
+            new PackageInspector(),
+            new CompatibilityChecker($updateStorage, $kernel->database, $version),
+            new Migrator($kernel->database, $root . '/app/Migrations'),
+            $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit),
+            $kernel->audit,
+            $kernel->errors,
+            $alerts,
+        );
+        $updateChecker = new UpdateChecker($kernel->config, $kernel->database, $kernel->audit, new ReleaseFeed(new HttpClient('LumoraFiction-Updater/' . $version)), $updateStorage, $alerts, $version);
+
         $themeSettings = new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit);
 
         AdminRoutes::register(
@@ -461,6 +498,9 @@ final class Kernel
             new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config),
             new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
             new FrontPageSettingsController($kernel->auth, $view, $flash, new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new UpdatesController($kernel->auth, $view, $flash, $updates, $updateChecker, $updateStorage, $kernel->audit),
+            new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit),
+            new MaintenanceModeController($kernel->auth, $view, $flash, $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit)),
         );
     }
 
@@ -472,10 +512,18 @@ final class Kernel
     {
         $this->sendSecurityHeaders();
 
+        $request ??= Request::fromGlobals($method, $uri, $this->proxies);
+        $held = $this->maintenanceResponse($request, BasePath::stripFrom($uri));
+
+        if ($held !== null) {
+            $held->send();
+
+            return;
+        }
+
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
         if ($resolution->isFound() && $resolution->handler !== null) {
-            $request ??= Request::fromGlobals($method, $uri, $this->proxies);
             // The alerts checks that depend on the request (is this page on HTTPS) must see the one being answered.
             $this->alerts?->useRequest($request);
             $result = ($resolution->handler)($resolution->params, $request);
@@ -489,6 +537,47 @@ final class Kernel
         }
 
         $this->statusResponse($resolution->status, $resolution->allowedMethods)->send();
+    }
+
+    /**
+     * The maintenance page, when this visitor is being turned away; null when the request may go on. The admin area is
+     * never held, so the administrator can always get in to switch maintenance off or finish an update.
+     *
+     * @param string $path the request path with the base path already removed
+     */
+    public function maintenanceResponse(Request $request, string $path): ?Response
+    {
+        if ($this->maintenance === null) {
+            return null;
+        }
+
+        $path = (string) strtok($path, '?#');
+
+        if ($path === '/admin' || str_starts_with($path, '/admin/')) {
+            return null;
+        }
+
+        try {
+            // A settings table that cannot be read must not lock everyone out, so a failure here lets the request through.
+            if (!$this->maintenance->isActive() || $this->maintenance->admits($request->ip(), $this->auth->user($request->cookies))) {
+                return null;
+            }
+        } catch (Throwable $exception) {
+            $this->errors->report($exception);
+
+            return null;
+        }
+
+        try {
+            return $this->themes
+                ->render('maintenance', ['message' => $this->maintenance->message()], 503, ['title' => 'Down for maintenance', 'noindex' => true])
+                ->withHeader('Retry-After', '3600')
+                ->withHeader('Cache-Control', 'no-store');
+        } catch (Throwable $exception) {
+            $this->errors->report($exception);
+
+            return MaintenanceFlag::page($this->maintenance->message());
+        }
     }
 
     /**

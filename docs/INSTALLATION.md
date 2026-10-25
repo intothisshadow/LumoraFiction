@@ -33,6 +33,10 @@ When it finishes, the installer deletes its own folder. If your host does not al
 - **Site address.** Links in emails, such as password resets, are built from the address you enter, so make sure it is the one people will really use.
 - **Clean web addresses.** If the installer warns that they do not seem to work, ask your host to enable `mod_rewrite` and allow `.htaccess` files.
 
+## Updating later
+
+When a new release is out, an Administrator updates from the browser under **Maintenance > Updates**; nothing needs to be uploaded by FTP, and your configuration, uploads and own plugins and themes are left alone. The web server must be able to write to the application's folders for this to work; the update's review screen says so before it changes anything. See the [administration guide](ADMINISTRATION.md) and, if something goes wrong, [troubleshooting](TROUBLESHOOTING.md).
+
 ## Signing in for the first time
 
 Open `/admin/` on your site and sign in with the login name (or email address) and password you chose during installation. Administrators, Editors, and Authors can use the admin area; Readers cannot. From there, see the [administration guide](ADMINISTRATION.md) for setting up the archive.

@@ -302,6 +302,16 @@ $kernel->alerts->clear('my-plugin.sync-failed');
 - A critical stored alert is also emailed to the oldest active Administrator when they switched that on, at most once per alert per day.
 - `raise()` never throws, so a problem with the alert cannot break the request that noticed it. The built-in alerts (debug mode, installer folder, HTTPS, unwritable folders, plugin failures, paused registration, bursts of sign-in lockouts and refused registrations, and failing email) use the same two paths.
 
+## Updates, backups and maintenance mode
+
+An update replaces what a release ships and nothing else, so a plugin or theme in `content/plugins/` or `content/themes/` that the release does not contain is never touched, and neither are `config/`, `content/uploads/` and `storage/`. A plugin or theme that a release does ship is replaced as a whole folder (files it no longer has are removed), so a plugin must not keep its own data inside its folder; keep it in the database or under `storage/`. The release script refuses to build while a bundled plugin or theme has changed without a higher `Version:` header.
+
+Core's fence is the `UpdateLayout` class: it names the only folders and files an update may write, and anything that must survive an update belongs outside them.
+
+Maintenance mode is applied before routing. `Kernel::maintenanceResponse()` returns the 503 notice for a visitor, or null when the request may go on (a signed-in Administrator, an allowed address, or any path under `/admin`). The `maintenance` view is drawn by the active theme and receives `message`. An update additionally raises a marker file, `storage/updates/maintenance.flag`, which the front controller checks before the application starts; plugins cannot change that page. `$kernel->maintenance` exposes `isActive()` for a plugin that wants to pause its own background work while the site is closed.
+
+The run state of an update (`storage/updates/state.json`) is read by whichever release is installed when the next step arrives, so its fields and the names of its steps are kept readable across releases; add fields, never rename or remove them.
+
 ## Routes
 
 Register routes from a `routes_register` callback:

@@ -52,6 +52,8 @@ Administrators choose whether the archive hosts fanfiction, original fiction, or
 
 Sign-in is throttled after repeated failures, password resets use single-use expiring links, registration forms are protected against automated sign-ups, and security events are logged without recording what visitors typed. HTTPS-only mode and trusted-proxy settings are available. See the [security guide](docs/SECURITY.md).
 
+Updating needs no FTP or SSH. Under **Maintenance > Updates** an Administrator checks GitHub for a newer release (or uploads the release ZIP), reviews what the update will do, and confirms. The package is checked against its published SHA-256 checksum and against the server, the files and the database are backed up first, visitors see a maintenance notice while it runs, and if anything goes wrong the site is put back as it was. An update that is interrupted can be resumed or cancelled. **Maintenance > Backups** makes, downloads, restores and deletes backups on demand, and **Maintenance > Maintenance mode** takes the public site offline for visitors, now or on a schedule, while Administrators keep working. Your configuration, uploads, and any plugin or theme the release does not ship are never touched by an update.
+
 ## More documentation
 
 - [docs/INSTALLATION.md](docs/INSTALLATION.md): requirements, installation, and first sign-in.

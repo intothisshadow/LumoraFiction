@@ -14,6 +14,8 @@ This guide covers the protections an administrator can see and adjust, and what 
 
 ## Security events
 
+**Updates and backups** are Administrator-only. A release is installed only after its package matches the SHA-256 checksum published with it (or the one an Administrator pasted for an uploaded package), every PHP file in it parses, no entry in the ZIP can write outside the site, and the update can only ever write to the application's own folders: the configuration, uploads and storage are never replaced and a symbolic link in the way is refused. Backups live in `storage/`, which the web server rules deny, and are sent only to a signed-in Administrator through the application (the download is recorded in the activity log). A backup holds every private draft and every password hash, so treat a downloaded copy like a key. If your host serves `storage/` directly (no `.htaccess` support), move it out of the web root or deny it in the server configuration before relying on backups.
+
 **Maintenance > Security events** lists what the protections blocked, newest first: sign-ins locked after too many failures, forms that looked automated, and registrations that were refused or dropped. It records the kind of event, the internet address, the time and a short note, and never what a visitor typed. Entries are removed after 30 days, which you can change under Settings > Spam protection.
 
 ## Privacy of content and accounts

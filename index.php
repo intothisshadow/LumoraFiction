@@ -60,6 +60,16 @@ if (!LumoraFiction\Core\Kernel::isInstalled(LF_ROOT)) {
     exit(0);
 }
 
+// While an update or restore runs, visitors get a plain page before the application starts: the tables may be
+// mid-replacement, so nothing here may ask the database anything. The admin area is never held.
+LumoraFiction\Core\Http\BasePath::set(LumoraFiction\Core\Http\BasePath::detect($_SERVER));
+$held = LumoraFiction\Core\Http\MaintenanceFlag::blocks(LF_ROOT, LumoraFiction\Core\Http\BasePath::stripFrom((string) ($_SERVER['REQUEST_URI'] ?? '/')));
+
+if ($held !== null) {
+    $held->send();
+    exit(0);
+}
+
 try {
     $kernel = LumoraFiction\Core\Kernel::boot(LF_ROOT, $errors, $_SERVER);
 } catch (LumoraFiction\Core\Database\DatabaseConnectionException $exception) {

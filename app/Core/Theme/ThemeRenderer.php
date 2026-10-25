@@ -59,6 +59,8 @@ final class ThemeRenderer
         'news-archive' => ['news-archive', 'index'],
         'news-single' => ['news-single', 'index'],
         '404' => ['404', 'index'],
+        // Themes that have no maintenance template show the page-not-found one, which prints the same title and message.
+        'maintenance' => ['maintenance', '404', 'index'],
     ];
 
     private const SAME_SITE = '#^/(?![/\\\\])[^\s"\'<>\\\\]*\z#';

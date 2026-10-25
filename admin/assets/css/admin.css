@@ -1076,6 +1076,104 @@ fieldset.lf-card legend {
     font-size: 1.1rem;
 }
 
+/* Updates, backups and maintenance mode */
+
+.lf-update-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-block: 1rem;
+}
+
+.lf-update-actions form {
+    margin: 0;
+}
+
+.lf-update-notes__text,
+.lf-update-log__text {
+    max-height: 18rem;
+    margin: 0.5rem 0 0;
+    padding: 0.75rem;
+    overflow: auto;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+
+.lf-update-check--ok {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.lf-update-check--warning {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.lf-update-check--error {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+.lf-update-result {
+    background: var(--surface-alt);
+    color: var(--text);
+}
+
+.lf-update-result--success {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.lf-update-result--rolled_back,
+.lf-update-result--failed {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+.lf-update-steps {
+    margin: 0 0 1rem;
+    padding-left: 1.5rem;
+}
+
+.lf-update-steps__item {
+    padding-block: 0.15rem;
+    color: var(--muted);
+}
+
+.lf-update-steps__item--done {
+    color: var(--ok);
+}
+
+.lf-update-steps__item--current {
+    color: var(--text);
+    font-weight: bold;
+}
+
+.lf-update-steps__state {
+    font-weight: normal;
+}
+
+.lf-update-log-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.lf-update-log-list__item--problem {
+    color: var(--error);
+}
+
+.lf-backups__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+}
+
 .lf-choice--inline {
     display: inline-flex;
     align-items: center;
@@ -1153,7 +1251,10 @@ fieldset.lf-card legend {
     }
 
     .lf-table--selectable,
-    .lf-chapter-table {
+    .lf-chapter-table,
+    .lf-backups,
+    .lf-update-history,
+    .lf-update-checks {
         display: block;
         overflow-x: auto;
     }

@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+- Updater, backups and rollback: **Maintenance > Updates** checks GitHub for a newer release when an Administrator asks, or takes an uploaded release ZIP, and shows a review screen before anything changes. The package is verified against the SHA-256 checksum published with the release (a download without one is refused; an upload can be checked against a pasted checksum), every PHP file in it is parsed, and no entry can write outside the site. Checks cover the version (updates only go forward), the PHP version and extensions and the database server the release needs, a database from a newer release, folders the web server cannot write to, and free disk space. Confirming runs the update one step at a time on a progress page (so a host's time limit is never hit, and a large database is backed up in pieces): close the site to visitors, back up the files, back up the database, install the files and apply the new database changes, check the new version. Nothing is replaced until a verified backup exists, and after that any failure restores the files and the database by itself. An interrupted update can be resumed or cancelled, and cancelling after files were replaced puts the earlier version back. Configuration, uploads, logs and any plugin or theme the release does not ship are never touched; a bundled plugin or theme you removed stays removed. Every update, restore and backup is kept in a history and an update log.
+
+- Backups: **Maintenance > Backups** lists the backups in `storage/backups/` (a ZIP of the application files and a copy of the database), makes one on demand, downloads either part (Administrators only, streamed through the application and recorded in the activity log), restores one after a confirmation page (with a safety backup of the present state made first) and deletes one. Backups are checksummed when made and checked again before a restore.
+
+- Maintenance mode: **Maintenance > Maintenance mode** turns the public site into a short notice for visitors, in the active theme, with the administrator's message, a 503 status and `Retry-After` header, an optional end time or scheduled period, and an allowed list of addresses and ranges. Signed-in Administrators and the whole admin area are never held. An update uses it by itself while it runs, through a plain page that needs nothing from the database. Both bundled themes have a `maintenance` template; a theme without one shows its page-not-found template.
+
+- A dedicated `Response::file()` sends a file from disk in pieces, so a large download never has to fit in memory.
+
 ## [1.0.0] — 2026-10-25
 
 First public release. Everything below is new in it.

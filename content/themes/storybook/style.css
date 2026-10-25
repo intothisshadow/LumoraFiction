@@ -830,7 +830,8 @@ img {
     margin: 0;
 }
 
-.lf-page--not-found {
+.lf-page--not-found,
+.lf-page--maintenance {
     padding-block: 2rem;
     text-align: center;
 }

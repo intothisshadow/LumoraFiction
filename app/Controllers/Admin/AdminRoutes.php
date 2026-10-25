@@ -52,6 +52,9 @@ final class AdminRoutes
         NewsController $news,
         NewsSettingsController $newsSettings,
         FrontPageSettingsController $frontPage,
+        UpdatesController $updates,
+        BackupsController $backups,
+        MaintenanceModeController $maintenanceMode,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -171,5 +174,26 @@ final class AdminRoutes
         $router->get('/admin/maintenance/plugins', $plugins->index(...), 'admin.plugins');
         $router->post('/admin/maintenance/plugins/activate', $plugins->activate(...), 'admin.plugins.activate');
         $router->post('/admin/maintenance/plugins/deactivate', $plugins->deactivate(...), 'admin.plugins.deactivate');
+        $router->get('/admin/maintenance/updates', $updates->index(...), 'admin.updates');
+        $router->post('/admin/maintenance/updates/settings', $updates->saveSettings(...), 'admin.updates.settings');
+        $router->post('/admin/maintenance/updates/check', $updates->check(...), 'admin.updates.check');
+        $router->post('/admin/maintenance/updates/download', $updates->download(...), 'admin.updates.download');
+        $router->post('/admin/maintenance/updates/upload', $updates->upload(...), 'admin.updates.upload');
+        $router->get('/admin/maintenance/updates/review', $updates->review(...), 'admin.updates.review');
+        $router->post('/admin/maintenance/updates/discard', $updates->discard(...), 'admin.updates.discard');
+        $router->post('/admin/maintenance/updates/start', $updates->start(...), 'admin.updates.start');
+        $router->get('/admin/maintenance/updates/run', $updates->run(...), 'admin.updates.run');
+        $router->post('/admin/maintenance/updates/run/advance', $updates->advance(...), 'admin.updates.advance');
+        $router->post('/admin/maintenance/updates/run/cancel', $updates->cancel(...), 'admin.updates.cancel');
+        $router->post('/admin/maintenance/updates/maintenance/clear', $updates->clearMaintenance(...), 'admin.updates.maintenance.clear');
+        $router->get('/admin/maintenance/backups', $backups->index(...), 'admin.backups');
+        $router->post('/admin/maintenance/backups/create', $backups->create(...), 'admin.backups.create');
+        $router->get('/admin/maintenance/backups/{id}/download/{part}', $backups->download(...), 'admin.backups.download');
+        $router->get('/admin/maintenance/backups/{id}/restore', $backups->showRestore(...));
+        $router->post('/admin/maintenance/backups/{id}/restore', $backups->restore(...));
+        $router->get('/admin/maintenance/backups/{id}/delete', $backups->showDelete(...));
+        $router->post('/admin/maintenance/backups/{id}/delete', $backups->delete(...));
+        $router->get('/admin/maintenance/mode', $maintenanceMode->show(...), 'admin.maintenance-mode');
+        $router->post('/admin/maintenance/mode', $maintenanceMode->update(...));
     }
 }
