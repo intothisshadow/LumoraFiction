@@ -31,7 +31,7 @@ lf_get_header();
                         </li>
                     <?php endforeach; ?>
                 </ol>
-            <?php else: ?>
+            <?php elseif (!lf_has('updated_stories')): ?>
                 <p class="lf-page__message">Welcome. There are no stories to show yet.</p>
             <?php endif; ?>
         </div>

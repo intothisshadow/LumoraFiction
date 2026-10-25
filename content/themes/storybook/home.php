@@ -19,7 +19,7 @@ lf_get_header();
 ?>
 <section class="lf-home<?= lf_has('news.posts') ? '' : ' lf-home--single' ?>">
     <h1 class="lf-screen-reader-text"><?php lf_site_name(); ?></h1>
-    <?php if (!lf_has('stories')): ?>
+    <?php if (!lf_has('stories') && !lf_has('updated_stories')): ?>
         <div class="lf-home__intro">
             <p class="lf-page__message">Welcome. There are no stories to show yet.</p>
         </div>

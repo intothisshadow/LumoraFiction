@@ -51,6 +51,7 @@ final class AdminRoutes
         RetentionSettingsController $retention,
         NewsController $news,
         NewsSettingsController $newsSettings,
+        FrontPageSettingsController $frontPage,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -74,7 +75,9 @@ final class AdminRoutes
         $router->post('/admin/notifications/read-all', $notifications->readAll(...), 'admin.notifications.read-all');
         $router->get('/admin/settings/retention', $retention->show(...), 'admin.settings.retention');
         $router->post('/admin/settings/retention', $retention->update(...));
-        $router->get('/admin/settings/news', $newsSettings->show(...), 'admin.settings.news');
+        $router->get('/admin/settings/front-page', $frontPage->show(...), 'admin.settings.front-page');
+        $router->post('/admin/settings/front-page', $frontPage->update(...));
+        $router->get('/admin/settings/news',$newsSettings->show(...), 'admin.settings.news');
         $router->post('/admin/settings/news', $newsSettings->update(...));
         // The fixed word "new" comes before {id} so it is never read as a post number.
         $router->get('/admin/news', $news->index(...), 'admin.news');

@@ -39,6 +39,7 @@ use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\FollowPresenter;
+use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\NewsSettings;
@@ -61,9 +62,6 @@ use LumoraFiction\Services\UserService;
  */
 final class ArchiveController
 {
-    /** How many stories each list on the home page shows. */
-    private const HOME_COUNT = 8;
-
     /** Pages beyond this are refused outright, so a huge number in an address cannot become a huge database offset. */
     private const MAX_PAGE = 10000;
 
@@ -156,8 +154,11 @@ final class ArchiveController
     public function home(array $params, Request $request): Response
     {
         return $this->guarded(function (): Response {
-            $published = $this->archive->recent('published', self::HOME_COUNT);
-            $updated = $this->archive->recent('updated', self::HOME_COUNT);
+            // A list set to 0 is not queried at all.
+            $publishedCount = FrontPageSettings::publishedCount($this->config);
+            $updatedCount = FrontPageSettings::updatedCount($this->config);
+            $published = $publishedCount === 0 ? [] : $this->archive->recent('published', $publishedCount);
+            $updated = $updatedCount === 0 ? [] : $this->archive->recent('updated', $updatedCount);
             $profiles = $this->users->publicProfiles(array_map(static fn (Story $story): int => $story->ownerId, [...$published, ...$updated]));
 
             // Zero hides the block, and switching news off hides it whatever the count.

@@ -131,6 +131,7 @@ $kernel->auth->can(\LumoraFiction\Models\Capability::WriteStories);
 | `registration.email_verification` | `true` | Whether a new account must confirm its email address before signing in. |
 | `security.password_min_length` | `10` | Minimum password length, between 8 and 64. |
 | `security.session_lifetime` | `86400` | Seconds an idle session is kept. |
+| `home.published_count`, `home.updated_count` | `8` | How many recently published and recently updated stories the home page lists, from 0 to 30; 0 leaves that list off and a value outside the range counts as 8. Read them with `FrontPageSettings::publishedCount()` and `updatedCount()`. |
 | `archive.mode` | `both` | What the site publishes: `both`, `fanfiction`, or `original`. |
 | `publishing.hold_first_story` | `true` | Whether a new Author's first story waits for approval. |
 | `editor.default_mode` | `visual` | The editing mode writers start with: `visual`, `markdown`, `html` or `plain`. |

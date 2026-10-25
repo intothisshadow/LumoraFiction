@@ -21,6 +21,8 @@ use LumoraFiction\Controllers\Admin\AdminRoutes;
 use LumoraFiction\Controllers\Admin\AlertsController;
 use LumoraFiction\Controllers\Admin\NewsController as AdminNewsController;
 use LumoraFiction\Controllers\Admin\NewsSettingsController;
+use LumoraFiction\Controllers\Admin\FrontPageSettingsController;
+use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Controllers\NewsController;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
@@ -204,7 +206,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -458,6 +460,7 @@ final class Kernel
             new RetentionSettingsController($kernel->auth, $view, $flash, new RetentionSettings($kernel->config, $kernel->database, $kernel->audit)),
             new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config),
             new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new FrontPageSettingsController($kernel->auth, $view, $flash, new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit)),
         );
     }
 
