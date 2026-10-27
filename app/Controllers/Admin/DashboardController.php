@@ -25,6 +25,7 @@ use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\SiteAlert;
 use LumoraFiction\Models\User;
+use LumoraFiction\Services\ActivityDescriber;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\NewsService;
@@ -46,6 +47,7 @@ final class DashboardController extends AdminController
         private readonly SiteAlerts $alerts,
         private readonly StoryService $stories,
         private readonly NewsService $news,
+        private readonly ActivityDescriber $describer = new ActivityDescriber(),
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -80,9 +82,23 @@ final class DashboardController extends AdminController
             'newNewsUrl' => AdminUrl::to('news/new'),
             'storiesUrl' => AdminUrl::to('stories'),
             'newStoryUrl' => AdminUrl::to('stories/new'),
-            'activity' => $isAdministrator ? $this->audit->recent(8) : [],
+            'activity' => $isAdministrator ? $this->activity() : [],
             'cards' => $this->pluginCards($user),
         ], $user, 'Dashboard', '', $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * The latest entries of the activity log as sentences a person can read.
+     *
+     * @return list<array{actor: string, text: string, at: \DateTimeImmutable}>
+     */
+    private function activity(): array
+    {
+        return array_map(fn (array $entry): array => [
+            'actor' => $entry['actor'] ?? 'The system',
+            'text' => $this->describer->describe($entry),
+            'at' => $entry['at'],
+        ], $this->audit->recent(8));
     }
 
     /**

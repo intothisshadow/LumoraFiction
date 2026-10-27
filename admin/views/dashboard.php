@@ -34,9 +34,7 @@ use LumoraFiction\Models\User;
 /** @var string $newNewsUrl */
 /** @var string $storiesUrl */
 /** @var string $newStoryUrl */
-/** @var list<array{action: string, actor: string|null, target_type: string|null, target_id: string|null, details: array<string, mixed>, at: DateTimeImmutable}> $activity */
-
-$descriptions = ['settings.archive.update' => 'changed the archive settings'];
+/** @var list<array{actor: string, text: string, at: DateTimeImmutable}> $activity the latest activity, already worded as sentences */
 ?>
 <p class="lf-lead">Welcome, <?= Html::e($user->displayName) ?>. You are signed in as <?= Html::e(strtolower($user->role->label())) ?>.</p>
 
@@ -132,9 +130,9 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
             <ul class="lf-activity">
                 <?php foreach ($activity as $entry): ?>
                     <li>
-                        <?= Html::e($entry['actor'] ?? 'The system') ?>
-                        <?= Html::e($descriptions[$entry['action']] ?? 'did ' . $entry['action']) ?>
-                        <time datetime="<?= Html::e($entry['at']->format('Y-m-d\TH:i:s')) ?>"><?= Html::e($entry['at']->format('Y-m-d H:i')) ?></time>
+                        <?= Html::e($entry['actor']) ?>
+                        <?= Html::e($entry['text']) ?>
+                        <time datetime="<?= Html::e($entry['at']->format('Y-m-d\TH:i:s')) ?>"><?= Html::e($entry['at']->format('j M Y, H:i')) ?></time>
                     </li>
                 <?php endforeach; ?>
             </ul>
