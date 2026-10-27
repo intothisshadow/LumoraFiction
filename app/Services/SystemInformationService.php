@@ -112,8 +112,8 @@ final class SystemInformationService
         $detected = $this->detectedAddress();
 
         $rows = [
+            // The one version there is, read from version.php. A second copy kept in the database drifted from it.
             $this->row('Lumora Fiction version', $version['version']),
-            $this->row('Installed version', $this->text($this->config->setting('app.installed_version'), 'Unknown')),
             $this->row('Site address (stored)', $stored === '' ? 'Not set' : $stored, $stored === '' ? self::STATUS_ERROR : self::STATUS_OK),
         ];
 

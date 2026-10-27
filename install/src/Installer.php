@@ -153,13 +153,9 @@ final class Installer
 
     private function saveSettings(Configuration $config, InstallRequest $request): void
     {
-        /** @var array{version: string} $version */
-        $version = require $this->root . '/version.php';
-
         $config->setSetting('site.name', $request->siteName);
         $config->setSetting('site.timezone', $request->timezone);
         $config->setSetting('archive.mode', $request->archiveMode);
-        $config->setSetting('app.installed_version', $version['version']);
 
         // Written explicitly so the secure choices are visible in the settings, not only implied by defaults.
         foreach (AuthService::DEFAULTS as $name => $value) {
