@@ -338,7 +338,8 @@ fieldset.lf-card legend {
     padding-left: 1.25rem;
 }
 
-.lf-notice a {
+/* A link takes the notice's colour, but a link styled as a button keeps its own, or its label is unreadable on the button. */
+.lf-notice a:not(.lf-button) {
     color: inherit;
 }
 
