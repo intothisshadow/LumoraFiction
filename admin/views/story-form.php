@@ -36,6 +36,7 @@ use LumoraFiction\Models\WorkStatus;
 /** @var bool $trusted whether this story goes straight to readers when the writer publishes it */
 /** @var array<string, string> $urls */
 /** @var int $chapterCount */
+/** @var list<array{title: string, html: string}> $panels panels added by plugins; the markup is trusted, so the plugin must escape it */
 /** @var array{title: int, summary: int, notes: int, disclaimer: int, cover_alt: int} $limits */
 /** @var array{thumb: string, full: string, alt: string} $cover the story's current cover, empty strings for none */
 /** @var bool $coverAvailable whether this server can process pictures */
@@ -276,6 +277,13 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
             <?php if ($chapterCount > 0): ?><a href="<?= Html::e($urls['chapters']) ?>">Manage chapters</a><?php endif; ?>
         </p>
     </section>
+
+    <?php foreach ($panels as $index => $panel): ?>
+        <section class="lf-card" aria-labelledby="lf-story-panel-<?= (int) $index ?>">
+            <h2 id="lf-story-panel-<?= (int) $index ?>"><?= Html::e($panel['title']) ?></h2>
+            <?= $panel['html'] ?>
+        </section>
+    <?php endforeach; ?>
 
     <section class="lf-card" aria-labelledby="more-heading">
         <h2 id="more-heading">More</h2>

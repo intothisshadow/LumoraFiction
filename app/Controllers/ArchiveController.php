@@ -236,6 +236,8 @@ final class ArchiveController
                 ];
             }
 
+            do_action('story_viewed', $story, null, $user, $request);
+
             return $this->themes->render('story', $data, 200, ['title' => $story->title]);
         });
     }
@@ -280,6 +282,8 @@ final class ArchiveController
             }
 
             $data += $this->readerData($user, $story, $chapter, $request->cookies, $user !== null && $this->follows->isFollowing($user, $story->id));
+
+            do_action('story_viewed', $story, $chapter, $user, $request);
 
             return $this->themes->render('chapter', $data, 200, ['title' => $this->presenter->chapterTitle($chapter) . ' — ' . $story->title]);
         });

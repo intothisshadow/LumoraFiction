@@ -604,6 +604,7 @@ final class StoryController extends WriterController
                 'unpublish' => $base . '/unpublish',
             ],
             'chapterCount' => $story === null ? 0 : ($this->chapters->countsForStories([$story->id])[$story->id]['total'] ?? 0),
+            'panels' => $story === null ? [] : $this->pluginPanels($story, $user),
             'cover' => $story === null ? ['thumb' => '', 'full' => '', 'alt' => ''] : $this->presenter->cover($story),
             'coverAvailable' => CoverImageStore::isAvailable(),
             'coverLimit' => (string) round(CoverImageStore::limitBytes() / 1048576, 1),
@@ -615,6 +616,23 @@ final class StoryController extends WriterController
                 'cover_alt' => StoryService::COVER_ALT_MAX,
             ],
         ], $user, $story === null ? 'New story' : 'Edit story', $story === null ? self::PATH . '/new' : self::PATH, $this->flash->pull($request->cookies), $status);
+    }
+
+    /**
+     * @return list<array{title: string, html: string}>
+     */
+    private function pluginPanels(Story $story, User $user): array
+    {
+        $panels = [];
+
+        // The person is already known to manage this story, so a plugin only has to decide what to show.
+        foreach ((array) apply_filters('admin_story_panels', [], $story, $user) as $panel) {
+            if (is_array($panel) && is_string($panel['title'] ?? null) && is_string($panel['html'] ?? null)) {
+                $panels[] = ['title' => $panel['title'], 'html' => $panel['html']];
+            }
+        }
+
+        return $panels;
     }
 
     /**

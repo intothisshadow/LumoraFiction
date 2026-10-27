@@ -25,6 +25,7 @@ use LumoraFiction\Models\User;
 /** @var int $alertTotal every alert there is, shown or not */
 /** @var string $alertsUrl */
 /** @var array{total: int, by_role: array<string, int>, by_status: array<string, int>}|null $summary */
+/** @var list<array{title: string, html: string}> $cards cards added by plugins; the markup is trusted, so the plugin must escape it */
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
 /** @var int|null $awaitingApproval stories in the approval queue; null for someone who may not review */
 /** @var string $reviewUrl */
@@ -93,6 +94,13 @@ $descriptions = ['settings.archive.update' => 'changed the archive settings'];
         <p><a href="<?= Html::e($newNewsUrl) ?>" class="lf-button lf-button--secondary">Add a news post</a> <a href="<?= Html::e($newsUrl) ?>">All news</a></p>
     </section>
 <?php endif; ?>
+
+<?php foreach ($cards as $index => $card): ?>
+    <section aria-labelledby="lf-plugin-card-<?= (int) $index ?>" class="lf-card">
+        <h2 id="lf-plugin-card-<?= (int) $index ?>"><?= Html::e($card['title']) ?></h2>
+        <?= $card['html'] ?>
+    </section>
+<?php endforeach; ?>
 
 <?php if ($summary !== null): ?>
     <section aria-labelledby="lf-people-heading" class="lf-card">

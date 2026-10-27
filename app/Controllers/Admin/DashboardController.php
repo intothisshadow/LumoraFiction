@@ -81,7 +81,26 @@ final class DashboardController extends AdminController
             'storiesUrl' => AdminUrl::to('stories'),
             'newStoryUrl' => AdminUrl::to('stories/new'),
             'activity' => $isAdministrator ? $this->audit->recent(8) : [],
+            'cards' => $this->pluginCards($user),
         ], $user, 'Dashboard', '', $this->flash->pull($request->cookies));
     }
 
+    /**
+     * Cards a plugin adds below the core ones. Anything that is not a card with a title and markup is dropped, so a
+     * careless plugin cannot break the screen.
+     *
+     * @return list<array{title: string, html: string}>
+     */
+    private function pluginCards(User $user): array
+    {
+        $cards = [];
+
+        foreach ((array) apply_filters('admin_dashboard_cards', [], $user) as $card) {
+            if (is_array($card) && is_string($card['title'] ?? null) && is_string($card['html'] ?? null)) {
+                $cards[] = ['title' => $card['title'], 'html' => $card['html']];
+            }
+        }
+
+        return $cards;
+    }
 }

@@ -173,6 +173,12 @@ final class Kernel
      */
     public ?MaintenanceMode $maintenance = null;
 
+    /**
+     * The site's folder on disk, for plugins that keep files under storage/. A plugin file may sit somewhere else
+     * than the site it runs in, so it must not work this out from its own location.
+     */
+    public string $root = '';
+
     public function __construct(
         public readonly Configuration $config,
         public readonly Database $database,
@@ -288,6 +294,7 @@ final class Kernel
         $themes = new ThemeRenderer($themeCatalog, $config, $hooks, $themeOptions, $errors, $version['version']);
 
         $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps, $proxies);
+        $kernel->root = $root;
         $kernel->alerts = $alerts;
         $kernel->maintenance = new MaintenanceMode($config, $database, $audit);
 
