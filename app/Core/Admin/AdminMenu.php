@@ -112,6 +112,7 @@ final class AdminMenu
                     ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-front-page', 'label' => 'Front page', 'path' => 'settings/front-page', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
                 ],
             ],

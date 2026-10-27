@@ -38,6 +38,7 @@ use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\ContentRenderer;
+use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\FollowPresenter;
 use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Services\NewsPresenter;
@@ -105,6 +106,7 @@ final class ArchiveController
         private readonly ReaderPreferences $readerPreferences,
         private readonly NewsService $news,
         private readonly NewsPresenter $newsPresenter,
+        private readonly ?DownloadPresenter $downloadPresenter = null,
     ) {
     }
 
@@ -222,6 +224,7 @@ final class ArchiveController
             }
 
             $data += $this->readerData($user, $story, null, $request->cookies, $following);
+            $data['downloads'] = $this->downloadPresenter?->menu($story) ?? [];
 
             if ($update !== null) {
                 $data['notices'][] = $update;

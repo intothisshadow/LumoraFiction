@@ -28,6 +28,9 @@ use LumoraFiction\Helpers\Html;
 /** @var string $avatarLimit the largest upload in megabytes */
 /** @var int $aboutLimit */
 /** @var string $authorUrl */
+/** @var string $downloadsAction the address the downloads default is saved to, empty when downloads cannot be configured */
+/** @var bool $downloadsDefault whether the author's default allows downloads */
+/** @var bool $downloadsSiteOn whether downloads are switched on for the whole site */
 /** @var string $assetVersion */
 
 $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class="lf-error" id="' . Html::e($name) . '_error" role="alert">' . Html::e($errors[$name]) . '</p>' : '';
@@ -105,4 +108,19 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
     </section>
 
     <script src="<?= Html::e(AdminUrl::asset('js/cover-crop.js', $assetVersion ?? '')) ?>" defer></script>
+<?php endif; ?>
+
+<?php if ($downloadsAction !== ''): ?>
+    <section class="lf-card" aria-labelledby="downloads-heading">
+        <h2 id="downloads-heading">Downloads</h2>
+        <form method="post" action="<?= Html::e($downloadsAction) ?>" class="lf-form" novalidate>
+            <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+            <div class="lf-choice">
+                <input type="checkbox" id="downloads_default" name="downloads_default" value="1"<?= $downloadsDefault ? ' checked' : '' ?> aria-describedby="downloads_default_hint">
+                <label for="downloads_default">Let readers download my stories</label>
+            </div>
+            <p class="lf-hint" id="downloads_default_hint">This is the default for all your stories, including ones you publish later. Readers can take a story away as a file in the formats the site offers. You can still allow or refuse downloads for one story on its own screen, and that choice wins over this one.<?= $downloadsSiteOn ? '' : ' Downloads are switched off for the whole site at the moment, so this has no effect until an Administrator switches them on.' ?></p>
+            <p><button type="submit" class="lf-button">Save</button></p>
+        </form>
+    </section>
 <?php endif; ?>

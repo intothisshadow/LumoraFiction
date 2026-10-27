@@ -36,6 +36,10 @@ use LumoraFiction\Models\WorkStatus;
 /** @var bool $trusted whether this story goes straight to readers when the writer publishes it */
 /** @var array<string, string> $urls */
 /** @var int $chapterCount */
+/** @var list<array{value: string, label: string, selected: bool}> $downloadChoices the story's download choices, empty when the story is new */
+/** @var bool $authorAllowsDownloads whether the owner's default allows downloads */
+/** @var bool $downloadsSiteOn whether downloads are switched on for the whole site */
+/** @var string $authorProfileUrl */
 /** @var list<array{title: string, html: string}> $panels panels added by plugins; the markup is trusted, so the plugin must escape it */
 /** @var array{title: int, summary: int, notes: int, disclaimer: int, cover_alt: int} $limits */
 /** @var array{thumb: string, full: string, alt: string} $cover the story's current cover, empty strings for none */
@@ -219,6 +223,21 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                     </div>
                 <?php endif; ?>
             <?php endforeach; ?>
+        </section>
+    <?php endif; ?>
+
+    <?php if ($story !== null && $downloadChoices !== []): ?>
+        <section class="lf-card" aria-labelledby="downloads-heading">
+            <h2 id="downloads-heading">Downloads</h2>
+            <div class="lf-field">
+                <label for="download_choice">Can readers download this story?</label>
+                <select id="download_choice" name="download_choice" aria-describedby="download_choice_hint">
+                    <?php foreach ($downloadChoices as $choice): ?>
+                        <option value="<?= Html::e($choice['value']) ?>"<?= $choice['selected'] ? ' selected' : '' ?>><?= Html::e($choice['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="lf-hint" id="download_choice_hint">The author's default for all their stories is <?= $authorAllowsDownloads ? 'to allow downloads' : 'not to allow downloads' ?><?= $authorProfileUrl === '' ? '' : ', which you can change on <a href="' . Html::e($authorProfileUrl) . '">your author profile</a>' ?>. A choice made here for this one story wins over that default.<?= $downloadsSiteOn ? '' : ' Downloads are switched off for the whole site at the moment, so nothing here has an effect until an Administrator switches them on.' ?></p>
+            </div>
         </section>
     <?php endif; ?>
 

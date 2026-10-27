@@ -38,6 +38,14 @@ use LumoraFiction\Controllers\Admin\NewsController as AdminNewsController;
 use LumoraFiction\Controllers\Admin\NewsSettingsController;
 use LumoraFiction\Controllers\Admin\FrontPageSettingsController;
 use LumoraFiction\Services\FrontPageSettings;
+use LumoraFiction\Controllers\DownloadController;
+use LumoraFiction\Controllers\Admin\DownloadSettingsController;
+use LumoraFiction\Services\DownloadAccess;
+use LumoraFiction\Services\DownloadCounter;
+use LumoraFiction\Services\DownloadPresenter;
+use LumoraFiction\Services\DownloadSettings;
+use LumoraFiction\Services\StoryDocumentFactory;
+use LumoraFiction\Services\StoryDownloads;
 use LumoraFiction\Controllers\NewsController;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
@@ -179,6 +187,15 @@ final class Kernel
      */
     public string $root = '';
 
+    /**
+     * Story downloads, built with the other services at boot. Nullable only because the kernel is constructed before they are.
+     */
+    public ?DownloadAccess $downloadAccess = null;
+
+    public ?StoryDownloads $storyDownloads = null;
+
+    public ?DownloadCounter $downloadCounter = null;
+
     public function __construct(
         public readonly Configuration $config,
         public readonly Database $database,
@@ -232,7 +249,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -313,6 +330,16 @@ final class Kernel
         $flash = new FlashMessages($sessions);
         $editorSettings = new EditorSettings($config, $database, $audit);
 
+        $kernel->downloadAccess = new DownloadAccess($config, $database, $stories, $audit);
+        $kernel->downloadCounter = new DownloadCounter($database);
+        $kernel->storyDownloads = new StoryDownloads($config, new StoryDocumentFactory($chapters, $taxonomy, $kernel->users, $renderer, $covers), $root . '/storage/cache/downloads', __DIR__ . '/../Libraries');
+
+        // A deleted story takes its files and totals with it.
+        $hooks->addAction('story_deleted', static function (int $storyId) use ($kernel): void {
+            $kernel->storyDownloads?->forget($storyId);
+            $kernel->downloadCounter?->forget($storyId);
+        });
+
         $pluginCatalog = new PluginCatalog($root . '/content/plugins');
         $plugins = new PluginManager($config, $pluginCatalog, new PluginLoader($kernel, $pluginCatalog, $version['version'], $root), $audit, $hooks, $errors, $version['version']);
         (new PluginNotices($plugins))->register($hooks);
@@ -377,6 +404,9 @@ final class Kernel
             $readerPreferences,
             $news,
             $newsPresenter,
+            $kernel->downloadAccess !== null && $kernel->storyDownloads !== null && $kernel->downloadCounter !== null
+                ? new DownloadPresenter($kernel->config, $kernel->downloadAccess, $kernel->storyDownloads, $kernel->downloadCounter)
+                : null,
         );
         $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config);
 
@@ -427,6 +457,12 @@ final class Kernel
 
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
+
+        if ($kernel->downloadAccess !== null && $kernel->storyDownloads !== null && $kernel->downloadCounter !== null) {
+            $downloads = new DownloadController($kernel->themes, $stories, $kernel->downloadAccess, $kernel->storyDownloads, $kernel->downloadCounter, $kernel->auth, $kernel->config);
+            $kernel->router->get(PublicUrl::DOWNLOAD, $downloads->download(...), 'story.download');
+        }
+
         $kernel->router->get(PublicUrl::AUTHOR, $archive->author(...), 'author');
 
         // One route per kind of term, so an address under any other first segment is never read as a term.
@@ -477,9 +513,9 @@ final class Kernel
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
             new TermSuggestController($kernel->auth, $taxonomy),
-            new AuthorProfileController($kernel->auth, $view, $flash, $authorProfiles, $editor),
+            new AuthorProfileController($kernel->auth, $view, $flash, $authorProfiles, $editor, $kernel->downloadAccess, $kernel->config),
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
-            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
             new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config, $authorProfiles),
@@ -505,6 +541,7 @@ final class Kernel
             new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config),
             new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
             new FrontPageSettingsController($kernel->auth, $view, $flash, new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new DownloadSettingsController($kernel->auth, $view, $flash, new DownloadSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->storyDownloads),
             new UpdatesController($kernel->auth, $view, $flash, $updates, $updateChecker, $updateStorage, $kernel->audit),
             new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit),
             new MaintenanceModeController($kernel->auth, $view, $flash, $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit)),

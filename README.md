@@ -42,7 +42,7 @@ Additional features include chapter version history, story copying, trash and re
 
 ### Reading the archive
 
-Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. News posts keep readers informed about the site. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
+Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. Stories can be downloaded as EPUB, PDF or HTML, unless the administrator or the author turns that off. News posts keep readers informed about the site. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
 
 ### Running the site
 

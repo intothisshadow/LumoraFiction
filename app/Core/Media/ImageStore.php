@@ -237,6 +237,15 @@ class ImageStore
         return self::isValidName($name) && is_file($this->path($this->variantName($name, $thumbnail ? '-thumb' : '')));
     }
 
+    /**
+     * The file on disk for a picture this store made, or an empty string for a name it did not make or a file that is
+     * gone. For building a file that embeds the picture, such as an EPUB.
+     */
+    public function filePath(string $name): string
+    {
+        return $this->exists($name) ? $this->path($name) : '';
+    }
+
     private function variantName(string $name, string $suffix): string
     {
         return $suffix === '' ? $name : preg_replace('/\.(jpg|png|webp)\z/', $suffix . '.$1', $name) ?? $name;

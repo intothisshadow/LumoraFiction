@@ -31,6 +31,7 @@ lf_get_header();
         <?php endif; ?>
         <?php lf_part('bookmark-buttons'); ?>
         <?php lf_part('follow-button'); ?>
+        <?php lf_downloads(); ?>
     </header>
 
     <?php $groups = lf_items('term_groups'); ?>

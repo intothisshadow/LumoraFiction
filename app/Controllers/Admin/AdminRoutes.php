@@ -52,6 +52,7 @@ final class AdminRoutes
         NewsController $news,
         NewsSettingsController $newsSettings,
         FrontPageSettingsController $frontPage,
+        DownloadSettingsController $downloadSettings,
         UpdatesController $updates,
         BackupsController $backups,
         MaintenanceModeController $maintenanceMode,
@@ -80,6 +81,8 @@ final class AdminRoutes
         $router->post('/admin/settings/retention', $retention->update(...));
         $router->get('/admin/settings/front-page', $frontPage->show(...), 'admin.settings.front-page');
         $router->post('/admin/settings/front-page', $frontPage->update(...));
+        $router->get('/admin/settings/downloads', $downloadSettings->show(...), 'admin.settings.downloads');
+        $router->post('/admin/settings/downloads', $downloadSettings->update(...));
         $router->get('/admin/settings/news',$newsSettings->show(...), 'admin.settings.news');
         $router->post('/admin/settings/news', $newsSettings->update(...));
         // The fixed word "new" comes before {id} so it is never read as a post number.
@@ -99,6 +102,7 @@ final class AdminRoutes
         $router->get('/admin/profile', $profile->show(...), 'admin.profile');
         $router->post('/admin/profile/about', $profile->saveAbout(...), 'admin.profile.about');
         $router->post('/admin/profile/picture', $profile->savePicture(...), 'admin.profile.picture');
+        $router->post('/admin/profile/downloads', $profile->saveDownloads(...), 'admin.profile.downloads');
         $router->post('/admin/content/preview',$content->preview(...), 'admin.content.preview');
         $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
         // Before the /admin/taxonomy/{type} pattern below, which would otherwise read "suggest" as a kind.

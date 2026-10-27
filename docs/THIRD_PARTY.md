@@ -41,3 +41,20 @@ Every bundled third-party asset is listed here with its version, source, and lic
 | ---- | ------- |
 | `easymde.min.js` | `42c578c29ae613807f43c292e23365f2f676071450a8f09314668a27720ccee3` |
 | `easymde.min.css` | `8a148c947f7e63250d8fb8d97e030b6fef6e02480ea08c0acfacb11618ac11f6` |
+
+## Dompdf and its dependencies
+
+- **Purpose:** the PDF format of story downloads. It turns the same cleaned chapter HTML the reader sees into a PDF on the server, with no outside service.
+- **Added:** 2026-10-27.
+- **Local path:** `app/Libraries/vendor/`, with Composer's own autoloader. It is loaded only when a PDF is built. Tests, documentation and development files were left out; nothing else was changed.
+- **Notes:** remote files, PHP and JavaScript inside the document are switched off, and the story HTML contains no pictures or style links, so nothing is read from outside the build. The libraries need the PHP `dom`, `mbstring` and `iconv` extensions; PDF downloads are offered only when they are present. Built on PHP 8.2, 8.3, 8.4 and 8.5 without a warning.
+
+| Package | Version | Licence | Source |
+| ------- | ------- | ------- | ------ |
+| dompdf/dompdf | 3.1.6 | LGPL-2.1 | https://github.com/dompdf/dompdf |
+| dompdf/php-font-lib | 1.0.2 | LGPL-2.1-or-later | https://github.com/dompdf/php-font-lib |
+| dompdf/php-svg-lib | 1.0.2 | LGPL-3.0-or-later | https://github.com/dompdf/php-svg-lib |
+| masterminds/html5 | 2.12.0 | MIT | https://github.com/Masterminds/html5-php |
+| sabberworm/php-css-parser | 9.5.0 | MIT | https://github.com/MyIntervals/PHP-CSS-Parser |
+
+Each package keeps its licence file in its own folder under `app/Libraries/vendor/`. The set was installed with Composer on a development machine (`composer require dompdf/dompdf`, lock file SHA-256 `760240c60c2823f221c2614be2323308c880d94a80a94e209cc78dfd0f13907d`), so the server needs no Composer. The bundled DejaVu fonts (free licence, in `dompdf/dompdf/lib/fonts/`) cover Latin, Greek and Cyrillic text; Chinese, Japanese and Korean text is not covered by the PDF format (HTML and EPUB downloads are).

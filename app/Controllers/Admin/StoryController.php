@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -27,6 +28,7 @@ use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\Chapter;
+use LumoraFiction\Models\DownloadChoice;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Models\Term;
@@ -35,6 +37,8 @@ use LumoraFiction\Models\User;
 use LumoraFiction\Models\WorkStatus;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\DownloadAccess;
+use LumoraFiction\Services\DownloadSettings;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
@@ -72,6 +76,8 @@ final class StoryController extends WriterController
         private readonly UserService $users,
         private readonly ThemeRenderer $themes,
         private readonly StoryPresenter $presenter,
+        private readonly ?DownloadAccess $downloads = null,
+        private readonly ?Configuration $config = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -199,6 +205,13 @@ final class StoryController extends WriterController
             $this->stories->update($user, $story->id, $values, $request->ip());
             $this->stories->classify($user, $story->id, $this->selection($state), $request->ip());
             $this->stories->applyCover($user, $story->id, $request->upload('cover'), $values['cover_alt'], $request->checked('cover_remove'), $request->ip(), $this->postedCrop($request));
+
+            // A form that does not carry the field (an older page left open) leaves the choice as it was.
+            $choice = DownloadChoice::tryFrom((string) $request->input('download_choice'));
+
+            if ($choice !== null) {
+                $this->downloads?->setChoice($user, $story->id, $choice, $request->ip());
+            }
         } catch (StoryValidationException $exception) {
             return $this->formPage($request, $user, $story, $values, $state, $exception->errors, 422);
         } catch (StoryPermissionException $exception) {
@@ -605,6 +618,10 @@ final class StoryController extends WriterController
             ],
             'chapterCount' => $story === null ? 0 : ($this->chapters->countsForStories([$story->id])[$story->id]['total'] ?? 0),
             'panels' => $story === null ? [] : $this->pluginPanels($story, $user),
+            'downloadChoices' => $story === null ? [] : $this->downloadChoices($story),
+            'authorAllowsDownloads' => $story !== null && $this->downloads !== null && $this->downloads->authorAllows($story->ownerId),
+            'downloadsSiteOn' => $this->config !== null && DownloadSettings::enabled($this->config),
+            'authorProfileUrl' => $story !== null && $story->ownerId === $user->id ? AdminUrl::to('profile') : '',
             'cover' => $story === null ? ['thumb' => '', 'full' => '', 'alt' => ''] : $this->presenter->cover($story),
             'coverAvailable' => CoverImageStore::isAvailable(),
             'coverLimit' => (string) round(CoverImageStore::limitBytes() / 1048576, 1),
@@ -616,6 +633,23 @@ final class StoryController extends WriterController
                 'cover_alt' => StoryService::COVER_ALT_MAX,
             ],
         ], $user, $story === null ? 'New story' : 'Edit story', $story === null ? self::PATH . '/new' : self::PATH, $this->flash->pull($request->cookies), $status);
+    }
+
+    /**
+     * @return list<array{value: string, label: string, selected: bool}>
+     */
+    private function downloadChoices(Story $story): array
+    {
+        if ($this->downloads === null) {
+            return [];
+        }
+
+        $current = $this->downloads->choiceFor($story->id);
+
+        return array_map(
+            static fn (DownloadChoice $choice): array => ['value' => $choice->value, 'label' => $choice->label(), 'selected' => $choice === $current],
+            DownloadChoice::cases(),
+        );
     }
 
     /**

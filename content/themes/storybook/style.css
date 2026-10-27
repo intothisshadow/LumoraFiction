@@ -1522,6 +1522,92 @@ a.lf-term-link:hover {
     margin: 0.75rem 0 0;
 }
 
+/* Story downloads: a button that opens a short list of formats. It is a details element, so it works without scripts and from the keyboard. */
+
+.lf-downloads {
+    position: relative;
+    display: inline-block;
+    margin: 0.75rem 0 0;
+}
+
+.lf-downloads__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
+    background: var(--lf-surface);
+    color: var(--lf-link);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.lf-downloads__toggle::-webkit-details-marker {
+    display: none;
+}
+
+.lf-downloads__icon {
+    flex: none;
+}
+
+.lf-downloads__label {
+    white-space: nowrap;
+}
+
+.lf-downloads__item {
+    margin: 0;
+}
+
+.lf-downloads__toggle:hover {
+    color: var(--lf-link-hover);
+}
+
+.lf-downloads__toggle:focus-visible,
+.lf-downloads__link:focus-visible {
+    outline: 3px solid var(--lf-link);
+    outline-offset: 2px;
+}
+
+.lf-downloads__list {
+    position: absolute;
+    z-index: 5;
+    min-width: 17rem;
+    max-width: calc(100vw - 2rem);
+    margin: 0.35rem 0 0;
+    padding: 0.35rem;
+    list-style: none;
+    background: var(--lf-bg);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.lf-downloads__link {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.5rem 0.65rem;
+    color: var(--lf-text);
+    border-radius: var(--lf-radius);
+    text-decoration: none;
+}
+
+.lf-downloads__link:hover {
+    background: var(--lf-surface);
+}
+
+.lf-downloads__format {
+    font-weight: 600;
+    color: var(--lf-link);
+}
+
+.lf-downloads__hint,
+.lf-downloads__count {
+    font-size: 0.875rem;
+    color: var(--lf-muted);
+}
+
 .lf-bookmark-form__option {
     display: block;
     margin: 0 0 0.4rem;
@@ -1617,6 +1703,7 @@ a.lf-term-link:hover {
     .lf-preview-banner,
     .lf-reader-controls,
     .lf-chapter-nav,
+    .lf-downloads,
     .lf-pagination,
     .lf-sort,
     .lf-search-form,

@@ -36,6 +36,7 @@ $groups = lf_items('term_groups');
         <?php endif; ?>
         <?php lf_part('bookmark-buttons'); ?>
         <?php lf_part('follow-button'); ?>
+        <?php lf_downloads(); ?>
     </header>
 
     <dl class="lf-story-meta">

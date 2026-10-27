@@ -20,6 +20,7 @@ namespace LumoraFiction\Controllers\Admin;
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
 use LumoraFiction\Core\Admin\ContentEditor;
+use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
@@ -32,6 +33,9 @@ use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthorProfileException;
 use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\DownloadAccess;
+use LumoraFiction\Services\DownloadSettings;
+use LumoraFiction\Services\StoryPermissionException;
 
 /**
  * Only the signed-in writer's own profile is ever read or written here: the account comes from the session, never
@@ -51,6 +55,8 @@ final class AuthorProfileController extends AdminController
         FlashMessages $flash,
         private readonly AuthorProfileService $profiles,
         private readonly ContentEditor $editor,
+        private readonly ?DownloadAccess $downloads = null,
+        private readonly ?Configuration $config = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -135,6 +141,38 @@ final class AuthorProfileController extends AdminController
     }
 
     /**
+     * @param array<string, string> $params
+     */
+    public function saveDownloads(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::WriteStories, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if ($this->downloads === null) {
+            return Response::redirect(AdminUrl::to(self::PATH), 303);
+        }
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            $saved = $this->profiles->forUser($user->id);
+
+            return $this->page($request, $user, $saved['about'], $saved['format'], ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $this->downloads->setAuthorDefault($user, $request->checked('downloads_default'), $request->ip());
+        } catch (StoryPermissionException) {
+            return $this->forbidden($user, $request, true, self::PATH);
+        }
+
+        $this->flash->add('success', 'Your download setting was saved.');
+
+        return Response::redirect(AdminUrl::to(self::PATH), 303);
+    }
+
+    /**
      * @param array<string, string> $errors
      */
     private function page(Request $request, User $user, string $about, ContentFormat $format, array $errors, int $status): Response
@@ -158,6 +196,9 @@ final class AuthorProfileController extends AdminController
             'avatarLimit' => (string) round(AvatarImageStore::limitBytes() / 1048576, 1),
             'aboutLimit' => AuthorProfileService::ABOUT_MAX,
             'authorUrl' => PublicUrl::author($user->slug),
+            'downloadsAction' => $this->downloads === null ? '' : AdminUrl::to(self::PATH . '/downloads'),
+            'downloadsDefault' => $this->downloads === null || $this->downloads->authorAllows($user->id),
+            'downloadsSiteOn' => $this->config !== null && DownloadSettings::enabled($this->config),
         ], $user, 'Author profile', self::PATH, $this->flash->pull($request->cookies), $status);
     }
 }

@@ -89,6 +89,17 @@ if (!function_exists('lf_part')) {
     }
 }
 
+if (!function_exists('lf_downloads')) {
+    /**
+     * Prints the story page's download menu through the theme's downloads part, or nothing when the story cannot be
+     * downloaded. Whether it can is decided in core, so a theme only draws it.
+     */
+    function lf_downloads(): void
+    {
+        ThemeContext::current()?->part('downloads');
+    }
+}
+
 if (!function_exists('lf_navigation')) {
     /** Prints the main menu as a list of links. */
     function lf_navigation(string $label = 'Main'): void

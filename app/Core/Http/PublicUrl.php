@@ -30,6 +30,8 @@ final class PublicUrl
 
     public const CHAPTER = '/story/{slug}/{number}';
 
+    public const DOWNLOAD = '/story/{slug}/download/{format}';
+
     public const AUTHOR = '/author/{slug}';
 
     public const SEARCH = '/search';
@@ -156,6 +158,11 @@ final class PublicUrl
     public static function chapter(string $slug, int $number): string
     {
         return self::story($slug) . '/' . $number;
+    }
+
+    public static function download(string $slug, string $format): string
+    {
+        return self::story($slug) . '/download/' . rawurlencode($format);
     }
 
     public static function author(string $slug): string

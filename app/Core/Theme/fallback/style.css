@@ -583,6 +583,44 @@ a:focus-visible {
     margin-block: 0.75rem;
 }
 
+.lf-downloads {
+    margin-block: 0.75rem;
+}
+
+.lf-downloads__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    color: var(--lf-fb-link);
+    background: var(--lf-fb-surface);
+    border: 1px solid var(--lf-fb-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.lf-downloads__list {
+    margin: 0.35rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-downloads__link {
+    display: block;
+    padding: 0.35rem 0.1rem;
+}
+
+.lf-downloads__format {
+    font-weight: bold;
+}
+
+.lf-downloads__hint,
+.lf-downloads__count {
+    margin-left: 0.4rem;
+    color: var(--lf-fb-muted);
+    font-size: 0.9rem;
+}
+
 .lf-bookmark-form__option {
     display: block;
     margin-bottom: 0.4rem;
@@ -626,6 +664,7 @@ a:focus-visible {
     .lf-site-header,
     .lf-site-footer,
     .lf-chapter__nav,
+    .lf-downloads,
     .lf-preview-banner {
         display: none;
     }
