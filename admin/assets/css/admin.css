@@ -471,6 +471,11 @@ fieldset.lf-card legend {
     border-bottom: 0;
 }
 
+/* A long folder path wraps instead of widening the table on a phone. */
+.lf-system-value {
+    overflow-wrap: anywhere;
+}
+
 .lf-status {
     display: inline-block;
     margin-left: 0.4rem;
@@ -1156,6 +1161,16 @@ fieldset.lf-card legend {
 
 .lf-update-steps__state {
     font-weight: normal;
+}
+
+.lf-update-working {
+    margin: 0 0 1rem;
+    color: var(--muted);
+    font-style: italic;
+}
+
+.lf-update-steps__item--current .lf-update-steps__state {
+    color: var(--muted);
 }
 
 .lf-update-log-list {

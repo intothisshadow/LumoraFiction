@@ -124,6 +124,8 @@ final class SystemInformationService
             $stored !== '' && $detected !== 'Unknown' && strcasecmp($detected, $stored) !== 0 ? self::STATUS_WARNING : self::STATUS_INFO,
         );
         $rows[] = $this->row('Debug mode', $this->config->get('debug', false) === true ? 'On' : 'Off', $this->config->get('debug', false) === true ? self::STATUS_WARNING : self::STATUS_OK);
+        // Where the site sits on the server is what an administrator needs to place a file there, and what a shared snapshot must not reveal.
+        $rows[] = $this->row('Install folder', realpath($this->root) ?: $this->root, self::STATUS_INFO, true);
 
         return $rows;
     }

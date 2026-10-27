@@ -30,7 +30,9 @@ use LumoraFiction\Helpers\Html;
 /** @var list<array{value: string, views: int}> $devices */
 /** @var list<array{value: string, views: int}> $countries */
 /** @var bool $tracking */
-/** @var array{ranges: int, importedAt: int|null, stale: bool, pending: array{offset: int, imported: int, started: int}|null} $geo */
+/** @var array{ranges: int, importedAt: int|null, stale: bool, pending: array{offset: int, imported: int, started: int}|null, incoming: list<array{id: string, label: string}>, incomingFolder: string, autoAdvance: bool} $geo */
+/** @var string $systemInformationUrl */
+/** @var string $scriptUrl */
 /** @var string $token */
 /** @var array<string, string> $actions */
 
@@ -123,9 +125,13 @@ $lists = [
 <section class="lf-card" aria-labelledby="vs-country-data">
     <h2 id="vs-country-data">Country data</h2>
     <?php if ($geo['pending'] !== null): ?>
-        <p>An import is under way: <?= number_format($geo['pending']['imported']) ?> ranges read so far. Each press of Continue reads a few tens of thousands of rows, so a full file takes several presses.</p>
+        <p>An import is under way. The country data already loaded stays in use until the new data is finished, so counting is not interrupted.<?= $geo['autoAdvance'] ? ' This page carries on by itself; please keep it open.' : ' Press Continue to carry on; each press reads a few tens of thousands of rows.' ?></p>
+        <div aria-live="polite">
+            <p data-lf-run-message>Read <?= number_format($geo['pending']['imported']) ?> ranges so far.</p>
+            <p class="lf-update-working" data-lf-run-status hidden></p>
+        </div>
         <div class="lf-inline-actions">
-            <form method="post" action="<?= Html::e($actions['continue']) ?>" class="lf-inline-form">
+            <form method="post" action="<?= Html::e($actions['continue']) ?>" class="lf-inline-form" data-lf-autoadvance="<?= $geo['autoAdvance'] ? '1' : '0' ?>" data-lf-status="running">
                 <input type="hidden" name="csrf_token" value="<?= Html::e($token) ?>">
                 <button type="submit" class="lf-button">Continue</button>
             </form>
@@ -134,6 +140,9 @@ $lists = [
                 <button type="submit" class="lf-button lf-button--secondary">Cancel the import</button>
             </form>
         </div>
+        <?php if ($geo['autoAdvance']): ?>
+            <script src="<?= Html::e($scriptUrl) ?>" defer></script>
+        <?php endif; ?>
     <?php else: ?>
         <?php if ($geo['ranges'] > 0): ?>
             <p><?= number_format($geo['ranges']) ?> address ranges are loaded<?= $geo['importedAt'] === null ? '' : ', imported on ' . Html::e(date('Y-m-d', $geo['importedAt'])) ?>. Only IPv4 addresses are matched.</p>
@@ -144,9 +153,41 @@ $lists = [
             <p>No country data is loaded, so countries are not counted. Nothing is bundled and this plugin never downloads anything: you bring the file yourself.</p>
         <?php endif; ?>
 
+        <p class="lf-hint">Get the free <em>GeoLite2 Country</em> database from MaxMind in CSV format (you need a free MaxMind account). The data is kept in a file under <code>storage/visitor-stats/</code>, never in the database. A browser upload often fails on a large file, so the most reliable way is to put the file on the server yourself (by FTP or your host's file manager) and import it from there.</p>
+
+        <h3>From a file already on the server</h3>
+        <p class="lf-hint">Put the ZIP (its name starts with <code>GeoLite2</code>), or the two files <code>GeoLite2-Country-Blocks-IPv4.csv</code> and <code>GeoLite2-Country-Locations-en.csv</code>, in the folder <code><?= Html::e($geo['incomingFolder']) ?></code> inside your site's folder (<a href="<?= Html::e($systemInformationUrl) ?>">System Information</a> shows where that is), then reload this page.</p>
+        <?php if ($geo['incoming'] === []): ?>
+            <p>Nothing is waiting in that folder.</p>
+        <?php else: ?>
+            <ul>
+                <?php foreach ($geo['incoming'] as $file): ?>
+                    <li>
+                        <form method="post" action="<?= Html::e($actions['incoming']) ?>" class="lf-inline-form">
+                            <input type="hidden" name="csrf_token" value="<?= Html::e($token) ?>">
+                            <input type="hidden" name="incoming" value="<?= Html::e($file['id']) ?>">
+                            <?= Html::e($file['label']) ?>
+                            <button type="submit" class="lf-button lf-button--secondary">Import</button>
+                        </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
+        <form method="post" action="<?= Html::e($actions['path']) ?>" class="lf-form">
+            <input type="hidden" name="csrf_token" value="<?= Html::e($token) ?>">
+            <div class="lf-field">
+                <label for="geo_path">Or the full path of a file or folder elsewhere on the server</label>
+                <input type="text" id="geo_path" name="path" autocomplete="off" spellcheck="false" aria-describedby="geo_path_hint">
+                <p class="lf-hint" id="geo_path_hint">A <code>.zip</code> file, or a folder holding the two CSV files, for example <code>/home/you/GeoLite2-Country-CSV.zip</code>. A shortcut (symbolic link) is refused, and so is anything PHP is not allowed to read.</p>
+            </div>
+            <p><button type="submit" class="lf-button lf-button--secondary">Import from this path</button></p>
+        </form>
+
+        <h3>Or upload it here</h3>
         <form method="post" action="<?= Html::e($actions['upload']) ?>" enctype="multipart/form-data" class="lf-form">
             <input type="hidden" name="csrf_token" value="<?= Html::e($token) ?>">
-            <p class="lf-hint">Get the free <em>GeoLite2 Country</em> database from MaxMind in CSV format (you need a free MaxMind account) and choose either the whole ZIP, or the two files named <code>GeoLite2-Country-Blocks-IPv4.csv</code> and <code>GeoLite2-Country-Locations-en.csv</code>.</p>
+            <p class="lf-hint">Choose either the whole ZIP, or the two CSV files. This works for small files; if it fails with a size error, use one of the ways above.</p>
             <div class="lf-field">
                 <label for="geo_zip">ZIP file</label>
                 <input type="file" id="geo_zip" name="geo_zip" accept=".zip">

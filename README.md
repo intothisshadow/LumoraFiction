@@ -38,7 +38,7 @@ Open `/admin/` on your site and sign in with the login name (or email address) a
 
 Authors can create and edit stories, organise chapters, describe their work with classification lists, add a cover and an author profile, and preview drafts before publishing. Chapters are written in a Visual, Markdown, HTML or plain text editor with a live word count and separate **Save draft** and **Publish** buttons. Editors and Administrators review stories waiting for approval and can approve them or send them back with a reason.
 
-Additional features include chapter version history, story copying, trash and recovery, notifications, and bulk actions. See the [user guide](docs/USER-GUIDE.md).
+Additional features include chapter version history, story copying, trash and recovery, notifications, and bulk actions. A bundled Visitor Stats plugin, off until you turn it on, counts story views on your own site without cookies or personal data. See the [user guide](docs/USER-GUIDE.md).
 
 ### Reading the archive
 

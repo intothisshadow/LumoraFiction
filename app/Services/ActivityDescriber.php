@@ -55,6 +55,7 @@ final class ActivityDescriber
         'chapter.trash' => 'moved a chapter to the trash',
         'chapter.unpublish' => 'unpublished a chapter',
         'chapter.update' => 'edited a chapter',
+        'database.migrated' => 'applied pending database changes after new files were uploaded',
         'dummy_content.generated' => 'made placeholder content',
         'dummy_content.removed' => 'removed placeholder content',
         'plugin.load_failed' => 'could not start a plugin',

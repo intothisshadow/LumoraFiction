@@ -40,7 +40,9 @@ use LumoraFiction\Controllers\Admin\FrontPageSettingsController;
 use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Controllers\DownloadController;
 use LumoraFiction\Controllers\Admin\DownloadSettingsController;
+use LumoraFiction\Models\Capability;
 use LumoraFiction\Services\DownloadAccess;
+use LumoraFiction\Services\PendingMigrations;
 use LumoraFiction\Services\DownloadCounter;
 use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\DownloadSettings;
@@ -182,6 +184,11 @@ final class Kernel
     public ?MaintenanceMode $maintenance = null;
 
     /**
+     * Applies database changes that arrived with newly uploaded files, when an Administrator opens the admin.
+     */
+    public ?PendingMigrations $pendingMigrations = null;
+
+    /**
      * The site's folder on disk, for plugins that keep files under storage/. A plugin file may sit somewhere else
      * than the site it runs in, so it must not work this out from its own location.
      */
@@ -314,6 +321,7 @@ final class Kernel
         $kernel->root = $root;
         $kernel->alerts = $alerts;
         $kernel->maintenance = new MaintenanceMode($config, $database, $audit);
+        $kernel->pendingMigrations = new PendingMigrations(new Migrator($database, $root . '/app/Migrations'), $audit, $alerts);
 
         (new StaffNavigation($auth))->register($hooks);
 
@@ -565,6 +573,8 @@ final class Kernel
             return;
         }
 
+        $this->upgradeDatabase($request, BasePath::stripFrom($uri));
+
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
         if ($resolution->isFound() && $resolution->handler !== null) {
@@ -581,6 +591,33 @@ final class Kernel
         }
 
         $this->statusResponse($resolution->status, $resolution->allowedMethods)->send();
+    }
+
+    /**
+     * Brings the database up to date for the files on disk when an Administrator opens the admin. Skipped while an update
+     * runs, because the updater applies its own changes in a fixed order and may be about to put the old ones back.
+     *
+     * @param string $path the request path with the base path already removed
+     */
+    public function upgradeDatabase(Request $request, string $path): void
+    {
+        $path = (string) strtok($path, '?#');
+
+        if ($this->pendingMigrations === null || ($path !== '/admin' && !str_starts_with($path, '/admin/')) || MaintenanceFlag::read($this->root) !== null) {
+            return;
+        }
+
+        try {
+            $user = $this->auth->user($request->cookies);
+        } catch (Throwable $exception) {
+            $this->errors->report($exception);
+
+            return;
+        }
+
+        if ($user !== null && $user->can(Capability::ManageSite)) {
+            $this->pendingMigrations->applyFor($user, $request->ip());
+        }
     }
 
     /**

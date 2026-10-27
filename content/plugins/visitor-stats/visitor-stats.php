@@ -19,7 +19,7 @@
  * Author: Ariane
  * Description: Counts story views on this site alone, with no cookies and no personal data, and shows them on the dashboard, a Visitor stats screen and each story's own screen. Off until switched on.
  * Requires PHP: 8.2
- * Requires at least: 1.0.0
+ * Requires at least: 1.1.0
  */
 
 declare(strict_types=1);
@@ -63,6 +63,21 @@ add_filter('admin_menu', static function (array $items): array {
     return $items;
 });
 
+// Seen without opening the screen, because nothing else tells an administrator the country data has aged.
+add_filter('admin_alerts', static function (array $alerts) use ($kernel, $tracker): array {
+    if ($tracker->enabled() && (new GeoIp($kernel->root . '/storage/visitor-stats'))->isStale()) {
+        $alerts[] = new \LumoraFiction\Models\SiteAlert(
+            'visitor-stats.geo-stale',
+            \LumoraFiction\Models\AlertSeverity::Warning,
+            'The country data used by Visitor Stats is more than six months old. Download a fresh copy from MaxMind and import it again.',
+            '',
+            Screen::PATH,
+        );
+    }
+
+    return $alerts;
+});
+
 add_filter('admin_dashboard_cards', static function (array $cards, \LumoraFiction\Models\User $user) use ($panels): array {
     $card = $panels->dashboardCard($user);
 
@@ -98,11 +113,14 @@ add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $
         $tracker,
         $panels,
         $kernel->audit,
+        (string) (require $kernel->root . '/version.php')['version'],
     );
     $base = '/admin/' . Screen::PATH;
 
     $router->get($base, $screen->show(...), 'admin.visitor-stats');
     $router->post($base . '/settings', $screen->saveSettings(...));
+    $router->post($base . '/geo/incoming', $screen->importIncoming(...));
+    $router->post($base . '/geo/path', $screen->importPath(...));
     $router->post($base . '/geo/upload', $screen->upload(...));
     $router->post($base . '/geo/continue', $screen->continueImport(...));
     $router->post($base . '/geo/cancel', $screen->cancelImport(...));

@@ -1,6 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] — 2026-10-27
+
+- The database part of a backup (made before every update and on demand) is now written in one linear pass instead of rescanning the table for every page of rows. A table with hundreds of thousands of rows used to take minutes and could run into the web server's time limit, which stopped the update at "Create update backup"; it now takes seconds, and the backup file is exactly the same. A backup that was started before the change still carries on.
+
+- Updates, backups and restores now show their progress without reloading the page. Each step is still a request of its own, as before, but the steps and the list of what has happened are redrawn in place, with a "still working" line while one runs, and the page stops on the usual **Resume** and **Cancel** buttons if a step does not finish. If anything unexpected happens (the connection drops, a step takes more than two minutes, the answer is not understood) the page falls back to the ordinary form, which shows what happened, so no run is ever lost; with JavaScript turned off, **Continue** works as before.
+
+- Visitor Stats can import the country data from a file already on the server, which is the reliable way for a file too big for a browser upload: put the GeoLite2 ZIP (or the two CSV files) in `storage/visitor-stats/incoming/` and press **Import**, or type the full path of a ZIP or folder. The import then carries on by itself and shows how far it has got, the old data stays in use until the new data is finished, and an alert appears when the data is more than six months old.
+
+- **Maintenance > System Information** now shows the **Install folder** of the site, the absolute path on the server, so an Administrator knows where to place a file. It appears on the screen only and is left out of the downloadable snapshot, like the table prefix.
+
+- Upgrading by uploading files: version 1.0.0 has no Updates screen, and database changes were applied only by the installer and the updater, so new files uploaded over a 1.0.0 site met an old database. Now, when an Administrator opens the admin and database changes are waiting, they are applied once, under the existing lock, and written to the activity log (as "applied pending database changes after new files were uploaded"). Nobody else triggers it, public pages never do, and it is skipped while an update runs, because the updater applies its own changes in a fixed order. If a change fails, the admin still opens and a critical alert, with the details in the error log, says so.
 
 - System Information no longer shows a second, misleading "Installed version" row. The version of the application is now read from one place only, the version file shipped with the code, so it can never disagree with itself. The installer used to store a copy in the settings that nothing updated, so an updated site kept showing the version it began with; the copy is no longer written, and a new database change removes the one existing sites hold.
 

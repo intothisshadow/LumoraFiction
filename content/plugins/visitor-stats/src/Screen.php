@@ -51,6 +51,7 @@ final class Screen extends AdminController
         private readonly Tracker $tracker,
         private readonly Panels $panels,
         private readonly AuditLogService $audit,
+        private readonly string $assetVersion = '',
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -122,21 +123,105 @@ final class Screen extends AdminController
     }
 
     /**
+     * Starts an import from a file listed in the drop folder.
+     *
+     * @param array<string, string> $params
+     */
+    public function importIncoming(array $params, Request $request): Response
+    {
+        return $this->act($request, 'Your session expired, so nothing was imported. Please try again.', function () use ($request): string {
+            $this->geo->stageIncoming((string) $request->input('incoming'));
+
+            return 'The file is ready. The import starts now.';
+        });
+    }
+
+    /**
+     * Starts an import from a path typed by the administrator.
+     *
+     * @param array<string, string> $params
+     */
+    public function importPath(array $params, Request $request): Response
+    {
+        return $this->act($request, 'Your session expired, so nothing was imported. Please try again.', function () use ($request): string {
+            $this->geo->stageFromPath((string) $request->input('path'));
+
+            return 'The file is ready. The import starts now.';
+        });
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function continueImport(array $params, Request $request): Response
     {
+        if ($request->wantsJson()) {
+            return $this->continueAsJson($request);
+        }
+
         return $this->act($request, 'Your session expired. Please press Continue again.', function () use ($request): string {
             $result = $this->geo->step();
 
-            if (!$result['done']) {
-                return 'Read ' . number_format($result['imported']) . ' ranges so far. Press Continue again.';
-            }
-
-            $this->audit->record(null, 'plugin.visitor_stats.geo_imported', 'plugin', 'visitor-stats', ['ranges' => $result['imported']], $request->ip());
-
-            return 'Finished: ' . number_format($result['imported']) . ' ranges are loaded. Countries are counted from now on.';
+            return $result['done'] ? $this->finished($result['imported'], $request) : 'Read ' . number_format($result['imported']) . ' ranges so far. Press Continue again.';
         });
+    }
+
+    /**
+     * One batch for the script that keeps the page going by itself. Anything but a batch that went well sends the page
+     * to the screen, which shows the message and, for a problem, stops going on so it cannot loop on the same failure.
+     */
+    private function continueAsJson(Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!$this->validToken($request, self::TOKEN)) {
+            $this->flash->add('error', 'Your session expired. Please press Continue again.');
+
+            return $this->json(['status' => 'redirect', 'redirect' => AdminUrl::to(self::PATH)], 403);
+        }
+
+        try {
+            $result = $this->geo->step();
+        } catch (RuntimeException $exception) {
+            $this->flash->add('error', $exception->getMessage());
+
+            return $this->json(['status' => 'redirect', 'redirect' => AdminUrl::to(self::PATH)]);
+        }
+
+        if (!$result['done']) {
+            return $this->json([
+                'status' => 'running',
+                'message' => 'Read ' . number_format($result['imported']) . ' ranges so far.',
+                'token' => Csrf::token(self::TOKEN),
+            ]);
+        }
+
+        $this->flash->add('success', $this->finished($result['imported'], $request));
+
+        return $this->json(['status' => 'redirect', 'redirect' => AdminUrl::to(self::PATH)]);
+    }
+
+    private function finished(int $ranges, Request $request): string
+    {
+        $this->audit->record(null, 'plugin.visitor_stats.geo_imported', 'plugin', 'visitor-stats', ['ranges' => $ranges], $request->ip());
+
+        return 'Finished: ' . number_format($ranges) . ' ranges are loaded. Countries are counted from now on.';
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function json(array $data, int $status = 200): Response
+    {
+        return new Response(
+            (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR),
+            $status,
+            ['Content-Type' => 'application/json; charset=utf-8', 'Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'],
+        );
     }
 
     /**
@@ -193,6 +278,9 @@ final class Screen extends AdminController
 
     private function page(Request $request, User $user, int $range): Response
     {
+        $this->geo->prepareIncoming();
+        $messages = $this->flash->pull($request->cookies);
+
         try {
             $this->tracker->ensureTables();
             $daily = $this->store->daily($range);
@@ -204,7 +292,7 @@ final class Screen extends AdminController
             $totals = $this->store->totals();
         } catch (PDOException $exception) {
             error_log('Visitor Stats could not read its figures: ' . $exception->getMessage());
-            $this->flash->add('error', 'The figures could not be read. The error log has the details.');
+            $messages[] = ['type' => 'error', 'message' => 'The figures could not be read. The error log has the details.'];
             $daily = $stories = $referrers = $browsers = $devices = $countries = [];
             $totals = ['today' => 0, 'week' => 0, 'month' => 0, 'all' => 0];
         }
@@ -232,10 +320,18 @@ final class Screen extends AdminController
                 'importedAt' => $this->geo->importedAt(),
                 'stale' => $this->geo->isStale(),
                 'pending' => $this->geo->pending(),
+                'incoming' => $this->geo->incoming(),
+                'incomingFolder' => 'storage/visitor-stats/incoming/',
+                // A message about a problem waits to be read, and going on by itself would only repeat it.
+                'autoAdvance' => !in_array('error', array_column($messages, 'type'), true),
             ],
+            'systemInformationUrl' => AdminUrl::to('maintenance/system-information'),
+            'scriptUrl' => AdminUrl::asset('js/update-run.js', $this->assetVersion),
             'token' => Csrf::token(self::TOKEN),
             'actions' => [
                 'settings' => AdminUrl::to(self::PATH . '/settings'),
+                'incoming' => AdminUrl::to(self::PATH . '/geo/incoming'),
+                'path' => AdminUrl::to(self::PATH . '/geo/path'),
                 'upload' => AdminUrl::to(self::PATH . '/geo/upload'),
                 'continue' => AdminUrl::to(self::PATH . '/geo/continue'),
                 'cancel' => AdminUrl::to(self::PATH . '/geo/cancel'),
@@ -243,7 +339,7 @@ final class Screen extends AdminController
             ],
         ]);
 
-        return $this->view->renderContent($content, $user, 'Visitor stats', self::PATH, $this->flash->pull($request->cookies));
+        return $this->view->renderContent($content, $user, 'Visitor stats', self::PATH, $messages);
     }
 
     /**

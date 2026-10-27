@@ -23,7 +23,7 @@ use LumoraFiction\Helpers\Html;
 // Colour alone is not enough to carry meaning, so every status also has a word.
 $statusWords = ['ok' => 'OK', 'warning' => 'Check', 'error' => 'Problem', 'info' => ''];
 ?>
-<p class="lf-lead">What this server offers and how the site is set up. If you ask for help, download the snapshot and send it along: it leaves out passwords, the secret key, the database name and table prefix, and folder locations on the server.</p>
+<p class="lf-lead">What this server offers and how the site is set up. If you ask for help, download the snapshot and send it along: it leaves out passwords, the secret key, the database name and table prefix, and folder locations on the server (the install folder shown below is on this screen only).</p>
 
 <p><a class="lf-button" href="<?= Html::e($downloadUrl) ?>" download>Download a snapshot</a></p>
 
@@ -36,7 +36,7 @@ $statusWords = ['ok' => 'OK', 'warning' => 'Check', 'error' => 'Problem', 'info'
                 <?php foreach ($rows as $row): ?>
                     <tr>
                         <th scope="row"><?= Html::e($row['label']) ?></th>
-                        <td>
+                        <td class="lf-system-value">
                             <?= Html::e($row['value']) ?>
                             <?php if (($statusWords[$row['status']] ?? '') !== ''): ?>
                                 <span class="lf-status lf-status--<?= Html::e($row['status']) ?>"><?= Html::e($statusWords[$row['status']]) ?></span>

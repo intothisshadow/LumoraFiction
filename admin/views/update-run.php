@@ -43,7 +43,8 @@ $cancelLabel = $run->destructive && $run->kind !== UpdateRun::KIND_BACKUP ? 'Can
 
 <section class="lf-card" aria-labelledby="lf-run-steps-title">
     <h2 id="lf-run-steps-title"><?= Html::e(ucfirst($run->kind)) ?><?= $run->kind === UpdateRun::KIND_UPDATE ? ' to version ' . Html::e($run->toVersion) : '' ?></h2>
-    <ol class="lf-update-steps">
+    <div aria-live="polite">
+    <ol class="lf-update-steps" data-lf-run-steps>
         <?php foreach ($steps as $step): ?>
             <li class="lf-update-steps__item lf-update-steps__item--<?= Html::e($step['state']) ?>"<?= $step['state'] === 'current' ? ' aria-current="step"' : '' ?>>
                 <?= Html::e($step['label']) ?>
@@ -52,16 +53,19 @@ $cancelLabel = $run->destructive && $run->kind !== UpdateRun::KIND_BACKUP ? 'Can
         <?php endforeach; ?>
     </ol>
 
-    <?php if ($log !== []): ?>
-        <ul class="lf-update-log-list" aria-label="What has happened so far">
-            <?php foreach ($log as $line): ?>
-                <li class="<?= $line['ok'] ? '' : 'lf-update-log-list__item--problem' ?>"><?= Html::e(gmdate('H:i:s', (int) $line['time'])) ?> UTC &mdash; <?= Html::e($line['text']) ?></li>
-            <?php endforeach; ?>
-        </ul>
+    <ul class="lf-update-log-list" aria-label="What has happened so far" data-lf-run-log<?= $log === [] ? ' hidden' : '' ?>>
+        <?php foreach ($log as $line): ?>
+            <li class="<?= $line['ok'] ? '' : 'lf-update-log-list__item--problem' ?>"><?= Html::e(gmdate('H:i:s', (int) $line['time'])) ?> UTC &mdash; <?= Html::e($line['text']) ?></li>
+        <?php endforeach; ?>
+    </ul>
+
+    <?php if ($autoAdvance): ?>
+        <p class="lf-update-working" data-lf-run-status hidden></p>
     <?php endif; ?>
+    </div>
 
     <div class="lf-update-actions">
-        <form method="post" action="<?= Html::e($advanceAction) ?>" data-lf-autoadvance="<?= $autoAdvance ? '1' : '0' ?>">
+        <form method="post" action="<?= Html::e($advanceAction) ?>" data-lf-autoadvance="<?= $autoAdvance ? '1' : '0' ?>" data-lf-status="<?= Html::e($run->status) ?>">
             <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
             <button type="submit" class="lf-button"><?= $needsAttention ? 'Resume' : 'Continue' ?></button>
         </form>

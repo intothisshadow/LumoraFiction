@@ -137,6 +137,17 @@ final readonly class Request
         return is_string($address) && filter_var($address, FILTER_VALIDATE_IP) !== false ? $address : '0.0.0.0';
     }
 
+    /**
+     * Whether the caller asked for a JSON answer, as a script that updates a page in place does. An ordinary form
+     * post sends no such header, so the same action keeps answering with a redirect for it.
+     */
+    public function wantsJson(): bool
+    {
+        $accept = $this->server['HTTP_ACCEPT'] ?? null;
+
+        return is_string($accept) && stripos($accept, 'application/json') !== false;
+    }
+
     public function isHttps(): bool
     {
         return SecurityHeaders::isHttps($this->server);

@@ -2,6 +2,112 @@
 
 Completed tickets are moved here from `TODO.md` at each Release.
 
+## Version 1.1.0 — 2026-10-27
+
+### LF-010. Updater, backups and rollback
+
+**Status:** Complete (9 of 9) — released in 1.1.0
+
+Release-readiness work for the M5 milestone. Modelled on Lumora Press's update system, copied rather than shared.
+
+- [x] Admin-initiated check against GitHub Releases, plus manual ZIP upload
+- [x] Compatibility check (PHP version, database version) before applying
+- [x] SHA-256 verification against a trusted release checksum
+- [x] Automatic pre-update backup of files and database, downloadable by an Administrator, plus an on-demand backup
+- [x] Preserve `config.php`, `table_prefix`, `secret_key`, uploads, user data, and everything under `content/plugins/` and `content/themes/` that the release does not ship (custom plugins and themes) across updates
+- [x] Versioned migrations run during the update, with rollback designed and tested explicitly (restoring files alone does not undo a migration)
+- [x] Resume or cancel an interrupted update
+- [x] Maintenance mode: take the public site offline for visitors while Administrators keep working, with an optional schedule, an IP allowlist, and a customisable message; used automatically during updates
+- [x] Success and failure logs; tests covering failure and rollback paths
+
+Built on 2026-10-25: Maintenance > Updates, Backups and Maintenance mode. Not built, on purpose, because the ticket did not ask for them and Lumora Press has them: updating a single bundled plugin or theme without a full release, a scheduled or dashboard-triggered check (a check only happens when an Administrator presses the button), a warning that another administrator is active, and a warning that a core file was edited by hand. The decisions are in `DECISIONS.md`.
+
+### LF-054. Visitor Stats plugin (bundled)
+
+**Status:** Complete (9 of 9) — released in 1.1.0. Built 2026-10-27. No page cache exists yet, so the plugin states plainly (README) that a page served without running the application is not counted; LF-017 must fire `story_viewed` when it serves a cached story or chapter page to a guest. Core gained the `story_viewed` action, the `admin_dashboard_cards` and `admin_story_panels` filters and `Kernel::$root`.
+
+A local, privacy-respecting view counter for stories, in the spirit of Lumora Press's Visitor Stats plugin, copied rather than shared. A bundled plugin on the LF-032 loader, not core: counting visits does not make writing, publishing or reading easier. After the MVP.
+
+- [x] Plugin under `content/plugins/visitor-stats/`, off by default: activating it collects nothing until **Track views** is switched on in its settings
+- [x] Count one view per guest request to a story or chapter page; signed-in people, previews, drafts, and unpublished or pending stories never count, and bots identified by their User-Agent are skipped
+- [x] Day-level aggregate tables only: no cookies, no sessions, no unique-visitor tracking, no raw IP address, no User-Agent string, and no full referrer URL (referring domain only, external referrers only), so no row corresponds to one visitor
+- [x] Dashboard widget with today, week, month and all-time totals and a most-read-stories list (7 days)
+- [x] **Visitor Stats** admin screen: views over time (7, 30 and 90 days), top stories, top referrers, and browser and device breakdowns; styled and laid out like the core admin screens
+- [x] Optional country breakdown from a GeoLite2 CSV the administrator imports themselves, in batches, into a flat file under `storage/` (nothing bundled, no outbound request, IPv4 only at first); reminder when the data is more than six months old
+- [x] Per-story view totals for the story's own Author on their story screen, counting only their own stories; Administrators and Editors see all
+- [x] Respect page caching (LF-017): the count must still register when a public page is served from cache or answered with `304`, or the plugin must say plainly that it cannot
+- [x] Plugin README for users, tests (guests counted, signed-in people, drafts and bots not counted; no personal data in any table; an Author sees only their own stories' numbers), and `docs/DEVELOPER-APIS.md` updated for any hook the plugin needs core to add
+
+Press's plugin also has the bulk of the design to copy from: `Lumora Press/LumoraPress/content/plugins/visitor-stats/` (services, GeoLite2 import, README).
+
+### LF-055. Story downloads
+
+**Status:** Complete (12 of 12) — released in 1.1.0. Built 2026-10-27. EPUBCheck 5.4.0 (with Ariane's permission) found one error, a cover page that nothing linked to, fixed and covered by a unit test; a plain and a covered sample now both pass with no errors or warnings. Browser-checked 2026-10-27 (menu, settings, profile box, story choice; real files fetched from the dev site). PDF is Dompdf (see `DECISIONS.md`). New migration 0030.
+
+Readers can take a story away as PDF, EPUB or HTML. MOBI and AZW3 are not offered; see `DECISIONS.md` and `Future Enhancements.md`. This is a reading feature, so it belongs in core, with the file generation kept in focused service classes. The administrator can turn it off for the whole site; when it is on, each Author can refuse it for all their stories or for single stories, and can allow single stories while refusing the rest. After the MVP.
+
+- [x] Settings › Reading (or a new Downloads section): site-wide switch for downloads, which formats are offered, and whether download counts are shown; everything hidden and every download URL refused when off
+- [x] Author-wide setting on the profile or writer settings screen: allow or refuse downloads for all of my stories, defaulting to allow; it applies to stories that have no choice of their own and to stories published later
+- [x] Per-story setting on the story screen with three choices: use my default, allow, or refuse; only the story's Author (and staff with edit rights) can change it, and a story's own choice beats the author-wide one in both directions (an Author who refuses globally can still allow one story, and the reverse)
+- [x] One service decides whether a story can be downloaded (site switch, then the story's choice, then the Author's default, then allow), used by the template tag, the download route and the cache builder alike, so the answer is the same everywhere; none of the Author's choices has any effect while the site-wide switch is off
+- [x] Download icon on the story page opening a small format menu (keyboard operable, works without JavaScript), through a template tag and a bundled `parts/` template so a theme only restyles it; Storybook styles and the built-in theme gets the equivalent, with dark mode
+- [x] Download count per story and format, stored as plain totals (no per-person record); shown beside the icon only when the site-wide count switch is on, and counting can be disabled separately from the downloads themselves
+- [x] HTML export: one self-contained file with the title page (title, author display name, summary, tags, rating, warnings), all chapters in order, and inline styles only
+- [x] EPUB export: a valid EPUB 3 built with `ZipArchive` (cover, metadata, navigation document, one file per chapter), checked with the EPUBCheck tool during development
+- [x] PDF export: a bundled, locally hosted PHP library (no Composer or Node on the server, no external service), with the licence recorded in `docs/THIRD_PARTY.md`; chapter text comes from the same sanitised content pipeline as the reader
+- [x] Generated files cached under `storage/` and rebuilt when a chapter is added, edited, reordered, published or unpublished, or the story's metadata changes; a size and time limit so a very long story fails with a friendly message instead of exhausting shared hosting, and one build at a time per story
+- [x] Visibility and privacy: only published stories on public pages can be downloaded; drafts, pending, unpublished and trashed stories, and private ones for a guest, answer `404`; files and file names contain the display name and a title slug, never the login name or an internal path; downloads send safe headers and are never served from a public cache for a signed-in reader
+- [x] Tests (builders produce valid files for each format, count increments once per download, each switch hides and refuses correctly, a draft or another Author's unpublished story cannot be downloaded, cache is rebuilt after a chapter edit, no login name in any output), README and `docs/THEME-DEVELOPMENT.md` updated for the new template tag and part
+
+This is separate from LF-013: downloads make readable files for readers, while the export makes a portable archive for moving between sites.
+
+### LF-056. Visitor Stats: import the country data from a file already on the server
+
+**Status:** Complete (6 of 6) — released in 1.1.0. Built 2026-10-27.
+
+A browser upload of the GeoLite2 file often fails on a large file, so the data can be imported from where it already is. The country data was already a flat file (`storage/visitor-stats/ranges.bin`), never in the database; the README now says so.
+
+- [x] A drop folder, `storage/visitor-stats/incoming/`, made on first use and listed on the screen (each `GeoLite2*.zip`, and the two CSVs together) with an **Import** button; the form posts an id taken from the listing, never a path
+- [x] A typed absolute path as the fallback: a `.zip` (opened as a real ZIP) or a folder holding the two CSVs, Administrators only, `..` and symbolic links refused, `realpath()` before use, a plain message when `open_basedir` blocks it
+- [x] The import advances by itself with the in-place runner from LF-057 (`continue` answers JSON); it stops going on by itself after an error so it cannot loop, and **Continue** stays as the fallback
+- [x] A live alert when the data is more than six months old, cleared when it is replaced
+- [x] README and `docs/ADMINISTRATION.md` updated
+- [x] Tests: ZIP and CSV pair from the drop folder and from a typed path; a missing path, a wrong name, a symbolic link, a folder with one CSV, a fake `.zip`, a ZIP with neither entry and a path outside `open_basedir` each refused with `ranges.bin` untouched; a non-Administrator refused; the stale alert appearing and clearing
+
+### LF-057. Update, backup and restore progress pages that advance in place
+
+**Status:** Complete (6 of 6) — released in 1.1.0. Built 2026-10-27. Watched on the dev site through a real **Back up now** run at phone width in dark mode: one load of the progress page, three `fetch()` posts, then the finished page. A backup there finishes in about a second, so the redrawn step list between two steps was not caught on screen.
+
+Every step was already its own request; only how the browser asks for the next one changed.
+
+- [x] `advance` answers JSON when the request asks for it (same CSRF check and refusals, a fresh single-use token in the body, steps, log, status, message, and a redirect when finished); the form post and redirect are unchanged, so the page works without JavaScript
+- [x] A `fetch()` runner redraws the step list and log inside an `aria-live="polite"` region with a "still working" line, built from text nodes only; any network error, non-JSON answer or timeout falls back to the form, and a step that stops or a rollback that begins reloads the page the server draws, with its Resume and Cancel buttons
+- [x] One script for updates, backups, restores and the country import
+- [x] The working state styled in `admin.css` in the theme variables, so dark mode follows; no inline styles
+- [x] `docs/ADMINISTRATION.md` and the changelog updated
+- [x] Tests: the JSON answer's steps, status, token and refusals (stale token, no run, a person who may not), a stopped step reporting needs attention, the finished run redirecting, the form flow untouched, static checks on the script
+
+### LF-058. System Information: show the install folder
+
+**Status:** Complete (3 of 3) — released in 1.1.0. Built 2026-10-27.
+
+- [x] An **Install folder** row in the **Application** section, marked private so it is on the screen for Administrators and never in the downloadable snapshot
+- [x] Plain, selectable, escaped text that wraps on a phone
+- [x] Tests: present on the screen for an Administrator, absent from `snapshot()`, Editors refused, `docs/ADMINISTRATION.md` updated
+
+### LF-059. Update backup: dump large tables without rescanning rows
+
+**Status:** Complete (6 of 6) — released in 1.1.0. Built 2026-10-28. Found from a bug fixed in the sibling Lumora Gallery, where an update stopped at "Create update backup" on a 367,000-row table.
+
+`DatabaseDump::dump()` paged each table with `SELECT * … ORDER BY <key> LIMIT 400 OFFSET n`, which rescans every skipped row on each page, so time grew with the square of the table size. The dump is resumable across requests through a cursor, so Gallery's single unbuffered pass could not be copied as it is; each page now continues after the last primary key written (`last` in the cursor). On a synthetic 367,000-row table the dump went from 14.4 s to 0.4 s with byte-identical output. Also checked and not affected: downloaded packages are one fixed `package.zip` that is removed when an update finishes or is discarded, so they cannot accumulate as they did in Gallery.
+
+- [x] Keyset paging in `DatabaseDump::dump()`: the cursor carries the last key written, a composite key uses `a > x OR (a = x AND b > y)`, and the output is unchanged
+- [x] Fallbacks: a table with no primary key, or a key holding binary text that JSON cannot carry, pages by row count as before, and a cursor saved by the old code still resumes
+- [x] Measured old against new on a 367,000-row table: 14.4 s to 0.4 s, identical file
+- [x] Tests: every table size around the page size (399, 400, 401, an exact multiple, a remainder) writes one INSERT per page and no empty one, and a dump stopped after every page equals a single call; composite key, no key, binary key and an old cursor
+- [x] The full PHP 8.2 to 8.5 matrix
+- [x] `docs/CHANGELOG.md` updated
+
 ## Version 1.0.0 — 2026-10-25
 
 ### LF-001. Project skeleton and version control

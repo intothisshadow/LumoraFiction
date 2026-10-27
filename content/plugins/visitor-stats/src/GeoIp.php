@@ -43,14 +43,24 @@ final class GeoIp
     /** The largest file taken from a ZIP, so a crafted archive cannot fill the disk. */
     private const MAX_UNPACKED_BYTES = 200 * 1048576;
 
+    private const BLOCKS_NAME = 'GeoLite2-Country-Blocks-IPv4.csv';
+
+    private const LOCATIONS_NAME = 'GeoLite2-Country-Locations-en.csv';
+
+    /** The id of the drop-folder entry that stands for the two CSV files. */
+    private const CSV_PAIR = 'csv-files';
+
     private readonly string $rangesFile;
 
     private readonly string $importDir;
+
+    private readonly string $incomingDir;
 
     public function __construct(private readonly string $directory)
     {
         $this->rangesFile = $directory . '/ranges.bin';
         $this->importDir = $directory . '/import';
+        $this->incomingDir = $directory . '/incoming';
     }
 
     public function rangeCount(): int
@@ -179,14 +189,138 @@ final class GeoIp
         $locations = $this->importDir . '/incoming-locations.csv';
 
         try {
-            $this->extract($zip, 'GeoLite2-Country-Blocks-IPv4.csv', $blocks);
-            $this->extract($zip, 'GeoLite2-Country-Locations-en.csv', $locations);
+            $this->extract($zip, self::BLOCKS_NAME, $blocks);
+            $this->extract($zip, self::LOCATIONS_NAME, $locations);
             $this->stage($blocks, $locations);
         } finally {
             $zip->close();
             $this->remove($blocks);
             $this->remove($locations);
         }
+    }
+
+    /** The folder an administrator can put the file in by FTP or the host's file manager, for data too big to upload in a browser. */
+    public function incomingDirectory(): string
+    {
+        return $this->incomingDir;
+    }
+
+    /** Makes the drop folder so it is there to be filled; false when the server will not allow it. */
+    public function prepareIncoming(): bool
+    {
+        try {
+            $this->ensureDirectory($this->incomingDir);
+        } catch (RuntimeException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * What the drop folder holds that an import can start from: each GeoLite2 ZIP, and the two CSV files together.
+     * The id of an entry is all a form posts back, so a posted value is never used as a path.
+     *
+     * @return list<array{id: string, label: string}>
+     */
+    public function incoming(): array
+    {
+        $names = is_dir($this->incomingDir) ? (scandir($this->incomingDir) ?: []) : [];
+        $found = [];
+
+        foreach ($names as $name) {
+            if (preg_match('/^GeoLite2[A-Za-z0-9._-]*\.zip\z/i', $name) === 1 && $this->plainFile($this->incomingDir . '/' . $name)) {
+                $found[] = ['id' => $name, 'label' => $name . ' (' . $this->size($this->incomingDir . '/' . $name) . ')'];
+            }
+        }
+
+        if ($this->csvPair($this->incomingDir) !== null) {
+            $found[] = ['id' => self::CSV_PAIR, 'label' => self::BLOCKS_NAME . ' and ' . self::LOCATIONS_NAME];
+        }
+
+        return $found;
+    }
+
+    /**
+     * Starts an import from something listed by incoming().
+     *
+     * @throws RuntimeException
+     */
+    public function stageIncoming(string $id): void
+    {
+        if (!in_array($id, array_column($this->incoming(), 'id'), true)) {
+            throw new RuntimeException('That file is no longer in the drop folder. Reload the page to see what is there.');
+        }
+
+        if ($id === self::CSV_PAIR) {
+            $pair = $this->csvPair($this->incomingDir);
+
+            if ($pair === null) {
+                throw new RuntimeException('Both CSV files must be in the drop folder.');
+            }
+
+            $this->stage($pair[0], $pair[1]);
+
+            return;
+        }
+
+        $this->stageZip($this->incomingDir . '/' . $id);
+    }
+
+    /**
+     * Starts an import from a file or folder anywhere on the server that PHP may read, typed as a full path. Only an
+     * Administrator reaches this, and what is read is checked to be a ZIP or the two CSV files before it is used.
+     *
+     * @throws RuntimeException
+     */
+    public function stageFromPath(string $typed): void
+    {
+        $path = trim($typed);
+
+        if ($path === '' || str_contains($path, "\0")) {
+            throw new RuntimeException('Type the full path of the ZIP file, or of the folder holding the two CSV files.');
+        }
+
+        if (!$this->isAbsolute($path)) {
+            throw new RuntimeException('Type the full path, starting from the root of the server, for example /home/you/GeoLite2-Country-CSV.zip.');
+        }
+
+        if (preg_match('#(^|[\\\\/])\.\.($|[\\\\/])#', $path) === 1) {
+            throw new RuntimeException('Type the path without ".." in it.');
+        }
+
+        // Checked before any file function runs: PHP would raise a warning for a path outside open_basedir.
+        if (!$this->insideOpenBasedir($path)) {
+            throw new RuntimeException('This server only lets PHP read files inside certain folders (open_basedir), and that path is outside them. Put the file in the drop folder instead.');
+        }
+
+        if (is_link($path)) {
+            throw new RuntimeException('A symbolic link cannot be used. Type the real location of the file or folder.');
+        }
+
+        $real = realpath($path);
+
+        if ($real === false || !is_readable($real)) {
+            throw new RuntimeException('Nothing readable was found at that path.');
+        }
+
+        if (is_dir($real)) {
+            $pair = $this->csvPair($real);
+
+            if ($pair === null) {
+                throw new RuntimeException('That folder does not hold both ' . self::BLOCKS_NAME . ' and ' . self::LOCATIONS_NAME . '.');
+            }
+
+            $this->stage($pair[0], $pair[1]);
+
+            return;
+        }
+
+        if (!is_file($real) || strtolower(pathinfo($real, PATHINFO_EXTENSION)) !== 'zip') {
+            throw new RuntimeException('Choose a .zip file, or a folder holding the two CSV files.');
+        }
+
+        $this->stageZip($real);
     }
 
     /**
@@ -277,6 +411,54 @@ final class GeoIp
     {
         $this->cancel();
         $this->remove($this->rangesFile);
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null the blocks and locations files of a folder, null unless both are plain readable files
+     */
+    private function csvPair(string $directory): ?array
+    {
+        $blocks = $directory . '/' . self::BLOCKS_NAME;
+        $locations = $directory . '/' . self::LOCATIONS_NAME;
+
+        return $this->plainFile($blocks) && $this->plainFile($locations) ? [$blocks, $locations] : null;
+    }
+
+    /** A real, readable file: a symbolic link could point anywhere, so it is not one. */
+    private function plainFile(string $path): bool
+    {
+        return !is_link($path) && is_file($path) && is_readable($path);
+    }
+
+    private function size(string $path): string
+    {
+        $bytes = (int) filesize($path);
+
+        return $bytes >= 1048576 ? number_format($bytes / 1048576, 1, '.', '') . ' MB' : number_format(max(1, $bytes) / 1024, 0, '.', '') . ' KB';
+    }
+
+    private function isAbsolute(string $path): bool
+    {
+        return str_starts_with($path, '/') || (DIRECTORY_SEPARATOR === '\\' && preg_match('#^([A-Za-z]:[\\\\/]|\\\\\\\\)#', $path) === 1);
+    }
+
+    private function insideOpenBasedir(string $path): bool
+    {
+        $allowed = ini_get('open_basedir');
+
+        if (!is_string($allowed) || $allowed === '') {
+            return true;
+        }
+
+        foreach (explode(PATH_SEPARATOR, $allowed) as $directory) {
+            $directory = rtrim($directory, '/\\');
+
+            if ($directory !== '' && ($path === $directory || str_starts_with($path, $directory . DIRECTORY_SEPARATOR) || str_starts_with($path, $directory . '/'))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function remove(string $file): void

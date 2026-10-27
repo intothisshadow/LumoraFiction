@@ -333,10 +333,12 @@ final class UpdatesController extends AdminController
             return $user;
         }
 
+        $json = $request->wantsJson();
+
         if (!$this->validToken($request, self::TOKEN)) {
             $this->flash->add('error', self::STALE_FORM);
 
-            return $this->runPage();
+            return $json ? $this->jsonRedirect(self::PATH . '/run', 403) : $this->runPage();
         }
 
         try {
@@ -344,10 +346,21 @@ final class UpdatesController extends AdminController
         } catch (UpdateException $exception) {
             $this->flash->add('error', $exception->getMessage());
 
-            return $this->runPage();
+            return $json ? $this->jsonRedirect(self::PATH . '/run') : $this->runPage();
         }
 
-        return $this->afterStep($run);
+        if (!$json) {
+            return $this->afterStep($run);
+        }
+
+        // A finished run reports through the same flash message the form flow uses, then sends the page back.
+        if ($run->isTerminal()) {
+            $this->flashOutcome($run);
+
+            return $this->jsonRedirect(self::PATH);
+        }
+
+        return $this->json($this->progressPayload($run));
     }
 
     /**
@@ -409,6 +422,13 @@ final class UpdatesController extends AdminController
             return $this->runPage();
         }
 
+        $this->flashOutcome($run);
+
+        return $this->back();
+    }
+
+    private function flashOutcome(UpdateRun $run): void
+    {
         $type = match ($run->status) {
             UpdateRun::COMPLETE => 'success',
             UpdateRun::ROLLED_BACK => 'error',
@@ -425,8 +445,48 @@ final class UpdatesController extends AdminController
         };
 
         $this->flash->add($type, trim($text));
+    }
 
-        return $this->back();
+    /**
+     * What the progress page needs to redraw itself after a step. The token is fresh because each one is single-use.
+     *
+     * @return array<string, mixed>
+     */
+    private function progressPayload(UpdateRun $run): array
+    {
+        $log = [];
+
+        foreach (array_slice($run->log, -12) as $line) {
+            $log[] = ['text' => gmdate('H:i:s', (int) $line['time']) . ' UTC — ' . $line['text'], 'ok' => (bool) $line['ok']];
+        }
+
+        return [
+            'status' => $run->status,
+            'steps' => $this->updates->progress($run),
+            'log' => $log,
+            'message' => $run->message,
+            'token' => Csrf::token(self::TOKEN),
+        ];
+    }
+
+    /**
+     * Tells the script to load a page itself, which is how it falls back to what the server draws.
+     */
+    private function jsonRedirect(string $path, int $status = 200): Response
+    {
+        return $this->json(['status' => 'redirect', 'redirect' => AdminUrl::to($path)], $status);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function json(array $data, int $status = 200): Response
+    {
+        return new Response(
+            (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR),
+            $status,
+            ['Content-Type' => 'application/json; charset=utf-8', 'Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow'],
+        );
     }
 
     private function runPage(): Response

@@ -76,7 +76,7 @@ final class DatabaseDump
      * Dumps until the deadline, then reports where it stopped.
      *
      * @param array<string, mixed> $cursor empty to start, otherwise the cursor the last call returned
-     * @return array{tables: list<string>, table: int, offset: int, size: int, rows: int, done: bool}
+     * @return array{tables: list<string>, table: int, offset: int, last: list<string|null>|null, size: int, rows: int, done: bool}
      * @throws UpdateException when the file cannot be written
      */
     public function dump(string $path, array $cursor, float $deadline): array
@@ -86,6 +86,7 @@ final class DatabaseDump
         $table = $fresh ? 0 : (int) ($cursor['table'] ?? 0);
         $offset = $fresh ? 0 : (int) ($cursor['offset'] ?? 0);
         $rows = $fresh ? 0 : (int) ($cursor['rows'] ?? 0);
+        $last = $fresh || !is_array($cursor['last'] ?? null) ? null : array_values($cursor['last']);
 
         if (!$fresh) {
             // Anything a request wrote after the saved size belongs to a step that never reported back.
@@ -113,12 +114,12 @@ final class DatabaseDump
                     $this->write($handle, $this->createStatement($name) . ";\n");
                 }
 
-                $order = $this->orderBy($name);
+                $key = $this->keyColumns($name);
 
                 while (true) {
-                    $page = $this->database->pdo()->query(
-                        'SELECT * FROM ' . self::identifier($name) . $order . ' LIMIT ' . self::PAGE_ROWS . ' OFFSET ' . $offset,
-                    )->fetchAll(PDO::FETCH_ASSOC);
+                    // Each page continues after the last key written, so the cost of a page does not grow with the rows
+                    // before it. Paging by OFFSET rescans every skipped row, which made a large table quadratic.
+                    $page = $this->page($name, $key, $last, $offset);
 
                     if ($page === []) {
                         break;
@@ -127,23 +128,25 @@ final class DatabaseDump
                     $this->writeRows($handle, $name, $page);
                     $offset += count($page);
                     $rows += count($page);
+                    $last = $this->keyOf($page[count($page) - 1], $key);
 
                     if (count($page) < self::PAGE_ROWS) {
                         break;
                     }
 
                     if (microtime(true) >= $deadline) {
-                        return $this->saved($handle, $path, $tables, $table, $offset, $rows, false);
+                        return $this->saved($handle, $path, $tables, $table, $offset, $last, $rows, false);
                     }
                 }
 
                 $table++;
                 $offset = 0;
+                $last = null;
             }
 
             $this->write($handle, self::FOOTER . "\n");
 
-            return $this->saved($handle, $path, $tables, $table, $offset, $rows, true);
+            return $this->saved($handle, $path, $tables, $table, $offset, null, $rows, true);
         } catch (PDOException $exception) {
             throw new UpdateException('The database could not be read for the backup.', 0, $exception);
         }
@@ -272,17 +275,80 @@ final class DatabaseDump
         return (string) preg_replace('/\s*\R\s*/', ' ', (string) $row[1]);
     }
 
-    private function orderBy(string $table): string
+    /**
+     * @return list<string> the primary key columns in key order, empty for a table without one
+     */
+    private function keyColumns(string $table): array
     {
         $rows = $this->database->pdo()->query('SHOW KEYS FROM ' . self::identifier($table) . " WHERE Key_name = 'PRIMARY'")->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($rows === []) {
-            return '';
-        }
-
         usort($rows, static fn (array $a, array $b): int => (int) $a['Seq_in_index'] <=> (int) $b['Seq_in_index']);
 
-        return ' ORDER BY ' . implode(', ', array_map(static fn (array $row): string => self::identifier((string) $row['Column_name']), $rows));
+        return array_map(static fn (array $row): string => (string) $row['Column_name'], $rows);
+    }
+
+    /**
+     * The next page of a table, in primary key order. After the first page it starts after the key last written; a table
+     * with no key, or a key that could not be kept in the cursor (binary values), falls back to counting rows.
+     *
+     * @param list<string> $key
+     * @param list<string|null>|null $last
+     * @return list<array<string, mixed>>
+     */
+    private function page(string $table, array $key, ?array $last, int $offset): array
+    {
+        $pdo = $this->database->pdo();
+        $sql = 'SELECT * FROM ' . self::identifier($table);
+        $params = [];
+        $order = $key === [] ? '' : ' ORDER BY ' . implode(', ', array_map(self::identifier(...), $key));
+
+        if ($key !== [] && $last !== null && count($last) === count($key)) {
+            // a > x OR (a = x AND b > y): the expanded form lets the key index serve a composite key as a range.
+            $branches = [];
+
+            foreach ($key as $position => $column) {
+                $terms = [];
+
+                for ($before = 0; $before < $position; $before++) {
+                    $terms[] = self::identifier($key[$before]) . ' = ?';
+                    $params[] = $last[$before];
+                }
+
+                $terms[] = self::identifier($column) . ' > ?';
+                $params[] = $last[$position];
+                $branches[] = '(' . implode(' AND ', $terms) . ')';
+            }
+
+            $statement = $pdo->prepare($sql . ' WHERE ' . implode(' OR ', $branches) . $order . ' LIMIT ' . self::PAGE_ROWS);
+            $statement->execute($params);
+        } else {
+            $statement = $pdo->query($sql . $order . ' LIMIT ' . self::PAGE_ROWS . ' OFFSET ' . $offset);
+        }
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string> $key
+     * @return list<string|null>|null the key of the row, or null when there is none to continue from
+     */
+    private function keyOf(array $row, array $key): ?array
+    {
+        $values = [];
+
+        foreach ($key as $column) {
+            $value = $row[$column] ?? null;
+
+            // The cursor is stored as JSON, which cannot hold binary text, so such a table is paged by offset instead.
+            if ($value === null || !mb_check_encoding((string) $value, 'UTF-8')) {
+                return null;
+            }
+
+            $values[] = (string) $value;
+        }
+
+        return $key === [] ? null : $values;
     }
 
     /**
@@ -334,14 +400,15 @@ final class DatabaseDump
     /**
      * @param resource $handle
      * @param list<string> $tables
-     * @return array{tables: list<string>, table: int, offset: int, size: int, rows: int, done: bool}
+     * @param list<string|null>|null $last
+     * @return array{tables: list<string>, table: int, offset: int, last: list<string|null>|null, size: int, rows: int, done: bool}
      */
-    private function saved($handle, string $path, array $tables, int $table, int $offset, int $rows, bool $done): array
+    private function saved($handle, string $path, array $tables, int $table, int $offset, ?array $last, int $rows, bool $done): array
     {
         $this->compress ? gzclose($handle) : fclose($handle);
         clearstatcache(true, $path);
 
-        return ['tables' => $tables, 'table' => $table, 'offset' => $offset, 'size' => (int) filesize($path), 'rows' => $rows, 'done' => $done];
+        return ['tables' => $tables, 'table' => $table, 'offset' => $offset, 'last' => $last, 'size' => (int) filesize($path), 'rows' => $rows, 'done' => $done];
     }
 
     private function truncate(string $path, int $size): void
