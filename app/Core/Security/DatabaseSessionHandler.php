@@ -19,6 +19,7 @@ namespace LumoraFiction\Core\Security;
 
 use LumoraFiction\Core\Database\Database;
 use SessionHandlerInterface;
+use SessionIdInterface;
 use SessionUpdateTimestampHandlerInterface;
 use Throwable;
 
@@ -33,7 +34,7 @@ use Throwable;
  * the server issued from one a visitor made up, and would adopt the made-up one, which is exactly
  * what session fixation needs.
  */
-final class DatabaseSessionHandler implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface
+final class DatabaseSessionHandler implements SessionHandlerInterface, SessionIdInterface, SessionUpdateTimestampHandlerInterface
 {
     private const MAX_ID_LENGTH = 128;
 
@@ -131,6 +132,15 @@ final class DatabaseSessionHandler implements SessionHandlerInterface, SessionUp
         }
 
         return true;
+    }
+
+    /**
+     * PHP 8.6 deprecates a handler without create_sid(). Built from random_bytes() and not
+     * session_create_id(), which calls back into this method and recurses.
+     */
+    public function create_sid(): string
+    {
+        return bin2hex(random_bytes(16));
     }
 
     public function destroy(string $id): bool

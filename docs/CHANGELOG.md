@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- PHP 8.6 compatibility: sessions kept in the database now work on PHP 8.6. The session storage did not supply its own session identifiers, which PHP 8.6 reports as deprecated, and the site turns every such notice into an error page, so on 8.6 any page that started a session showed "Something went wrong". Nothing changes on PHP 8.2 to 8.5.
+
 ## [1.1.0] — 2026-10-27
 
 - The database part of a backup (made before every update and on demand) is now written in one linear pass instead of rescanning the table for every page of rows. A table with hundreds of thousands of rows used to take minutes and could run into the web server's time limit, which stopped the update at "Create update backup"; it now takes seconds, and the backup file is exactly the same. A backup that was started before the change still carries on.
