@@ -48,11 +48,12 @@ final class AccountDeletionService
 
     /**
      * A person may delete their own account; an account manager may delete anyone's. The last active administrator can
-     * never be deleted, so the site cannot lock itself out.
+     * never be deleted, so the site cannot lock itself out. $keep says whether the stories stay under a neutral name
+     * (true) or go too (false); null follows the site setting.
      *
      * @throws AccountDeletionException
      */
-    public function delete(User $actor, User $subject, string $ipAddress = ''): void
+    public function delete(User $actor, User $subject, string $ipAddress = '', ?bool $keep = null): void
     {
         if ($actor->id !== $subject->id && !$actor->can(Capability::ManageUsers)) {
             throw new AccountDeletionException('You may not do that.');
@@ -64,7 +65,8 @@ final class AccountDeletionService
 
         $this->requireAnotherAdministrator($subject, false);
 
-        $keep = $this->privacy->keepsStories();
+        // A member deciding about their own writing is asked; otherwise the site's setting applies.
+        $keep ??= $this->privacy->keepsStories();
         $removedStories = $keep ? 0 : $this->stories->deleteAllByOwner($subject->id, $actor, $ipAddress);
         $avatar = (string) ($this->database->fetchColumn('SELECT avatar_file FROM {prefix}users WHERE id = :id', ['id' => $subject->id]) ?? '');
         $neutral = $this->privacy->neutralName();
@@ -117,6 +119,14 @@ final class AccountDeletionService
         }
 
         $this->hooks?->doAction('account_deleted', $subject->id);
+    }
+
+    /**
+     * How many stories the account owns, trash included, so a member is only asked what to do with stories they have.
+     */
+    public function storyCount(User $subject): int
+    {
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}stories WHERE owner_id = :id', ['id' => $subject->id]);
     }
 
     /**

@@ -66,7 +66,7 @@ use LumoraFiction\Helpers\Html;
                 <label for="deleted_stories_<?= Html::e($value) ?>"><?= Html::e($label) ?></label>
             </div>
         <?php endforeach; ?>
-        <p class="lf-hint" id="deleted_stories_hint">Either way, the person&rsquo;s name, email address, login, reading history, bookmarks and follows are removed. This choice applies to every account deleted from now on, whether the person asked or an administrator did it from <a href="<?= Html::e($requestsUrl) ?>">Privacy requests</a>.</p>
+        <p class="lf-hint" id="deleted_stories_hint">Either way, the person&rsquo;s name, email address, login, reading history, bookmarks and follows are removed. This is the usual choice: it is preselected when an administrator deletes an account from <a href="<?= Html::e($requestsUrl) ?>">Privacy requests</a>, who can change it for that request, and an author deleting their own account chooses for themselves.</p>
         <?php if (isset($errors['deleted_stories'])): ?><p class="lf-error" id="deleted_stories"><?= Html::e($errors['deleted_stories']) ?></p><?php endif; ?>
 
         <div class="lf-field<?= isset($errors['neutral_name']) ? ' lf-field--error' : '' ?>">

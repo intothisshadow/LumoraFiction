@@ -102,8 +102,21 @@ final class PrivacyController
             return $this->page($request, $user, ['current_password' => $problem], 422);
         }
 
+        $keep = null;
+
+        // An author decides about their own writing; the site setting is only the suggestion on the form.
+        if ($this->deletion->storyCount($user) > 0) {
+            $choice = $request->input('stories');
+
+            if ($choice !== 'keep' && $choice !== 'delete') {
+                return $this->page($request, $user, ['stories' => 'Choose what happens to your stories.'], 422);
+            }
+
+            $keep = $choice === 'keep';
+        }
+
         try {
-            $this->deletion->delete($user, $user, $request->ip());
+            $this->deletion->delete($user, $user, $request->ip(), $keep);
         } catch (AccountDeletionException $exception) {
             return $this->page($request, $user, [], 422, $exception->getMessage());
         }
@@ -139,19 +152,17 @@ final class PrivacyController
                 'csrf_token' => Csrf::token('account_delete'),
                 'submit' => 'Delete my account',
                 'heading' => 'Delete your account',
-                'fields' => [[
+                'fields' => array_merge($this->storyFields($user, $keeps, $errors), [[
                     'name' => 'current_password',
                     'id' => 'lf-field-current-password',
                     'label' => 'Current password',
                     'type' => 'password',
                     'value' => '',
                     'autocomplete' => 'current-password',
-                    'hint' => 'This removes your email address, login name, display name, password, bookmarks, reading history and follows for good. '
-                        . ($keeps ? 'Your stories stay on the site, shown under the name "' . $this->settings->neutralName() . '".' : 'Your stories are deleted too.')
-                        . ' You will be signed out and cannot undo this.',
+                    'hint' => 'This removes your email address, login name, display name, password, bookmarks, reading history and follows for good. You will be signed out and cannot undo this.',
                     'error' => $errors['current_password'] ?? '',
                     'options' => [],
-                ]],
+                ]]),
                 'errors' => $summary !== '' ? [['message' => $summary]] : [],
             ],
         ];
@@ -165,6 +176,35 @@ final class PrivacyController
         ], $status, ['title' => 'Your data and privacy', 'noindex' => true, 'variant' => 'profile']);
 
         return $response->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /**
+     * The choice about the member's stories, asked only of someone who has some. The site setting preselects an answer.
+     *
+     * @param array<string, string> $errors
+     * @return list<array<string, mixed>>
+     */
+    private function storyFields(User $user, bool $siteKeeps, array $errors): array
+    {
+        if ($this->deletion->storyCount($user) === 0) {
+            return [];
+        }
+
+        return [[
+            'name' => 'stories',
+            'id' => 'lf-field-stories',
+            'label' => 'Your stories',
+            'type' => 'select',
+            'value' => '',
+            'autocomplete' => 'off',
+            'hint' => 'Keeping them leaves your stories on the site under the name "' . $this->settings->neutralName() . '", with nothing that identifies you. Deleting removes them and all their chapters for good.',
+            'error' => $errors['stories'] ?? '',
+            'options' => [
+                ['value' => '', 'label' => 'Choose…', 'selected' => false],
+                ['value' => 'keep', 'label' => 'Keep my stories under a neutral name', 'selected' => false],
+                ['value' => 'delete', 'label' => 'Delete my stories too', 'selected' => false],
+            ],
+        ]];
     }
 
     private function mustSignIn(): Response

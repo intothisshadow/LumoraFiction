@@ -498,9 +498,10 @@ final class Kernel
         $kernel->router->post(PublicUrl::PROFILE . '/editor', $account->updateEditor(...), 'account.profile.editor');
         $kernel->router->post(PublicUrl::READING, $account->updateReading(...), 'account.profile.reading');
 
-        $kernel->router->get(PublicUrl::account('privacy'), $privacyPages->show(...), 'account.privacy');
-        $kernel->router->post(PublicUrl::account('privacy/export'), $privacyPages->export(...), 'account.privacy.export');
-        $kernel->router->post(PublicUrl::account('privacy/delete'), $privacyPages->delete(...), 'account.privacy.delete');
+        // Route patterns never carry the install folder, so these are written out rather than built with PublicUrl::account().
+        $kernel->router->get('/account/privacy', $privacyPages->show(...), 'account.privacy');
+        $kernel->router->post('/account/privacy/export', $privacyPages->export(...), 'account.privacy.export');
+        $kernel->router->post('/account/privacy/delete', $privacyPages->delete(...), 'account.privacy.delete');
 
         $kernel->router->get(PublicUrl::BOOKMARKS, $reader->list(...), 'account.bookmarks');
         $kernel->router->post(PublicUrl::BOOKMARK_ADD, $reader->add(...), 'account.bookmarks.add');

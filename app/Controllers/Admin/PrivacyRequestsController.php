@@ -159,8 +159,21 @@ final class PrivacyRequestsController extends AdminController
             return $this->deletePage($request, $user, $subject, ['confirm' => 'That is not the display name of this account. Nothing was deleted.'], 422);
         }
 
+        $keep = null;
+
+        // The administrator decides per request; the site setting is only the preselected answer.
+        if ($this->deletion->storyCount($subject) > 0) {
+            $choice = $request->input('stories');
+
+            if ($choice !== 'keep' && $choice !== 'delete') {
+                return $this->deletePage($request, $user, $subject, ['stories' => 'Choose what happens to their stories.'], 422);
+            }
+
+            $keep = $choice === 'keep';
+        }
+
         try {
-            $this->deletion->delete($user, $subject, $request->ip());
+            $this->deletion->delete($user, $subject, $request->ip(), $keep);
         } catch (AccountDeletionException $exception) {
             return $this->deletePage($request, $user, $subject, ['form' => $exception->getMessage()], 422);
         }
@@ -168,6 +181,14 @@ final class PrivacyRequestsController extends AdminController
         $this->flash->add('success', 'The account was deleted.');
 
         return Response::redirect(AdminUrl::to(self::PATH), 303);
+    }
+
+    /** The answer to remember when the page is shown again after a problem, or the site setting's on the first visit. */
+    private function postedChoice(Request $request): string
+    {
+        $posted = $request->input('stories');
+
+        return is_string($posted) && ($posted === 'keep' || $posted === 'delete') ? $posted : ($this->settings->keepsStories() ? 'keep' : 'delete');
     }
 
     private function subject(?string $id): ?User
@@ -204,6 +225,8 @@ final class PrivacyRequestsController extends AdminController
             'person' => $subject,
             'errors' => $errors,
             'keepsStories' => $this->settings->keepsStories(),
+            'storyCount' => $this->deletion->storyCount($subject),
+            'chosen' => $this->postedChoice($request),
             'neutralName' => $this->settings->neutralName(),
             'csrfToken' => Csrf::token(self::TOKEN),
             'action' => AdminUrl::to(self::PATH . '/' . $subject->id . '/delete'),
