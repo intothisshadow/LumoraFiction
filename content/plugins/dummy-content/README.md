@@ -5,7 +5,7 @@ Makes placeholder users, fandoms, tags, stories, chapters and bookmarks so you c
 ## Turning it on
 
 1. Open `config/config.php` of the **development** copy of your site and add the line `'environment' => 'development',` (or `'testing'`). The installer writes `'production'`, and a missing line counts as production.
-2. Open **Maintenance > Plugins** and press **Turn on** for Dummy Content. On a site that is not flagged for development the plugin refuses to start and says why.
+2. Open **Plugins** and press **Turn on** for Dummy Content. On a site that is not flagged for development the plugin refuses to start and says why.
 3. A new entry, **Dummy content**, appears under **Maintenance**.
 
 Never set the environment to development on a site with real readers: the plugin would then let an administrator fill the archive with placeholder stories.

@@ -138,7 +138,20 @@ final class UpdateChecker
     public function check(): array
     {
         $settings = $this->settings();
-        $release = $this->feed->latest($settings['repository'], $settings['channel'] === self::CHANNEL_PRERELEASE);
+
+        try {
+            $release = $this->feed->latest($settings['repository'], $settings['channel'] === self::CHANNEL_PRERELEASE);
+        } catch (UpdateException $exception) {
+            // Remembered so the Updates screen can open on the manual upload when this host cannot reach GitHub.
+            $this->storage->writeJson($this->storage->checkFailurePath(), ['checked_at' => gmdate('Y-m-d H:i:s'), 'repository' => $settings['repository'], 'reason' => $exception->getMessage()]);
+
+            throw $exception;
+        }
+
+        if (is_file($this->storage->checkFailurePath())) {
+            unlink($this->storage->checkFailurePath());
+        }
+
         $newer = $release !== null && version_compare($release['version'], $this->installedVersion, '>');
         $answer = ['checked_at' => gmdate('Y-m-d H:i:s'), 'release' => $release, 'newer' => $newer, 'repository' => $settings['repository']];
 
@@ -176,6 +189,22 @@ final class UpdateChecker
     }
 
     /**
+     * Why the last check could not reach GitHub, or null when it did (or none was made, or it was about another repository).
+     *
+     * @return array{checked_at: string, reason: string}|null
+     */
+    public function lastFailure(): ?array
+    {
+        $failure = $this->storage->readJson($this->storage->checkFailurePath());
+
+        if ($failure === null || ($failure['repository'] ?? '') !== $this->settings()['repository'] || !is_string($failure['reason'] ?? null)) {
+            return null;
+        }
+
+        return ['checked_at' => (string) ($failure['checked_at'] ?? ''), 'reason' => $failure['reason']];
+    }
+
+    /**
      * Downloads the release the last check found into the staging location, verified against its published checksum.
      *
      * @throws UpdateException when there is no release to fetch, or the download fails its checksum
@@ -200,8 +229,10 @@ final class UpdateChecker
 
     private function forget(): void
     {
-        if (is_file($this->storage->latestPath())) {
-            unlink($this->storage->latestPath());
+        foreach ([$this->storage->latestPath(), $this->storage->checkFailurePath()] as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
         }
 
         $this->alerts->clear(self::ALERT_KEY);

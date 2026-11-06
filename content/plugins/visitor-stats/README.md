@@ -4,7 +4,7 @@ Shows how often your stories are read, using only this site: no analytics servic
 
 ## Turning it on
 
-1. Open **Maintenance > Plugins** and press **Turn on** for Visitor Stats.
+1. Open **Plugins** and press **Turn on** for Visitor Stats.
 2. Open **Visitor stats** in the admin menu, tick **Count views** and press **Save**.
 
 Turning the plugin on collects nothing by itself. Counting starts only when you tick the box, and unticking it stops counting again while keeping the figures so far.
@@ -42,7 +42,7 @@ Countries need a free data file that you bring yourself. The plugin bundles noth
    - **Upload it in the browser.** This works for small files only; a large file often fails because of the host's upload limit, which is why the two ways above exist.
 3. The import carries on by itself and shows how far it has got; keep the page open until it says it has finished. The file is read in pieces so a shared host's time limit is never reached. If it stops because of a problem, the message says why and **Continue** tries again. Your existing country data stays in use until the new data is finished.
 
-The country data is a single file under `storage/visitor-stats/`, never part of your database, so backing up or restoring the database does not carry it. Only IPv4 addresses are matched. A visitor's address is used for that one lookup and is never written down. When the data is more than six months old the screen says so, and an alert appears on **Maintenance > Alerts**, the dashboard and the header count; import a fresh download to replace it.
+The country data is a single file under `storage/visitor-stats/`, never part of your database, so backing up or restoring the database does not carry it. Only IPv4 addresses are matched. A visitor's address is used for that one lookup and is never written down. When the data is more than six months old the screen says so, and an alert appears on **Alerts**, the dashboard and the header count; import a fresh download to replace it.
 
 ## Who sees what
 

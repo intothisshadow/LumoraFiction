@@ -138,7 +138,7 @@ final class BackupsController extends AdminController
 
         $this->audit->record($user->id, 'backup.downloaded', 'backup', $id, ['part' => $part], $request->ip());
 
-        $name = basename($path);
+        $name = $this->backups->downloadName($path);
         $type = str_ends_with($name, '.zip') ? 'application/zip' : (str_ends_with($name, '.gz') ? 'application/gzip' : 'application/sql');
 
         return Response::file($path, $name, $type);

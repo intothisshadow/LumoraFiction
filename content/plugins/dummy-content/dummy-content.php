@@ -18,7 +18,7 @@
  * Version: 1.0.0
  * Author: Ariane
  * Description: Makes placeholder users, stories and chapters for testing, and removes them again. Development sites only.
- * Requires PHP: 8.2
+ * Requires PHP: 8.3
  * Requires at least: 0.1.0
  */
 
@@ -42,8 +42,8 @@ if (!Generator::allowedIn((string) $kernel->config->get('environment', 'producti
 
 add_filter('admin_menu', static function (array $items): array {
     foreach ($items as &$item) {
-        if (($item['slug'] ?? '') === 'maintenance') {
-            $item['children'][] = ['slug' => 'maintenance-dummy-content', 'label' => 'Dummy content', 'path' => Screen::PATH, 'capability' => Capability::ManageSite];
+        if (($item['slug'] ?? '') === 'plugins') {
+            $item['children'][] = ['slug' => 'plugins-dummy-content', 'label' => 'Dummy content', 'path' => Screen::PATH, 'capability' => Capability::ManageSite];
         }
     }
 

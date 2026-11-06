@@ -24,6 +24,7 @@ use LumoraFiction\Models\User;
 /** @var list<array{variant: string, message: string}> $notices the most serious alerts, a few at most */
 /** @var int $alertTotal every alert there is, shown or not */
 /** @var string $alertsUrl */
+/** @var array{offline: string|null}|null $siteStatus whether visitors are being turned away; null for anyone who may not manage the site */
 /** @var array{total: int, by_role: array<string, int>, by_status: array<string, int>}|null $summary */
 /** @var list<array{title: string, html: string}> $cards cards added by plugins; the markup is trusted, so the plugin must escape it */
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
@@ -47,6 +48,17 @@ use LumoraFiction\Models\User;
             <?php endforeach; ?>
         </ul>
         <p><a href="<?= Html::e($alertsUrl) ?>"><?= $alertTotal > count($notices) ? 'See all ' . (int) $alertTotal . ' alerts' : 'Open Alerts' ?></a></p>
+    </section>
+<?php endif; ?>
+
+<?php if ($siteStatus !== null): ?>
+    <section aria-labelledby="lf-site-status-heading" class="lf-card lf-site-status">
+        <h2 id="lf-site-status-heading">Site status</h2>
+        <?php if ($siteStatus['offline'] !== null): ?>
+            <p class="lf-site-status__offline"><strong>Offline for visitors.</strong> <?= Html::e($siteStatus['offline']) ?></p>
+        <?php else: ?>
+            <p class="lf-site-status__online">The public site is online.</p>
+        <?php endif; ?>
     </section>
 <?php endif; ?>
 

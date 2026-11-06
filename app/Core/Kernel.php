@@ -30,6 +30,7 @@ use LumoraFiction\Core\Update\ReleaseFeed;
 use LumoraFiction\Core\Update\UpdateStorage;
 use LumoraFiction\Services\BackupService;
 use LumoraFiction\Services\MaintenanceMode;
+use LumoraFiction\Services\MaintenanceNotice;
 use LumoraFiction\Services\UpdateChecker;
 use LumoraFiction\Services\UpdateService;
 use Throwable;
@@ -543,6 +544,7 @@ final class Kernel
      */
     private static function registerAdmin(self $kernel, string $root, string $version, ThemeCatalog $themeCatalog, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, PluginManager $plugins, SpamSettings $spamSettings, RegistrationThrottle $registrationThrottle, AkismetClient $akismet, SecurityEventLog $securityEvents, SecuritySettings $securitySettings, AuthorProfileService $authorProfiles, SiteAlerts $alerts, NotificationService $notifications, NewsService $news, NewsPresenter $newsPresenter): void
     {
+        $maintenanceNotice = new MaintenanceNotice($kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit), $root);
         $view = new AdminView(
             $root . '/admin/views',
             new AdminMenu($kernel->hooks),
@@ -550,6 +552,7 @@ final class Kernel
             $version,
             static fn (User $user): int => $alerts->badgeCount($user),
             static fn (User $user): int => $notifications->countUnread($user),
+            static fn (User $user): array => $maintenanceNotice->forUser($user),
         );
         $kernel->admin = $view;
 
@@ -575,7 +578,7 @@ final class Kernel
         AdminRoutes::register(
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
-            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news),
+            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news, $maintenanceNotice),
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets')),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),

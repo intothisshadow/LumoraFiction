@@ -22,7 +22,7 @@ namespace LumoraFiction\Core;
  */
 final class Requirements
 {
-    public const MINIMUM_PHP_VERSION = '8.2.0';
+    public const MINIMUM_PHP_VERSION = '8.3.0';
 
     /** @var list<string> */
     public const REQUIRED_EXTENSIONS = ['pdo', 'pdo_mysql', 'session', 'json', 'mbstring', 'zip'];

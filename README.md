@@ -9,13 +9,13 @@ A lightweight, self-hosted story archive and publishing site for fanfiction, ori
 
 | Requirement | Needed |
 | --- | --- |
-| PHP | 8.2, 8.3, 8.4, or 8.5 (8.5 recommended) |
+| PHP | 8.3, 8.4, 8.5, or 8.6 (8.5 recommended) |
 | Database | MySQL 5.6.4+ or MariaDB 10.0.5+ (MySQL 8.4+ or MariaDB 10.11+ recommended) |
 | PHP extensions | `pdo`, `pdo_mysql`, `session`, `json`, `mbstring`, `zip` |
 | Web server | Apache with `mod_rewrite` and `.htaccess` files allowed |
 | On the server | No SSH, Composer, or Node.js |
 
-Lumora Fiction is tested on PHP 8.2 to 8.5, MySQL 5.7, 8.0 and 8.4, and MariaDB 10.4, 10.11 and 11.8. Only database versions their vendor still maintains are actively supported. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for the full list, including writable folders.
+Lumora Fiction is tested on PHP 8.3 to 8.6, MySQL 5.7, 8.0 and 8.4, and MariaDB 10.4, 10.11 and 11.8. Only database versions their vendor still maintains are actively supported. See [docs/INSTALLATION.md](docs/INSTALLATION.md) for the full list, including writable folders.
 
 ## Installing
 
@@ -50,7 +50,7 @@ Administrators choose whether the archive hosts fanfiction, original fiction, or
 
 Sign-in is throttled after repeated failures, password resets use single-use expiring links, registration forms are protected against automated sign-ups, and security events are logged without recording what visitors typed. HTTPS-only mode and trusted-proxy settings are available. See the [security guide](docs/SECURITY.md).
 
-Updating needs no FTP or SSH. Under **Maintenance > Updates** an Administrator checks GitHub for a newer release (or uploads the release ZIP), reviews what the update will do, and confirms. The package is checked against its published SHA-256 checksum and against the server, the files and the database are backed up first, visitors see a maintenance notice while it runs, and if anything goes wrong the site is put back as it was. An update that is interrupted can be resumed or cancelled. **Maintenance > Backups** makes, downloads, restores and deletes backups on demand, and **Maintenance > Maintenance mode** takes the public site offline for visitors, now or on a schedule, while Administrators keep working. Your configuration, uploads, and any plugin or theme the release does not ship are never touched by an update.
+Updating needs no FTP or SSH. Under **Maintenance > Updates** an Administrator checks GitHub for a newer release (or uploads the release ZIP), reviews what the update will do, and confirms. The package is checked against its published SHA-256 checksum and against the server, the files and the database are backed up first, visitors see a maintenance notice while it runs, and if anything goes wrong the site is put back as it was. An update that is interrupted can be resumed or cancelled. **Maintenance > Backups** makes, downloads, restores and deletes backups on demand, and **Maintenance > Maintenance mode** takes the public site offline for visitors, now or on a schedule, while Administrators keep working; a banner on every admin screen says when visitors are being turned away, and why. Your configuration, uploads, and any plugin or theme the release does not ship are never touched by an update.
 
 ## More documentation
 

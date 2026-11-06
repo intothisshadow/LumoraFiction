@@ -22,7 +22,7 @@ use LumoraFiction\Models\User;
 /** @var string $title */
 /** @var string $content trusted markup produced by another view, not user input */
 /** @var User $user */
-/** @var list<array{label: string, url: string, current: bool, open: bool, children: list<array{label: string, url: string, current: bool}>}> $menu */
+/** @var list<array{label: string, url: string, current: bool, open: bool, count: int|null, children: list<array{label: string, url: string, current: bool}>}> $menu */
 /** @var list<array{type: string, message: string}> $flash */
 /** @var string $siteName */
 /** @var string $version */
@@ -30,6 +30,7 @@ use LumoraFiction\Models\User;
 /** @var string $assetVersion */
 /** @var int|null $alertCount alerts needing attention; null for anyone who may not see alerts */
 /** @var int|null $notificationCount unread notifications; null for anyone who has no inbox */
+/** @var list<array{cause: string, message: string, link_label: string, url: string}> $maintenanceNotices why visitors are being turned away, empty when they are not */
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,12 +67,18 @@ use LumoraFiction\Models\User;
         </div>
     </header>
 
+    <?php foreach ($maintenanceNotices as $banner): ?>
+        <div class="lf-notice lf-notice--warning lf-maintenance-banner lf-maintenance-banner--<?= Html::e($banner['cause']) ?>" role="status">
+            <strong>Offline for visitors.</strong> <?= Html::e($banner['message']) ?> <a href="<?= Html::e($banner['url']) ?>"><?= Html::e($banner['link_label']) ?></a>
+        </div>
+    <?php endforeach; ?>
+
     <div class="lf-admin__body">
         <nav class="lf-admin__nav" aria-label="Admin menu">
             <ul class="lf-menu">
                 <?php foreach ($menu as $item): ?>
                     <li class="lf-menu__item<?= $item['open'] ? ' is-open' : '' ?>">
-                        <a href="<?= Html::e($item['url']) ?>"<?= $item['current'] ? ' aria-current="page"' : '' ?>><?= Html::e($item['label']) ?></a>
+                        <a href="<?= Html::e($item['url']) ?>"<?= $item['current'] ? ' aria-current="page"' : '' ?>><?= Html::e($item['label']) ?><?php if ($item['count'] !== null): ?><span class="lf-menu__count"> (<?= (int) $item['count'] ?>)</span><?php endif; ?></a>
                         <?php if ($item['children'] !== []): ?>
                             <ul class="lf-menu__children">
                                 <?php foreach ($item['children'] as $child): ?>

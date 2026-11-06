@@ -47,7 +47,7 @@ Every bundled third-party asset is listed here with its version, source, and lic
 - **Purpose:** the PDF format of story downloads. It turns the same cleaned chapter HTML the reader sees into a PDF on the server, with no outside service.
 - **Added:** 2026-10-27.
 - **Local path:** `app/Libraries/vendor/`, with Composer's own autoloader. It is loaded only when a PDF is built. Tests, documentation and development files were left out; nothing else was changed.
-- **Notes:** remote files, PHP and JavaScript inside the document are switched off, and the story HTML contains no pictures or style links, so nothing is read from outside the build. The libraries need the PHP `dom`, `mbstring` and `iconv` extensions; PDF downloads are offered only when they are present. Built on PHP 8.2, 8.3, 8.4 and 8.5 without a warning.
+- **Notes:** remote files, PHP and JavaScript inside the document are switched off, and the story HTML contains no pictures or style links, so nothing is read from outside the build. The libraries need the PHP `dom`, `mbstring` and `iconv` extensions; PDF downloads are offered only when they are present. Built on PHP 8.3, 8.4 and 8.5 without a warning.
 
 | Package | Version | Licence | Source |
 | ------- | ------- | ------- | ------ |

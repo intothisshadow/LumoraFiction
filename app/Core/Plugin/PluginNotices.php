@@ -47,7 +47,7 @@ final class PluginNotices
             $alerts[] = new SiteAlert(
                 'plugin.failed.' . substr(sha1((string) $slug), 0, 12),
                 AlertSeverity::Critical,
-                sprintf('The plugin "%s" could not be loaded and was skipped: %s Open Plugins under Maintenance to turn it off.', $name, $message),
+                sprintf('The plugin "%s" could not be loaded and was skipped: %s Open Plugins in the admin menu to turn it off.', $name, $message),
                 '',
                 'maintenance/plugins',
             );

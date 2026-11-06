@@ -37,7 +37,19 @@ final class AdminView
         private readonly string $version,
         private readonly ?Closure $alertCount = null,
         private readonly ?Closure $notificationCount = null,
+        private readonly ?Closure $maintenanceNotices = null,
     ) {
+    }
+
+    /**
+     * Banners the layout prints above every admin screen while visitors are being turned away. Built here, once per
+     * page, so no screen has to remember to show it.
+     *
+     * @return list<array{cause: string, message: string, link_label: string, url: string}>
+     */
+    private function maintenanceNoticesFor(User $user): array
+    {
+        return $this->maintenanceNotices !== null ? ($this->maintenanceNotices)($user) : [];
     }
 
     /**
@@ -66,18 +78,20 @@ final class AdminView
     public function render(string $view, array $data, User $user, string $title, string $currentPath, array $flash = [], int $status = 200): Response
     {
         $content = $this->include($view, $data + ['assetVersion' => $this->version]);
+        $alerts = $this->alertCountFor($user);
 
         return $this->respond($this->include('layout', [
             'title' => $title,
             'content' => $content,
             'user' => $user,
-            'menu' => $this->menu->forUser($user, $currentPath),
+            'menu' => $this->menu->forUser($user, $currentPath, $alerts),
             'flash' => $flash,
             'siteName' => $this->siteName,
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
-            'alertCount' => $this->alertCountFor($user),
+            'alertCount' => $alerts,
             'notificationCount' => $this->notificationCountFor($user),
+            'maintenanceNotices' => $this->maintenanceNoticesFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }
@@ -90,17 +104,20 @@ final class AdminView
      */
     public function renderContent(string $content, User $user, string $title, string $currentPath, array $flash = [], int $status = 200): Response
     {
+        $alerts = $this->alertCountFor($user);
+
         return $this->respond($this->include('layout', [
             'title' => $title,
             'content' => $content,
             'user' => $user,
-            'menu' => $this->menu->forUser($user, $currentPath),
+            'menu' => $this->menu->forUser($user, $currentPath, $alerts),
             'flash' => $flash,
             'siteName' => $this->siteName,
             'version' => $this->version,
             'signOutToken' => Csrf::token('admin_logout'),
-            'alertCount' => $this->alertCountFor($user),
+            'alertCount' => $alerts,
             'notificationCount' => $this->notificationCountFor($user),
+            'maintenanceNotices' => $this->maintenanceNoticesFor($user),
             'assetVersion' => $this->version,
         ]), $status);
     }

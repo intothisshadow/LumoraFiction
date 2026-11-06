@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\Tabs;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -39,7 +40,11 @@ final class UpdatesController extends AdminController
 
     private const TOKEN = 'admin_updates';
 
-    private const STALE_FORM = 'Your session expired, so nothing was changed. Please try again.';
+    private const TAB_GITHUB = 'github';
+
+    private const TAB_MANUAL = 'manual';
+
+    private const STALE_FORM ='Your session expired, so nothing was changed. Please try again.';
 
     public function __construct(
         AuthService $auth,
@@ -91,7 +96,8 @@ final class UpdatesController extends AdminController
         $changed = $this->checker->save($result['values'], $user, $request->ip());
         $this->flash->add('success', $changed === [] ? 'Nothing needed changing.' : 'Update settings saved.');
 
-        return $this->back();
+        // The form sits below the tabs and remembers which one was open.
+        return $this->back(Tabs::choose($request->input('tab'), [self::TAB_GITHUB, self::TAB_MANUAL], '') ?: null);
     }
 
     /**
@@ -125,7 +131,7 @@ final class UpdatesController extends AdminController
             $this->flash->add('error', $exception->getMessage());
         }
 
-        return $this->back();
+        return $this->back(self::TAB_GITHUB);
     }
 
     /**
@@ -154,7 +160,7 @@ final class UpdatesController extends AdminController
         } catch (UpdateException $exception) {
             $this->flash->add('error', $exception->getMessage());
 
-            return $this->back();
+            return $this->back(self::TAB_GITHUB);
         }
 
         return Response::redirect(AdminUrl::to(self::PATH . '/review'), 303);
@@ -175,13 +181,14 @@ final class UpdatesController extends AdminController
         if ($request->post === [] && (int) ($request->server['CONTENT_LENGTH'] ?? 0) > 0) {
             $this->flash->add('error', 'That file is larger than this server accepts. Raise upload_max_filesize and post_max_size, or use the GitHub download.');
 
-            return $this->back();
+            return $this->back(self::TAB_MANUAL);
         }
 
+        // Every refusal below goes back to the upload form, so its message is not hidden behind the other tab.
         if (!$this->validToken($request, self::TOKEN)) {
             $this->flash->add('error', self::STALE_FORM);
 
-            return $this->back();
+            return $this->back(self::TAB_MANUAL);
         }
 
         $file = $request->upload('package');
@@ -189,13 +196,13 @@ final class UpdatesController extends AdminController
         if ($file === null || !$file->wasSent()) {
             $this->flash->add('error', 'Choose the release ZIP to upload.');
 
-            return $this->back();
+            return $this->back(self::TAB_MANUAL);
         }
 
         if ($file->problem() !== '') {
             $this->flash->add('error', $file->problem());
 
-            return $this->back();
+            return $this->back(self::TAB_MANUAL);
         }
 
         try {
@@ -203,7 +210,7 @@ final class UpdatesController extends AdminController
         } catch (UpdateException $exception) {
             $this->flash->add('error', $exception->getMessage());
 
-            return $this->back();
+            return $this->back(self::TAB_MANUAL);
         }
 
         return Response::redirect(AdminUrl::to(self::PATH . '/review'), 303);
@@ -494,9 +501,9 @@ final class UpdatesController extends AdminController
         return Response::redirect(AdminUrl::to(self::PATH . '/run'), 303);
     }
 
-    private function back(): Response
+    private function back(?string $tab = null): Response
     {
-        return Response::redirect(AdminUrl::to(self::PATH), 303);
+        return Response::redirect(AdminUrl::to(self::PATH) . ($tab !== null ? '?tab=' . $tab : ''), 303);
     }
 
     /**
@@ -506,18 +513,37 @@ final class UpdatesController extends AdminController
     private function page(Request $request, User $user, array $values, array $errors, int $status = 200): Response
     {
         $last = $this->checker->last();
+        $run = $this->updates->current();
+        $canUpload = class_exists(\ZipArchive::class);
+
+        // The upload is not offered while an update is unfinished, so then there is nothing for a second tab to hold.
+        $tabs = null;
+        $failure = $this->checker->lastFailure();
+
+        if ($canUpload && $run === null) {
+            $requested = $request->queryValue('tab') ?? $request->input('tab');
+            $default = $failure !== null ? self::TAB_MANUAL : self::TAB_GITHUB;
+            $tabs = new Tabs(
+                [['key' => self::TAB_GITHUB, 'label' => 'GitHub'], ['key' => self::TAB_MANUAL, 'label' => 'Manual Update']],
+                $requested === null ? $default : Tabs::choose($requested, [self::TAB_GITHUB, self::TAB_MANUAL], self::TAB_GITHUB),
+                'lf-update',
+                AdminUrl::to(self::PATH),
+            );
+        }
 
         return $this->view->render('updates', [
+            'tabs' => $tabs,
+            'checkFailure' => $failure,
             'version' => $this->updates->installedVersion(),
             'values' => $values,
             'errors' => $errors,
             'last' => $last,
-            'run' => $this->updates->current(),
+            'run' => $run,
             'review' => is_file($this->storage->packagePath()) && is_file($this->storage->packageInfoPath()),
             'stranded' => $this->updates->strandedMaintenance(),
             'history' => $this->updates->history(),
             'logLines' => $this->logTail(),
-            'canUpload' => class_exists(\ZipArchive::class),
+            'canUpload' => $canUpload,
             'csrfToken' => Csrf::token(self::TOKEN),
             'settingsAction' => AdminUrl::to(self::PATH . '/settings'),
             'checkAction' => AdminUrl::to(self::PATH . '/check'),

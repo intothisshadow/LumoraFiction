@@ -45,6 +45,14 @@ final class AdminMenu
                 'capability' => Capability::AccessAdmin,
                 'children' => [],
             ],
+            // Top level, one click from the first screen: a Critical or Warning alert should not hide inside a group.
+            [
+                'slug' => 'alerts',
+                'label' => 'Alerts',
+                'path' => 'maintenance/alerts',
+                'capability' => Capability::ManageSite,
+                'children' => [],
+            ],
             [
                 'slug' => 'stories',
                 'label' => 'Stories',
@@ -91,7 +99,10 @@ final class AdminMenu
                 'label' => 'Users',
                 'path' => 'users',
                 'capability' => Capability::ManageUsers,
-                'children' => [],
+                'children' => [
+                    ['slug' => 'users-all', 'label' => 'All users', 'path' => 'users', 'capability' => Capability::ManageUsers],
+                    ['slug' => 'users-privacy', 'label' => 'Privacy requests', 'path' => 'maintenance/privacy', 'capability' => Capability::ManageUsers],
+                ],
             ],
             [
                 'slug' => 'taxonomy',
@@ -109,6 +120,13 @@ final class AdminMenu
                     ['slug' => 'appearance-themes', 'label' => 'Themes', 'path' => 'appearance', 'capability' => Capability::ManageSite],
                     ['slug' => 'appearance-options', 'label' => 'Theme options', 'path' => 'appearance/options', 'capability' => Capability::ManageSite],
                 ],
+            ],
+            [
+                'slug' => 'plugins',
+                'label' => 'Plugins',
+                'path' => 'maintenance/plugins',
+                'capability' => Capability::ManageSite,
+                'children' => [],
             ],
             [
                 'slug' => 'settings',
@@ -130,17 +148,14 @@ final class AdminMenu
             [
                 'slug' => 'maintenance',
                 'label' => 'Maintenance',
-                'path' => 'maintenance/alerts',
+                'path' => 'maintenance/updates',
                 'capability' => Capability::ManageSite,
                 'children' => [
-                    ['slug' => 'maintenance-alerts', 'label' => 'Alerts', 'path' => 'maintenance/alerts', 'capability' => Capability::ManageSite],
-                    ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-updates', 'label' => 'Updates', 'path' => 'maintenance/updates', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-backups', 'label' => 'Backups', 'path' => 'maintenance/backups', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-mode', 'label' => 'Maintenance mode', 'path' => 'maintenance/mode', 'capability' => Capability::ManageSite],
-                    ['slug' => 'maintenance-plugins', 'label' => 'Plugins', 'path' => 'maintenance/plugins', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-security-events', 'label' => 'Security events', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
-                    ['slug' => 'maintenance-privacy', 'label' => 'Privacy requests', 'path' => 'maintenance/privacy', 'capability' => Capability::ManageUsers],
+                    ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
                 ],
             ],
         ];
@@ -153,9 +168,10 @@ final class AdminMenu
     /**
      * The entries this user may see, ready to print. Addresses are built here, never taken from the filter.
      *
-     * @return list<array{label: string, url: string, current: bool, open: bool, children: list<array{label: string, url: string, current: bool}>}>
+     * @param int|null $alertCount the same number the header link shows, so the two can never disagree
+     * @return list<array{label: string, url: string, current: bool, open: bool, count: int|null, children: list<array{label: string, url: string, current: bool}>}>
      */
-    public function forUser(User $user, string $currentPath): array
+    public function forUser(User $user, string $currentPath, ?int $alertCount = null): array
     {
         $currentPath = trim($currentPath, '/');
         $visible = [];
@@ -186,8 +202,9 @@ final class AdminMenu
                 'label' => $item['label'],
                 'url' => AdminUrl::to($item['path']),
                 // Only one link per page is marked current: a parent with children leaves that to the child.
-                'current' => $isCurrent && $children === [],
+                'current' => $isCurrent && !$childIsCurrent,
                 'open' => $isCurrent || $childIsCurrent,
+                'count' => $item['slug'] === 'alerts' && $alertCount !== null && $alertCount > 0 ? $alertCount : null,
                 'children' => $children,
             ];
         }

@@ -15,10 +15,10 @@
 
 declare(strict_types=1);
 
-if (PHP_VERSION_ID < 80200) {
+if (PHP_VERSION_ID < 80300) {
     http_response_code(500);
     header('Content-Type: text/plain; charset=utf-8');
-    echo 'Lumora Fiction requires PHP 8.2 or newer.';
+    echo 'Lumora Fiction requires PHP 8.3 or newer.';
     exit(1);
 }
 

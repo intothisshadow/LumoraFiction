@@ -6,7 +6,7 @@ This guide covers what your server needs and how to install Lumora Fiction from 
 
 | Requirement | Needed | Notes |
 | --- | --- | --- |
-| PHP | 8.2, 8.3, 8.4, or 8.5 (8.5 recommended) | Tested on all four. |
+| PHP | 8.3, 8.4, 8.5, or 8.6 (8.5 recommended) | Tested on all four. PHP 8.2 is no longer supported: its security support ends on 2026-12-31, so ask your host to switch the site to a newer version before updating. |
 | Database | MySQL 5.6.4+ or MariaDB 10.0.5+ (MySQL 8.4+ or MariaDB 10.11+ recommended) | These are the oldest versions Lumora Fiction supports. It is tested on MySQL 5.7, 8.0, and 8.4, and on MariaDB 10.4, 10.11, and 11.8, and should run on the versions in between. Only versions their vendor still maintains are actively supported, so on an end-of-life version the advice will be to move to a currently supported release. |
 | PHP extensions | `pdo`, `pdo_mysql`, `session`, `json`, `mbstring`, `zip` | `zip` is needed for updates and content export. The installer asks for it up front so those features work later. Story covers and author pictures also need GD. |
 | Web server | Apache with `mod_rewrite` and `.htaccess` files allowed | The shipped `.htaccess` files assume Apache. |

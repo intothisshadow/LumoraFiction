@@ -18,7 +18,7 @@
  * Version: 1.0.0
  * Author: Ariane
  * Description: Counts story views on this site alone, with no cookies and no personal data, and shows them on the dashboard, a Visitor stats screen and each story's own screen. Off until switched on.
- * Requires PHP: 8.2
+ * Requires PHP: 8.3
  * Requires at least: 1.1.0
  */
 

@@ -78,6 +78,11 @@ final class UpdateStorage
         return $this->updatesDir() . '/latest.json';
     }
 
+    public function checkFailurePath(): string
+    {
+        return $this->updatesDir() . '/check-failed.json';
+    }
+
     public function bundledPath(): string
     {
         return $this->updatesDir() . '/bundled.json';

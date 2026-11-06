@@ -358,7 +358,7 @@ final class SiteAlerts
             (string) $owner['email'],
             'A critical alert on ' . $this->siteName,
             "Something on {$this->siteName} needs your attention:\n\n{$message}\n\nSee all alerts: {$this->siteUrl}/admin/maintenance/alerts\n\n"
-            . "You are getting this because \"Email me about critical alerts\" is on in Maintenance > Alerts. It sends at most one message per alert per day.\n",
+            . "You are getting this because \"Email me about critical alerts\" is on on the Alerts screen. It sends at most one message per alert per day.\n",
         );
 
         if (!$sent) {

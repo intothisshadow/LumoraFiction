@@ -45,6 +45,9 @@ final class BackupService
 
     public const ID_PATTERN = '/^\d{8}-\d{6}-[0-9a-f]{12}\z/';
 
+    /** The script name, in front of every file of a new backup. It is part of the file name only, never of the id. */
+    public const FILE_PREFIX = 'LumoraFiction_';
+
     private const BACKUP_ZIP_LIMIT = 2 * 1024 * 1024 * 1024;
 
     private const ROOT_FILE_LIMIT = 2 * 1024 * 1024;
@@ -235,9 +238,14 @@ final class BackupService
             return false;
         }
 
-        foreach ([$this->filesPath($id), $this->databasePath($id, true), $this->databasePath($id, false), $this->recordPath($id)] as $file) {
-            if (is_file($file)) {
-                unlink($file);
+        // Every part in both name shapes, including a half-written record, so nothing of either kind is left behind.
+        foreach (['.json', '.json.tmp', '-files.zip', '-database.sql', '-database.sql.gz'] as $suffix) {
+            foreach ([self::FILE_PREFIX . $id, $id] as $stem) {
+                $file = $this->storage->backupsDir() . '/' . $stem . $suffix;
+
+                if (is_file($file)) {
+                    unlink($file);
+                }
             }
         }
 
@@ -415,21 +423,46 @@ final class BackupService
         return $files;
     }
 
+    /**
+     * The name a download is sent under: always starts with the script name, even for a backup made before the prefix
+     * existed, whose file on disk keeps the name it was written with.
+     */
+    public function downloadName(string $path): string
+    {
+        $name = basename($path);
+
+        return str_starts_with($name, self::FILE_PREFIX) ? $name : self::FILE_PREFIX . $name;
+    }
+
+    /**
+     * The file for one part of a backup. New backups are named with the prefix, older ones without; what exists on disk
+     * decides, and a path that does not exist yet is the prefixed one. The id is always checked against ID_PATTERN
+     * before this is reached, so no part of the request ever becomes part of a path.
+     */
+    private function pathOf(string $id, string $suffix): string
+    {
+        $directory = $this->storage->backupsDir() . '/';
+        $current = $directory . self::FILE_PREFIX . $id . $suffix;
+        $legacy = $directory . $id . $suffix;
+
+        return !is_file($current) && is_file($legacy) ? $legacy : $current;
+    }
+
     private function recordPath(string $id): string
     {
-        return $this->storage->backupsDir() . '/' . $id . '.json';
+        return $this->pathOf($id, '.json');
     }
 
     private function filesPath(string $id): string
     {
-        return $this->storage->backupsDir() . '/' . $id . '-files.zip';
+        return $this->pathOf($id, '-files.zip');
     }
 
     private function databasePath(string $id, ?bool $compressed = null): string
     {
         $compressed ??= (bool) ($this->find($id)['compressed'] ?? DatabaseDump::canCompress());
 
-        return $this->storage->backupsDir() . '/' . $id . '-database.sql' . ($compressed ? '.gz' : '');
+        return $this->pathOf($id, '-database.sql' . ($compressed ? '.gz' : ''));
     }
 
     /**

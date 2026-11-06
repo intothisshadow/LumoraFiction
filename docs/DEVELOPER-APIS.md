@@ -16,7 +16,7 @@ The main file starts with a comment that carries the header. It is read as text,
  * Version: 1.0.0
  * Author: Someone
  * Description: One short sentence shown on the Plugins screen.
- * Requires PHP: 8.2
+ * Requires PHP: 8.3
  * Requires at least: 0.1.0
  */
 
@@ -29,7 +29,7 @@ add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $
 
 `Plugin Name` and `Version` are required; a plugin without both, or with a version or requirement that is not a plain number such as `1.2.3`, is not listed. `Author`, `Description`, `Requires PHP` and `Requires at least` (the Lumora Fiction version) are optional. The header can sit in its own comment block after the usual file docblock.
 
-- **Lifecycle.** An administrator turns a plugin on under Maintenance > Plugins. The file is run once in that request, and the plugin is refused, with the reason shown, if it throws, has a syntax error, or needs a newer PHP or Lumora Fiction than the site has. Once on, the file runs on every request while the application starts, after the core services and the core routes are ready and before `routes_register` fires, in the order the plugins were turned on. Turning a plugin off stops it running from the next request. The slug is kept in the `plugins.active` setting.
+- **Lifecycle.** An administrator turns a plugin on under Plugins. The file is run once in that request, and the plugin is refused, with the reason shown, if it throws, has a syntax error, or needs a newer PHP or Lumora Fiction than the site has. Once on, the file runs on every request while the application starts, after the core services and the core routes are ready and before `routes_register` fires, in the order the plugins were turned on. Turning a plugin off stops it running from the next request. The slug is kept in the `plugins.active` setting.
 - **What the file sees.** `$kernel` is in scope, so a plugin can read `$kernel->config`, `$kernel->database`, `$kernel->auth`, `$kernel->hooks` and the other services. `$kernel->root` is the site's folder on disk: keep a plugin's own files under `storage/` below it (the folder is closed to the web), and never work the site's folder out from the plugin file's own location. Do the work in hook callbacks rather than directly in the file where you can. Register settings defaults for your own keys with `$kernel->config->registerDefaults([...])`, and read and write them with `setting()` and `setSetting()`; prefix every key with your slug.
 - **Registering things.** Routes go through `routes_register`, admin screens through the `admin_menu` filter (see "Admin screens"), site alerts through `admin_alerts` (see "Site alerts"), and public output through the theme hooks. The file is run once per request, so it must not declare a function or class that another plugin might declare too; put classes behind a namespace named for your plugin.
 - **When a plugin fails.** Anything the file throws, including a warning, is caught: the plugin is skipped for that request and the site continues. The reason is written to the error log and the audit log (`plugin.load_failed`) once, then kept in the `plugins.failures` setting so the dashboard can flag it; it is cleared when the plugin loads cleanly or is turned off. Hooks the plugin added before it threw stay registered for that request, so register hooks at the end of the file, or inside a function the file calls last. A fatal error PHP cannot catch, such as running out of memory, cannot be skipped; remove the plugin's folder.
@@ -287,14 +287,16 @@ add_filter('admin_menu', function (array $items): array {
 });
 ```
 
+- The built-in top-level slugs are, in order: `dashboard`, `alerts`, `stories`, `news`, `pages`, `profile`, `users`, `taxonomy`, `appearance`, `plugins`, `settings`, `maintenance`. Attach a child to a group by finding its slug in the filter. From the first release after 1.1.0: `alerts` and `plugins` are top-level entries, and `maintenance` holds `maintenance-updates`, `maintenance-backups`, `maintenance-mode`, `maintenance-security-events` and `maintenance-system-information`; `users` is a group with `users-all` and `users-privacy`. The old slugs `maintenance-alerts`, `maintenance-plugins` and `maintenance-privacy` no longer exist, and no address changed. A plugin that added a child to `maintenance` still lands there; one that looked for `maintenance-plugins` to sit beside it should look for `plugins` instead.
 - The menu builds the address itself; an address in an entry is ignored. A malformed entry is dropped. An entry whose capability is not a `Capability` case is shown to administrators only.
 - Hiding an entry is a convenience. Your screen must check the capability itself, on the server, before doing anything.
 - Register the screen's routes in a `routes_register` callback, as described below.
+- For a screen that shows one panel at a time, `LumoraFiction\Core\Admin\Tabs` prints the tab bar and the panel attributes: `new Tabs([['key' => 'one', 'label' => 'One'], ...], $selected, 'my-id', $screenUrl)`, then `$tabs->bar('Label')`, and `$tabs->openPanel('one')` ... `$tabs->closePanel()` around each panel. Each tab is a link to `?tab={key}`, so the screen works without a script, and `Tabs::choose($request->queryValue('tab'), $keys, $default)` picks the open tab safely. Load `admin/assets/js/tabs.js` on the screen to switch panels without a reload. Everything printed is escaped, and the CSS classes are `lf-tabs`, `lf-tabs__tab` and `lf-tabs__panel`.
 - To draw the screen inside the admin layout, build the body as a string with every value escaped, then call `$kernel->admin->renderContent($html, $user, $title, $currentPath, $flash, $status)`. `$kernel->admin` (an `AdminView`) is set before plugins load; `$currentPath` is the path you gave the menu entry, so the entry is highlighted. A class that extends `LumoraFiction\Controllers\Admin\AdminController` gets `guard()` (sign-in and capability check) and `validToken()` for free; build a `FlashMessages` from `$kernel->sessions` for it. The bundled Dummy Content plugin is a worked example.
 
 ## Site alerts
 
-Alerts are about the site itself and are shown to Administrators only (the `ManageSite` capability), under **Maintenance > Alerts**, on the dashboard and as a count in the admin header. They are separate from anything about stories. There are two kinds.
+Alerts are about the site itself and are shown to Administrators only (the `ManageSite` capability), under **Alerts**, on the dashboard and as a count in the admin header. They are separate from anything about stories. There are two kinds.
 
 A **live alert** describes a state that can be checked again on every request: debug mode is on, a plugin is failing. Add one with the `admin_alerts` filter; it clears by itself when the cause goes and cannot be dismissed.
 

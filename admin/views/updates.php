@@ -15,9 +15,14 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
+use LumoraFiction\Core\Admin\Tabs;
 use LumoraFiction\Core\Update\UpdateRun;
 use LumoraFiction\Helpers\Html;
 
+/** @var Tabs|null $tabs the GitHub and Manual Update tabs; null when the upload is not offered, so there is only one way to update */
+/** @var array{checked_at: string, reason: string}|null $checkFailure why the last check could not reach GitHub */
+/** @var string $assetVersion */
 /** @var string $version */
 /** @var array{repository: string, channel: string} $values */
 /** @var array<string, string> $errors */
@@ -74,6 +79,14 @@ $results = ['success' => 'Updated', 'rolled_back' => 'Rolled back', 'cancelled' 
     </div>
 <?php endif; ?>
 
+<?php if ($checkFailure !== null): ?>
+    <p class="lf-notice lf-notice--warning lf-update-unreachable" role="status"><strong>The last check could not reach GitHub</strong> (<?= Html::e($checkFailure['checked_at']) ?> UTC): <?= Html::e($checkFailure['reason']) ?><?= $tabs !== null ? ' You can still update with a release ZIP on the Manual Update tab.' : '' ?></p>
+<?php endif; ?>
+
+<?php if ($tabs !== null): ?>
+    <?= $tabs->bar('Ways to update') ?>
+    <?= $tabs->openPanel('github') ?>
+<?php endif; ?>
 <section class="lf-card lf-update-check" aria-labelledby="lf-update-check-title">
     <h2 id="lf-update-check-title">Check GitHub for a new release</h2>
 
@@ -112,6 +125,10 @@ $results = ['success' => 'Updated', 'rolled_back' => 'Rolled back', 'cancelled' 
     </div>
     <p class="lf-hint">The download is checked against the SHA-256 checksum published with the release. Nothing is installed until you confirm on the next screen.</p>
 </section>
+<?php if ($tabs !== null): ?>
+    <?= $tabs->closePanel() ?>
+    <?= $tabs->openPanel('manual') ?>
+<?php endif; ?>
 
 <?php if ($canUpload && $run === null): ?>
     <section class="lf-card lf-update-upload" aria-labelledby="lf-update-upload-title">
@@ -132,9 +149,13 @@ $results = ['success' => 'Updated', 'rolled_back' => 'Rolled back', 'cancelled' 
         </form>
     </section>
 <?php endif; ?>
+<?php if ($tabs !== null): ?>
+    <?= $tabs->closePanel() ?>
+<?php endif; ?>
 
 <form method="post" action="<?= Html::e($settingsAction) ?>" class="lf-form" novalidate>
     <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+    <?php if ($tabs !== null): ?><input type="hidden" name="tab" value="<?= Html::e($tabs->selected()) ?>" data-lf-tab-field><?php endif; ?>
 
     <fieldset class="lf-card">
         <legend>Where releases come from</legend>
@@ -200,3 +221,7 @@ $results = ['success' => 'Updated', 'rolled_back' => 'Rolled back', 'cancelled' 
         </details>
     <?php endif; ?>
 </section>
+
+<?php if ($tabs !== null): ?>
+    <script src="<?= Html::e(AdminUrl::asset('js/tabs.js', $assetVersion)) ?>" defer></script>
+<?php endif; ?>

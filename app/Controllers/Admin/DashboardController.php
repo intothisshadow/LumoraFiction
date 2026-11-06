@@ -28,6 +28,7 @@ use LumoraFiction\Models\User;
 use LumoraFiction\Services\ActivityDescriber;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\MaintenanceNotice;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\SiteAlerts;
 use LumoraFiction\Services\StoryService;
@@ -47,6 +48,7 @@ final class DashboardController extends AdminController
         private readonly SiteAlerts $alerts,
         private readonly StoryService $stories,
         private readonly NewsService $news,
+        private readonly ?MaintenanceNotice $maintenance = null,
         private readonly ActivityDescriber $describer = new ActivityDescriber(),
     ) {
         parent::__construct($auth, $view, $flash);
@@ -73,6 +75,8 @@ final class DashboardController extends AdminController
             ),
             'alertTotal' => count($this->alerts->all($user)),
             'alertsUrl' => AdminUrl::to('maintenance/alerts'),
+            // A state, not an alert: shown for people who manage the site and kept out of the alert count.
+            'siteStatus' => $isAdministrator && $this->maintenance !== null ? ['offline' => $this->maintenance->summary($user)] : null,
             'summary' => $user->can(Capability::ManageUsers) ? $this->users->summary() : null,
             'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
             'awaitingApproval' => $user->can(Capability::ModerateStories) ? $this->stories->countPending($user) : null,

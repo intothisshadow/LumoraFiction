@@ -64,7 +64,7 @@ Raise `upload_max_filesize` and `post_max_size` in your host's PHP settings (a r
 
 ### Recovering when the admin area itself cannot be reached
 
-Every update makes a backup first. Unzip the newest `storage/backups/…-files.zip` over the site's folder (it holds the application, never `config/config.php` or your uploads), and import the matching `storage/backups/…-database.sql.gz` with your host's database tool (phpMyAdmin or similar; the file is plain SQL after decompressing, or `.sql` on a server without zlib). Then delete `storage/updates/state.json` and `storage/updates/maintenance.flag`. The backups are named by date and time in UTC.
+Every update makes a backup first. Unzip the newest `storage/backups/LumoraFiction_…-files.zip` over the site's folder (it holds the application, never `config/config.php` or your uploads), and import the matching `storage/backups/LumoraFiction_…-database.sql.gz` with your host's database tool (phpMyAdmin or similar; the file is plain SQL after decompressing, or `.sql` on a server without zlib). Then delete `storage/updates/state.json` and `storage/updates/maintenance.flag`. A backup's files start with `LumoraFiction_`, followed by its date and time in UTC and a code, for example `LumoraFiction_20261105-123456-a1b2c3d4e5f6-files.zip`; the matching database file has the same name ending in `-database.sql.gz`. Backups made by earlier releases have the same names without the `LumoraFiction_` start, and work exactly the same: the Backups screen lists them, restores them, and downloads them under the `LumoraFiction_` name.
 
 ### "The site is temporarily unavailable"
 
