@@ -20,7 +20,7 @@ declare(strict_types=1);
 
 <footer class="lf-site-footer">
     <?php lf_footer_links(); ?>
-    <p><?php lf_site_name(); ?> &middot; Powered by Lumora Fiction</p>
+    <p><?php lf_site_name(); ?> &middot; Powered by <a href="https://coding.unloved-heart.net/scripts/lumorafiction">Lumora Fiction</a></p>
 </footer>
 <?php lf_footer(); ?>
 </body>

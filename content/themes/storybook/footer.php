@@ -21,7 +21,7 @@ declare(strict_types=1);
 <footer class="lf-site-footer">
     <div class="lf-site-footer__inner">
         <?php lf_footer_links(); ?>
-        <p class="lf-site-footer__text"><?php lf_site_name(); ?><?php if (lf_option_enabled('show_credit')): ?> &middot; Powered by Lumora Fiction<?php endif; ?></p>
+        <p class="lf-site-footer__text"><?php lf_site_name(); ?><?php if (lf_option_enabled('show_credit')): ?> &middot; Powered by <a href="https://coding.unloved-heart.net/scripts/lumorafiction">Lumora Fiction</a><?php endif; ?></p>
     </div>
 </footer>
 <?php lf_footer(); ?>
