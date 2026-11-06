@@ -31,7 +31,7 @@ use LumoraFiction\Models\ChapterRevision;
 <form method="post" action="<?= Html::e($action) ?>" class="lf-form lf-card">
     <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
     <h2>Saved <time datetime="<?= Html::e($revision->createdAt->format('Y-m-d\TH:i:s')) ?>"><?= Html::e($revision->createdAt->format('Y-m-d H:i')) ?></time></h2>
-    <p class="lf-hint">Going back gives the chapter this title, text and notes. What it has now is kept as another earlier version, so you can change your mind. A published chapter shows the older text to readers straight away.</p>
+    <p class="lf-hint">Going back gives the chapter this title, text, notes and end notes. What it has now is kept as another earlier version, so you can change your mind. A published chapter shows the older text to readers straight away.</p>
     <p><button type="submit" class="lf-button">Go back to this version</button></p>
 </form>
 
@@ -41,4 +41,7 @@ use LumoraFiction\Models\ChapterRevision;
         <p class="lf-hint">Notes: <?= Html::e($revision->notes) ?></p>
     <?php endif; ?>
     <div class="lf-revision__text"><?= $body ?></div>
+    <?php if ($revision->endNotes !== ''): ?>
+        <p class="lf-hint">End notes: <?= Html::e($revision->endNotes) ?></p>
+    <?php endif; ?>
 </section>

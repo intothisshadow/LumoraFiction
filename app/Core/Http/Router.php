@@ -33,6 +33,9 @@ final class Router
      */
     private array $routes = [];
 
+    /** @var array{regex: string, handler: callable}|null */
+    private ?array $fallback = null;
+
     public function get(string $pattern, callable $handler, ?string $name = null): void
     {
         $this->add('GET', $pattern, $handler, $name);
@@ -122,7 +125,50 @@ final class Router
             return Resolution::methodNotAllowed(array_values(array_unique($allowed)));
         }
 
+        if ($method === 'GET' && $this->fallback !== null && preg_match($this->fallback['regex'], $path, $matches) === 1) {
+            $params = [];
+
+            foreach ($matches as $key => $value) {
+                if (is_string($key)) {
+                    $params[$key] = $value;
+                }
+            }
+
+            return Resolution::found($this->fallback['handler'], $params);
+        }
+
         return Resolution::notFound();
+    }
+
+    /**
+     * A route of last resort for GET: it answers a path that no registered route matches for any method, and nothing
+     * else. Unlike an ordinary route it can neither shadow one registered later nor turn the 405 or 404 of another
+     * method into a page, because it is only consulted once everything else has had its say.
+     */
+    public function fallbackGet(string $pattern, callable $handler): void
+    {
+        $pattern = $pattern === '/' ? '/' : rtrim($pattern, '/');
+        $this->fallback = ['regex' => $this->compile($pattern), 'handler' => $handler];
+    }
+
+    /**
+     * Whether any registered route, for any method, answers this path. The fallback is not counted.
+     */
+    public function isRouted(string $path): bool
+    {
+        $path = $this->normalizePath($path);
+
+        if ($path === null) {
+            return false;
+        }
+
+        foreach ($this->routes as $route) {
+            if (preg_match($route['regex'], $path) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

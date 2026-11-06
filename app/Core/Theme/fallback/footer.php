@@ -19,6 +19,7 @@ declare(strict_types=1);
 </main>
 
 <footer class="lf-site-footer">
+    <?php lf_footer_links(); ?>
     <p><?php lf_site_name(); ?> &middot; Powered by Lumora Fiction</p>
 </footer>
 <?php lf_footer(); ?>

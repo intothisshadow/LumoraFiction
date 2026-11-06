@@ -25,6 +25,7 @@ use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
 use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
+use LumoraFiction\Models\WorkStatus;
 
 /**
  * The one place that decides which fields of a story a theme may see. A preview and the public pages build their
@@ -109,8 +110,13 @@ final class StoryPresenter
     {
         $link = fn (?Chapter $other): ?array => $other === null ? null : ['title' => $this->chapterTitle($other), 'url' => $chapterUrl($other)];
 
+        $storyFields = $this->storyFields($story, $author, $storyUrl, $authorUrl);
+        // The story's closing note belongs after the last chapter of a finished story. The rule lives here so
+        // every theme prints the same thing by simply asking for story.end_notes.
+        $storyFields['end_notes'] = $next === null && $story->workStatus === WorkStatus::Completed ? $story->endNotes : '';
+
         return [
-            'story' => $this->storyFields($story, $author, $storyUrl, $authorUrl),
+            'story' => $storyFields,
             'chapter' => [
                 'number' => $chapter->number,
                 // Counted among the chapters a reader can open, so a hidden draft in the middle leaves no gap.
@@ -118,6 +124,7 @@ final class StoryPresenter
                 'total' => $total,
                 'title' => $this->chapterTitle($chapter),
                 'notes' => $chapter->notes,
+                'end_notes' => $chapter->endNotes,
                 'words' => number_format($chapter->wordCount),
                 'html' => $html,
             ],
@@ -165,6 +172,7 @@ final class StoryPresenter
             'author_url' => $authorUrl,
             'summary' => $story->summary,
             'notes' => $story->notes,
+            'end_notes' => $story->endNotes,
             'disclaimer' => $story->disclaimer,
             'status' => $story->workStatus->label(),
             'words' => number_format($story->wordCount),

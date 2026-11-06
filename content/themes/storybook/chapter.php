@@ -36,6 +36,14 @@ lf_get_header();
 
     <div class="lf-chapter__text"><?php lf_field('chapter.html'); ?></div>
 
+    <?php if (lf_has('chapter.end_notes')): ?>
+        <aside class="lf-chapter__end-notes" aria-label="Author&rsquo;s end notes"><p><?php lf_field('chapter.end_notes'); ?></p></aside>
+    <?php endif; ?>
+
+    <?php if (lf_has('story.end_notes')): ?>
+        <aside class="lf-story__end-notes" aria-label="End notes for the story"><p><?php lf_field('story.end_notes'); ?></p></aside>
+    <?php endif; ?>
+
     <?php lf_part('chapter-nav', ['label' => 'Chapters, bottom']); ?>
 </article>
 <?php

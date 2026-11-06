@@ -1,0 +1,81 @@
+<?php
+
+/**
+ * Admin view: the privacy settings form.
+ *
+ * @package LumoraFiction
+ * @subpackage Admin
+ * @author Ariane
+ * @copyright Copyright (c) 2026 Ariane
+ * @license GPL-3.0-or-later
+ * @link https://coding.unloved-heart.net/scripts/lumorafiction
+ * @source https://github.com/intothisshadow/LumoraFiction
+ * @since 1.2.0
+ */
+
+declare(strict_types=1);
+
+use LumoraFiction\Helpers\Html;
+
+/** @var array{page_id: int, deleted_stories: string, neutral_name: string} $values */
+/** @var array<string, string> $errors */
+/** @var array<int, string> $pageChoices */
+/** @var array<string, string> $storyChoices */
+/** @var int $nameMax */
+/** @var string $csrfToken */
+/** @var string $action */
+/** @var string $pagesUrl */
+/** @var string $requestsUrl */
+?>
+<?php if ($errors !== []): ?>
+    <div class="lf-notice lf-notice--error" role="alert" id="lf-error-summary" tabindex="-1">
+        <p>Please fix the following:</p>
+        <ul>
+            <?php foreach ($errors as $field => $message): ?>
+                <li><?= $field === 'form' ? Html::e($message) : '<a href="#' . Html::e($field) . '">' . Html::e($message) . '</a>' ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+
+    <fieldset class="lf-card">
+        <legend>Privacy policy</legend>
+
+        <div class="lf-field<?= isset($errors['page_id']) ? ' lf-field--error' : '' ?>">
+            <label for="page_id">Privacy policy page</label>
+            <select id="page_id" name="page_id" aria-describedby="page_id_hint<?= isset($errors['page_id']) ? ' page_id_error' : '' ?>">
+                <option value="0"<?= $values['page_id'] === 0 ? ' selected' : '' ?>>None</option>
+                <?php foreach ($pageChoices as $id => $title): ?>
+                    <option value="<?= (int) $id ?>"<?= $values['page_id'] === $id ? ' selected' : '' ?>><?= Html::e($title) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <p class="lf-hint" id="page_id_hint">Only published pages are listed. The registration form links to the page you choose, and themes can link to it too. Write and publish it under <a href="<?= Html::e($pagesUrl) ?>">Pages</a>; the Pages screen can start you off with a draft.</p>
+            <?php if (isset($errors['page_id'])): ?><p class="lf-error" id="page_id_error"><?= Html::e($errors['page_id']) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
+    <fieldset class="lf-card">
+        <legend>Deleted accounts</legend>
+
+        <?php foreach ($storyChoices as $value => $label): ?>
+            <div class="lf-choice">
+                <input type="radio" id="deleted_stories_<?= Html::e($value) ?>" name="deleted_stories" value="<?= Html::e($value) ?>"<?= $values['deleted_stories'] === $value ? ' checked' : '' ?><?= $value === 'keep' ? ' aria-describedby="deleted_stories_hint"' : '' ?>>
+                <label for="deleted_stories_<?= Html::e($value) ?>"><?= Html::e($label) ?></label>
+            </div>
+        <?php endforeach; ?>
+        <p class="lf-hint" id="deleted_stories_hint">Either way, the person&rsquo;s name, email address, login, reading history, bookmarks and follows are removed. This choice applies to every account deleted from now on, whether the person asked or an administrator did it from <a href="<?= Html::e($requestsUrl) ?>">Privacy requests</a>.</p>
+        <?php if (isset($errors['deleted_stories'])): ?><p class="lf-error" id="deleted_stories"><?= Html::e($errors['deleted_stories']) ?></p><?php endif; ?>
+
+        <div class="lf-field<?= isset($errors['neutral_name']) ? ' lf-field--error' : '' ?>">
+            <label for="neutral_name">Name shown on kept stories</label>
+            <input type="text" id="neutral_name" name="neutral_name" value="<?= Html::e($values['neutral_name']) ?>" maxlength="<?= (int) $nameMax ?>" aria-describedby="neutral_name_hint<?= isset($errors['neutral_name']) ? ' neutral_name_error' : '' ?>">
+            <p class="lf-hint" id="neutral_name_hint">Readers see this in place of the author&rsquo;s name when stories are kept.</p>
+            <?php if (isset($errors['neutral_name'])): ?><p class="lf-error" id="neutral_name_error"><?= Html::e($errors['neutral_name']) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
+    <p><button type="submit" class="lf-button">Save settings</button></p>
+</form>

@@ -50,6 +50,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
     UserStatus::Active => ' lf-status--ok',
     UserStatus::Pending => ' lf-status--warning',
     UserStatus::Suspended => ' lf-status--error',
+    UserStatus::Deleted => '',
 };
 ?>
 <form method="get" action="<?= Html::e($listUrl) ?>" class="lf-form lf-filter" role="search">

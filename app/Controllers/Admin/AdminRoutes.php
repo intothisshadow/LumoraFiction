@@ -56,6 +56,9 @@ final class AdminRoutes
         UpdatesController $updates,
         BackupsController $backups,
         MaintenanceModeController $maintenanceMode,
+        PageController $pages,
+        PrivacySettingsController $privacySettings,
+        PrivacyRequestsController $privacyRequests,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -96,6 +99,23 @@ final class AdminRoutes
         $router->post('/admin/news/{id}/publish', $news->publish(...));
         $router->post('/admin/news/{id}/unpublish', $news->unpublish(...));
         $router->get('/admin/news/{id}/preview', $news->preview(...), 'admin.news.preview');
+        $router->get('/admin/settings/privacy', $privacySettings->show(...), 'admin.settings.privacy');
+        $router->post('/admin/settings/privacy', $privacySettings->update(...));
+        $router->get('/admin/maintenance/privacy', $privacyRequests->index(...), 'admin.privacy');
+        $router->post('/admin/maintenance/privacy/export', $privacyRequests->export(...), 'admin.privacy.export');
+        $router->get('/admin/maintenance/privacy/{id}/delete', $privacyRequests->showDelete(...));
+        $router->post('/admin/maintenance/privacy/{id}/delete', $privacyRequests->delete(...));
+        $router->get('/admin/pages', $pages->index(...), 'admin.pages');
+        $router->get('/admin/pages/new', $pages->showCreate(...), 'admin.pages.new');
+        $router->post('/admin/pages/new', $pages->create(...));
+        $router->post('/admin/pages/starter', $pages->starter(...), 'admin.pages.starter');
+        $router->get('/admin/pages/{id}', $pages->showEdit(...), 'admin.pages.edit');
+        $router->post('/admin/pages/{id}', $pages->update(...));
+        $router->get('/admin/pages/{id}/delete', $pages->showDelete(...));
+        $router->post('/admin/pages/{id}/delete', $pages->delete(...));
+        $router->post('/admin/pages/{id}/publish', $pages->publish(...));
+        $router->post('/admin/pages/{id}/unpublish', $pages->unpublish(...));
+        $router->get('/admin/pages/{id}/preview', $pages->preview(...), 'admin.pages.preview');
         $router->get('/admin/maintenance/alerts', $alerts->index(...), 'admin.alerts');
         $router->post('/admin/maintenance/alerts/email', $alerts->saveEmail(...), 'admin.alerts.email');
         $router->post('/admin/maintenance/alerts/{id}/dismiss', $alerts->dismiss(...), 'admin.alerts.dismiss');

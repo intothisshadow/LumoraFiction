@@ -48,6 +48,8 @@ final class StoryService
 
     public const NOTES_MAX = 4000;
 
+    public const END_NOTES_MAX = 4000;
+
     public const DISCLAIMER_MAX = 2000;
 
     public const REASON_MAX = 1000;
@@ -134,7 +136,7 @@ final class StoryService
 
         $this->database->transaction(function () use ($actor, $story, $values, $changed, $ipAddress): void {
             $this->database->execute(
-                'UPDATE {prefix}stories SET title = :title, summary = :summary, notes = :notes, disclaimer = :disclaimer,
+                'UPDATE {prefix}stories SET title = :title, summary = :summary, notes = :notes, end_notes = :end_notes, disclaimer = :disclaimer,
                  language = :language, work_status = :work_status, updated_at = :updated WHERE id = :id',
                 $values + ['updated' => date('Y-m-d H:i:s'), 'id' => $story->id],
             );
@@ -523,6 +525,24 @@ final class StoryService
     }
 
     /**
+     * Removes every story an account owns, the trash included, one at a time so a failure part-way leaves the rest to
+     * be removed by running it again. Only account deletion calls this, and it has already checked who may ask.
+     *
+     * @return int how many stories were removed
+     */
+    public function deleteAllByOwner(int $ownerId, User $actor, string $ipAddress = ''): int
+    {
+        $removed = 0;
+
+        foreach ($this->database->fetchAll('SELECT * FROM {prefix}stories WHERE owner_id = :owner ORDER BY id', ['owner' => $ownerId]) as $row) {
+            $this->remove($this->hydrate($row), $actor, $ipAddress);
+            $removed++;
+        }
+
+        return $removed;
+    }
+
+    /**
      * Moves a story to the trash. It leaves every list and every public page at once, a published story becomes
      * unpublished and one waiting for approval goes back to a draft, and nothing is deleted: restoring it brings it back
      * as it was, apart from being unpublished. A story already in the trash is left alone.
@@ -652,14 +672,15 @@ final class StoryService
                 'title' => $title,
                 'summary' => $source->summary,
                 'notes' => $source->notes,
+                'end_notes' => $source->endNotes,
                 'disclaimer' => $source->disclaimer,
                 'language' => $source->language,
                 'work_status' => $source->workStatus->value,
             ], $now);
 
             $this->database->execute(
-                'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, word_count, publication_state, published_at, created_at, updated_at)
-                 SELECT :new_story, number, title, content, content_format, notes, word_count, \'draft\', NULL, :created, :updated
+                'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, end_notes, word_count, publication_state, published_at, created_at, updated_at)
+                 SELECT :new_story, number, title, content, content_format, notes, end_notes, word_count, \'draft\', NULL, :created, :updated
                  FROM {prefix}chapters WHERE story_id = :old_story AND trashed_at IS NULL ORDER BY number',
                 ['new_story' => $id, 'created' => $now, 'updated' => $now, 'old_story' => $source->id],
             );
@@ -941,7 +962,7 @@ final class StoryService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{title: string, summary: string, notes: string, disclaimer: string, language: string, work_status: string}
+     * @return array{title: string, summary: string, notes: string, end_notes: string, disclaimer: string, language: string, work_status: string}
      */
     private function validated(array $input, ?Story $existing): array
     {
@@ -951,6 +972,7 @@ final class StoryService
         $title = $this->singleLine($get('title', $existing->title ?? ''), 'title', 'Give the story a title.', self::TITLE_MAX, $errors, true);
         $summary = $this->multiLine($get('summary', $existing->summary ?? ''), 'summary', self::SUMMARY_MAX, $errors);
         $notes = $this->multiLine($get('notes', $existing->notes ?? ''), 'notes', self::NOTES_MAX, $errors);
+        $endNotes = $this->multiLine($get('end_notes', $existing->endNotes ?? ''), 'end_notes', self::END_NOTES_MAX, $errors);
         $disclaimer = $this->multiLine($get('disclaimer', $existing->disclaimer ?? ''), 'disclaimer', self::DISCLAIMER_MAX, $errors);
 
         $language = $get('language', $existing->language ?? 'en');
@@ -977,6 +999,7 @@ final class StoryService
             'title' => $title,
             'summary' => $summary,
             'notes' => $notes,
+            'end_notes' => $endNotes,
             'disclaimer' => $disclaimer,
             'language' => $language,
             'work_status' => $status->value ?? WorkStatus::Ongoing->value,
@@ -1026,7 +1049,7 @@ final class StoryService
     }
 
     /**
-     * @param array{title: string, summary: string, notes: string, disclaimer: string, language: string, work_status: string} $values
+     * @param array{title: string, summary: string, notes: string, end_notes: string, disclaimer: string, language: string, work_status: string} $values
      */
     private function insert(int $ownerId, array $values, string $now): int
     {
@@ -1036,15 +1059,16 @@ final class StoryService
         // and never need a counter. The id is only known after the insert, hence the throwaway first value; the
         // caller's transaction covers both statements.
         $id = (int) $this->database->insertGetId(
-            'INSERT INTO {prefix}stories (owner_id, title, slug, summary, notes, disclaimer, language, work_status,
+            'INSERT INTO {prefix}stories (owner_id, title, slug, summary, notes, end_notes, disclaimer, language, work_status,
              publication_state, word_count, published_at, created_at, updated_at)
-             VALUES (:owner, :title, :slug, :summary, :notes, :disclaimer, :language, :work_status, :state, 0, NULL, :created, :updated)',
+             VALUES (:owner, :title, :slug, :summary, :notes, :end_notes, :disclaimer, :language, :work_status, :state, 0, NULL, :created, :updated)',
             [
                 'owner' => $ownerId,
                 'title' => $values['title'],
                 'slug' => 'new-' . bin2hex(random_bytes(8)),
                 'summary' => $values['summary'],
                 'notes' => $values['notes'],
+                'end_notes' => $values['end_notes'],
                 'disclaimer' => $values['disclaimer'],
                 'language' => $values['language'],
                 'work_status' => $values['work_status'],
@@ -1124,6 +1148,7 @@ final class StoryService
             'title' => $story->title,
             'summary' => $story->summary,
             'notes' => $story->notes,
+            'end_notes' => $story->endNotes,
             'disclaimer' => $story->disclaimer,
             'language' => $story->language,
             default => $story->workStatus->value,
@@ -1171,6 +1196,7 @@ final class StoryService
             coverFile: is_string($row['cover_file'] ?? null) && CoverImageStore::isValidName($row['cover_file']) ? $row['cover_file'] : '',
             coverAlt: is_string($row['cover_alt'] ?? null) ? $row['cover_alt'] : '',
             trashedAt: is_string($row['trashed_at'] ?? null) && $row['trashed_at'] !== '' ? new DateTimeImmutable($row['trashed_at']) : null,
+            endNotes: (string) ($row['end_notes'] ?? ''),
         );
     }
 }

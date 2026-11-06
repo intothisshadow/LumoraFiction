@@ -32,7 +32,7 @@ final readonly class StoryDocument
 
     /**
      * @param list<array{label: string, values: list<string>}> $details rating, warnings, fandoms and the rest, in reading order
-     * @param list<array{number: int, title: string, notes: string, html: string}> $chapters
+     * @param list<array{number: int, title: string, notes: string, html: string, end_notes?: string}> $chapters
      * @param string $coverPath file on disk, or an empty string for a story without a cover
      * @param string $coverType the cover's media type, such as image/jpeg
      */
@@ -52,6 +52,7 @@ final readonly class StoryDocument
         public string $coverPath = '',
         public string $coverType = '',
         public string $coverAlt = '',
+        public string $endNotes = '',
     ) {
     }
 
@@ -63,7 +64,7 @@ final readonly class StoryDocument
         return substr(hash('sha256', json_encode([
             self::BUILD_VERSION,
             $this->title, $this->author, $this->summary, $this->notes, $this->disclaimer, $this->language, $this->status,
-            $this->words, $this->updatedAt, $this->details, $this->chapters, $this->coverType, $this->coverAlt,
+            $this->words, $this->updatedAt, $this->details, $this->chapters, $this->coverType, $this->coverAlt, $this->endNotes,
             $this->coverPath === '' ? '' : (string) hash_file('sha256', $this->coverPath),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)), 0, 16);
     }

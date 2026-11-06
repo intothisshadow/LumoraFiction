@@ -204,7 +204,13 @@ CSS;
         foreach ($document->chapters as $chapter) {
             $out .= '<div class="chapter" id="chapter-' . $chapter['number'] . '"><h2>' . Html::e($chapter['title']) . '</h2>'
                 . ($chapter['notes'] === '' ? '' : '<div class="notes">' . $this->lines($chapter['notes']) . '</div>')
-                . $chapter['html'] . '</div>';
+                . $chapter['html']
+                . (($chapter['end_notes'] ?? '') === '' ? '' : '<div class="notes">' . $this->lines($chapter['end_notes']) . '</div>')
+                . '</div>';
+        }
+
+        if (trim($document->endNotes) !== '') {
+            $out .= '<div class="chapter"><h2>End notes</h2>' . $this->lines($document->endNotes) . '</div>';
         }
 
         return $out . '</body></html>';

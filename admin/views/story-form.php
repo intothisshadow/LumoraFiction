@@ -24,7 +24,7 @@ use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\WorkStatus;
 
 /** @var Story|null $story */
-/** @var array{title: string, summary: string, notes: string, disclaimer: string, language: string, work_status: string, cover_alt: string} $values */
+/** @var array{title: string, summary: string, notes: string, end_notes: string, disclaimer: string, language: string, work_status: string, cover_alt: string} $values */
 /** @var list<array{type: TermType, style: string, options: list<Term>, ids: list<int>, text: string, required: bool}> $fields */
 /** @var array<string, string> $languages */
 /** @var list<WorkStatus> $workStatuses */
@@ -83,6 +83,13 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
             <textarea id="notes" name="notes" rows="3"<?= $describe('notes') ?>><?= Html::e($values['notes']) ?></textarea>
             <p class="lf-hint" id="notes_hint">Notes about the story as a whole. Optional.</p>
             <?= $problem('notes') ?>
+        </div>
+
+        <div class="lf-field<?= isset($errors['end_notes']) ? ' lf-field--error' : '' ?>">
+            <label for="end_notes">End notes</label>
+            <textarea id="end_notes" name="end_notes" rows="3"<?= $describe('end_notes') ?>><?= Html::e($values['end_notes']) ?></textarea>
+            <p class="lf-hint" id="end_notes_hint">A closing word shown on the story page after the list of chapters, and after the last chapter once the story is marked complete. Optional.</p>
+            <?= $problem('end_notes') ?>
         </div>
 
         <div class="lf-field<?= isset($errors['disclaimer']) ? ' lf-field--error' : '' ?>">

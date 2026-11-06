@@ -56,6 +56,8 @@ final class ThemeContext
         private readonly array $navigation,
         private readonly HookManager $hooks,
         private readonly Closure $includePart,
+        private readonly array $footerLinks = [],
+        private readonly ?Closure $privacyLink = null,
     ) {
     }
 
@@ -293,6 +295,41 @@ final class ThemeContext
         }
 
         echo '</ul></nav>', "\n";
+    }
+
+    /**
+     * The footer links (static pages an administrator placed there, and anything a plugin adds) as a list. Prints
+     * nothing when there are none, so a theme can call it unconditionally.
+     */
+    public function footerLinks(string $label = 'Footer'): void
+    {
+        if ($this->footerLinks === []) {
+            return;
+        }
+
+        echo '<nav class="lf-footer-links" aria-label="', Html::e($label), '"><ul class="lf-footer-links__list">';
+
+        foreach ($this->footerLinks as $item) {
+            echo '<li class="lf-footer-links__item', $item['current'] ? ' lf-footer-links__item--current' : '', '"><a class="lf-footer-links__link" href="', Html::e($item['url']), '"',
+                $item['current'] ? ' aria-current="page"' : '', '>', Html::e($item['label']), '</a></li>';
+        }
+
+        echo '</ul></nav>', "\n";
+    }
+
+    /**
+     * A paragraph linking to the privacy policy, such as "Please read our Privacy Policy.", or nothing at all while
+     * the administrator has not named a published page. The text around the link is the theme's own; the link is not.
+     */
+    public function privacyLink(string $before = '', string $after = ''): void
+    {
+        $link = $this->privacyLink === null ? null : ($this->privacyLink)();
+
+        if (!is_array($link) || !is_string($link['label'] ?? null) || !is_string($link['url'] ?? null)) {
+            return;
+        }
+
+        echo '<p class="lf-privacy-link">', Html::e($before), '<a class="lf-privacy-link__anchor" href="', Html::e($link['url']), '">', Html::e($link['label']), '</a>', Html::e($after), '</p>', "\n";
     }
 
     /**

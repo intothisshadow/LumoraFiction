@@ -123,6 +123,7 @@ final class TaxonomyController extends AdminController
 
         return $this->view->render('taxonomy-list', [
             'type' => $type,
+            'curated' => !$this->taxonomy->writersMayPropose($type),
             'terms' => $terms,
             'parents' => $this->taxonomy->namesFor(array_map(static fn (Term $term): int => $term->parentId, $terms)),
             'filters' => $filters,
@@ -216,7 +217,7 @@ final class TaxonomyController extends AdminController
             $this->taxonomy->setReviewed($user, $term->id, $request->checked('reviewed'), $request->ip());
 
             // Only the short lists have these fields, so a form for an open list must not blank them.
-            if (!$term->type->writersMayPropose()) {
+            if (!$this->taxonomy->writersMayPropose($term->type)) {
                 $this->taxonomy->setDescription($user, $term->id, $request->input('description') ?? '', $request->ip());
                 $this->taxonomy->setHidden($user, $term->id, $request->checked('hidden'), $request->ip());
             }
@@ -474,6 +475,7 @@ final class TaxonomyController extends AdminController
         return $this->view->render('taxonomy-form', [
             'mode' => 'create',
             'type' => $type,
+            'curated' => !$this->taxonomy->writersMayPropose($type),
             'term' => null,
             'aliases' => [],
             'parentName' => '',
@@ -498,6 +500,7 @@ final class TaxonomyController extends AdminController
         return $this->view->render('taxonomy-form', [
             'mode' => 'edit',
             'type' => $term->type,
+            'curated' => !$this->taxonomy->writersMayPropose($term->type),
             'term' => $term,
             'aliases' => $this->taxonomy->aliasesFor($term->id),
             'parentName' => $this->taxonomy->namesFor([$term->parentId])[$term->parentId] ?? '',

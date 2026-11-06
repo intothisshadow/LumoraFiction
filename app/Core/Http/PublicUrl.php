@@ -40,6 +40,9 @@ final class PublicUrl
 
     public const BROWSE_PAGE = '/browse/{page}';
 
+    /** Registered as the router's route of last resort, so it can only ever answer an address nothing else owns. */
+    public const PAGE = '/{slug}';
+
     public const NEWS = '/news';
 
     public const NEWS_POST = '/news/{slug}';
@@ -138,6 +141,15 @@ final class PublicUrl
         $query = array_filter($query, static fn (string|int|null $value): bool => $value !== null && $value !== '');
 
         return BasePath::get() . self::BROWSE . ($page === '' ? '' : '/' . $page) . ($query === [] ? '' : '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
+    }
+
+    /**
+     * A static page, which lives directly under the site address. $withBase false gives the path alone, for building
+     * an absolute address from the configured site URL, which already holds any folder the site is installed in.
+     */
+    public static function page(string $slug, bool $withBase = true): string
+    {
+        return ($withBase ? BasePath::get() : '') . '/' . rawurlencode($slug);
     }
 
     public static function news(): string

@@ -252,6 +252,8 @@ final class ThemeRenderer
             $this->navigation($view),
             $this->hooks,
             $this->includePart(...),
+            $this->footerLinks(),
+            fn (): ?array => $this->privacyLink(),
         );
 
         $level = ob_get_level();
@@ -297,7 +299,41 @@ final class ThemeRenderer
             $menu[] = ['label' => 'News', 'url' => PublicUrl::news(), 'current' => in_array($view, ['news-archive', 'news-single'], true)];
         }
 
-        $items = $this->hooks->applyFilters('lf_navigation_items', $menu);
+        return $this->cleanLinks($this->hooks->applyFilters('lf_navigation_items', $menu));
+    }
+
+    /**
+     * The footer link list, which features extend through the lf_footer_items filter. Empty unless something adds to it.
+     *
+     * @return list<array{label: string, url: string, current: bool}>
+     */
+    private function footerLinks(): array
+    {
+        return $this->cleanLinks($this->hooks->applyFilters('lf_footer_items', []));
+    }
+
+    /**
+     * The privacy policy link, which core supplies through the lf_privacy_policy filter once a page is named. Only a
+     * path on this site is accepted, like every other link a filter can add.
+     *
+     * @return array{label: string, url: string}|null
+     */
+    private function privacyLink(): ?array
+    {
+        $link = $this->hooks->applyFilters('lf_privacy_policy', null);
+
+        return is_array($link) && is_string($link['label'] ?? null) && $link['label'] !== '' && is_string($link['url'] ?? null) && preg_match(self::SAME_SITE, $link['url']) === 1
+            ? ['label' => $link['label'], 'url' => $link['url']]
+            : null;
+    }
+
+    /**
+     * Keeps only well-formed entries whose address is a path on this site, so a filter cannot put an outside link in a menu.
+     *
+     * @return list<array{label: string, url: string, current: bool}>
+     */
+    private function cleanLinks(mixed $items): array
+    {
         $clean = [];
 
         foreach (is_array($items) ? $items : [] as $item) {

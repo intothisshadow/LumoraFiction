@@ -108,6 +108,22 @@ if (!function_exists('lf_navigation')) {
     }
 }
 
+if (!function_exists('lf_footer_links')) {
+    /** Prints the footer link list (pages placed in the footer) as a list of links, or nothing when there are none. */
+    function lf_footer_links(string $label = 'Footer'): void
+    {
+        ThemeContext::current()?->footerLinks($label);
+    }
+}
+
+if (!function_exists('lf_privacy_link')) {
+    /** Prints a paragraph linking to the privacy policy, with optional text before and after the link, or nothing when no policy page is set. */
+    function lf_privacy_link(string $before = '', string $after = ''): void
+    {
+        ThemeContext::current()?->privacyLink($before, $after);
+    }
+}
+
 if (!function_exists('lf_pagination')) {
     /** Prints previous and next links with page numbers, when the page has more than one page of results. */
     function lf_pagination(): void

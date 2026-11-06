@@ -24,6 +24,9 @@ $errors = is_array($form['errors'] ?? null) ? $form['errors'] : [];
     <?php if (($form['heading'] ?? '') !== ''): ?>
         <h2 class="lf-form__heading"><?= lf_e($form['heading']) ?></h2>
     <?php endif; ?>
+    <?php if (($form['intro'] ?? '') !== ''): ?>
+        <p class="lf-form__intro"><?= lf_e($form['intro']) ?></p>
+    <?php endif; ?>
     <input type="hidden" name="csrf_token" value="<?= lf_e($form['csrf_token'] ?? '') ?>">
     <?php do_action('lf_form_fields', (string) ($form['id'] ?? '')); ?>
     <?php foreach ($errors as $error): ?>

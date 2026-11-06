@@ -79,6 +79,9 @@ $groups = lf_items('term_groups');
                 <aside class="lf-chapter__notes" aria-label="Author&rsquo;s notes"><p><?php lf_field('chapter.notes'); ?></p></aside>
             <?php endif; ?>
             <div class="lf-chapter__text"><?php lf_field('chapter.html'); ?></div>
+            <?php if (lf_has('chapter.end_notes')): ?>
+                <aside class="lf-chapter__end-notes" aria-label="Author&rsquo;s end notes"><p><?php lf_field('chapter.end_notes'); ?></p></aside>
+            <?php endif; ?>
         </section>
     <?php else: ?>
     <section class="lf-story__section lf-story__section--chapters">
@@ -99,6 +102,10 @@ $groups = lf_items('term_groups');
             </ol>
         <?php endif; ?>
     </section>
+    <?php endif; ?>
+
+    <?php if (lf_has('story.end_notes')): ?>
+        <aside class="lf-story__end-notes" aria-label="End notes for the story"><p><?php lf_field('story.end_notes'); ?></p></aside>
     <?php endif; ?>
 </article>
 <?php

@@ -2,8 +2,6 @@
 
 A lightweight, self-hosted story archive and publishing site for fanfiction, original fiction, and serialised stories. Write, share, and get lost in a story.
 
-Lumora Fiction is in early development and has no stable release yet. This page describes what is ready to try.
-
 - **Project site:** [coding.unloved-heart.net/scripts/lumorafiction](https://coding.unloved-heart.net/scripts/lumorafiction)
 - **GitHub:** [intothisshadow/LumoraFiction](https://github.com/intothisshadow/LumoraFiction)
 
@@ -38,7 +36,7 @@ Open `/admin/` on your site and sign in with the login name (or email address) a
 
 Authors can create and edit stories, organise chapters, describe their work with classification lists, add a cover and an author profile, and preview drafts before publishing. Chapters are written in a Visual, Markdown, HTML or plain text editor with a live word count and separate **Save draft** and **Publish** buttons. Editors and Administrators review stories waiting for approval and can approve them or send them back with a reason.
 
-Additional features include chapter version history, story copying, trash and recovery, notifications, and bulk actions. A bundled Visitor Stats plugin, off until you turn it on, counts story views on your own site without cookies or personal data. See the [user guide](docs/USER-GUIDE.md).
+Additional features include notes before and after each chapter and after a whole story, chapter version history, story copying, trash and recovery, notifications, and bulk actions. A bundled Visitor Stats plugin, off until you turn it on, counts story views on your own site without cookies or personal data. See the [user guide](docs/USER-GUIDE.md).
 
 ### Reading the archive
 
@@ -46,7 +44,7 @@ Readers can browse new, updated and completed stories, explore indexes of fandom
 
 ### Running the site
 
-Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, and how new writers are moderated. They manage classification lists, users, news, themes and plugins, and see problems with the site in one alerts screen. Starter lists for ratings, warnings and relationship categories are optional. See the [administration guide](docs/ADMINISTRATION.md).
+Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, and how new writers are moderated. They manage classification lists, users, news, themes and plugins, and see problems with the site in one alerts screen. Starter lists for ratings, warnings and relationship categories are optional. Administrators can also write static pages such as About, FAQ, Terms of Service and a Privacy Policy and link them from the menu or the footer, limit tags to ones they add themselves, and answer a data request by exporting or deleting an account. See the [administration guide](docs/ADMINISTRATION.md).
 
 ### Security and maintenance
 

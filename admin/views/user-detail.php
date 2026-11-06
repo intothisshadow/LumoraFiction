@@ -50,6 +50,7 @@ $statusClass = match ($person->status) {
     UserStatus::Active => ' lf-status--ok',
     UserStatus::Pending => ' lf-status--warning',
     UserStatus::Suspended => ' lf-status--error',
+    UserStatus::Deleted => '',
 };
 ?>
 <p><a href="<?= Html::e($listUrl) ?>">&larr; All users</a></p>

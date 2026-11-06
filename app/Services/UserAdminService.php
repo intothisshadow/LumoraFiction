@@ -230,7 +230,14 @@ final class UserAdminService
             throw new UserAdminException('You cannot change your own role or status here. Another administrator can do it for you.');
         }
 
-        return $this->users->findById($userId) ?? throw new UserAdminException('That account does not exist.');
+        $target = $this->users->findById($userId) ?? throw new UserAdminException('That account does not exist.');
+
+        // Nothing about a deleted account may be changed, or reinstating it would hand out a login nobody asked for.
+        if ($target->status === UserStatus::Deleted) {
+            throw new UserAdminException('That account was deleted.');
+        }
+
+        return $target;
     }
 
     /**

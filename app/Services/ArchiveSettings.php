@@ -33,6 +33,7 @@ final class ArchiveSettings
         'archive.mode' => 'both',
         'publishing.hold_first_story' => true,
         'reading.require_signin' => false,
+        'taxonomy.writer_tags' => true,
     ];
 
     public const MODES = [
@@ -49,6 +50,7 @@ final class ArchiveSettings
         'email_verification' => 'registration.email_verification',
         'hold_first_story' => 'publishing.hold_first_story',
         'require_signin' => 'reading.require_signin',
+        'writer_tags' => 'taxonomy.writer_tags',
     ];
 
     public function __construct(
@@ -59,7 +61,7 @@ final class ArchiveSettings
     }
 
     /**
-     * @return array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool}
+     * @return array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool}
      */
     public function current(): array
     {
@@ -75,12 +77,14 @@ final class ArchiveSettings
             'hold_first_story' => $this->config->setting('publishing.hold_first_story') !== false,
             // Closed only by a real "true", so a missing or damaged value leaves the archive readable.
             'require_signin' => $this->config->setting('reading.require_signin') === true,
+            // Open unless switched off for real, so a missing value keeps today's behaviour.
+            'writer_tags' => $this->config->setting('taxonomy.writer_tags') !== false,
         ];
     }
 
     /**
-     * @param array{archive_mode: ?string, default_role: ?string, registration_enabled: bool, email_verification: bool, hold_first_story: bool, require_signin: bool} $input
-     * @return array{errors: array<string, string>, values: array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool}}
+     * @param array{archive_mode: ?string, default_role: ?string, registration_enabled: bool, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool} $input
+     * @return array{errors: array<string, string>, values: array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool}}
      */
     public function validate(array $input): array
     {
@@ -109,6 +113,7 @@ final class ArchiveSettings
                 'email_verification' => $input['email_verification'],
                 'hold_first_story' => $input['hold_first_story'],
                 'require_signin' => $input['require_signin'],
+                'writer_tags' => $input['writer_tags'],
             ],
         ];
     }
@@ -117,7 +122,7 @@ final class ArchiveSettings
      * Saves only what changed, and records the change in the same transaction so the two cannot
      * disagree. Returns the names of the settings that changed.
      *
-     * @param array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool} $values
+     * @param array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool} $values
      * @return list<string>
      */
     public function save(array $values, User $actor, string $ipAddress): array

@@ -22,6 +22,7 @@ use LumoraFiction\Models\TermType;
 /** @var TermType $type */
 /** @var list<Term> $terms */
 /** @var array<int, string> $parents fandom names by id */
+/** @var bool $curated */
 /** @var array{search: string, unreviewed: bool} $filters */
 /** @var int $total */
 /** @var int $page */
@@ -33,7 +34,7 @@ use LumoraFiction\Models\TermType;
 /** @var string $csrfToken */
 
 // The short lists are kept in the order the administrator sets; the open lists are alphabetical, so they have no order to change.
-$ordered = !$type->writersMayPropose();
+$ordered = $curated;
 
 $query = static function (int $number) use ($filters): string {
     $parts = [];

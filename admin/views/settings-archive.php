@@ -100,6 +100,16 @@ $modeHints = [
     </fieldset>
 
     <fieldset class="lf-card">
+        <legend>Classification</legend>
+
+        <div class="lf-choice">
+            <input type="checkbox" id="writer_tags" name="writer_tags" value="1"<?= $values['writer_tags'] ? ' checked' : '' ?> aria-describedby="writer_tags_hint">
+            <label for="writer_tags">Writers may propose new tags</label>
+            <p class="lf-hint" id="writer_tags_hint">When this is off, writers can only pick tags that already exist, and only an administrator adds new ones under Classification. Tags writers proposed earlier stay where they are. Fandoms, characters and relationships are not affected.</p>
+        </div>
+    </fieldset>
+
+    <fieldset class="lf-card">
         <legend>Reading</legend>
 
         <div class="lf-choice">
@@ -116,7 +126,7 @@ $modeHints = [
     <section class="lf-card lf-presets" aria-labelledby="lf-presets-heading">
         <h2 id="lf-presets-heading">Starter lists</h2>
         <p class="lf-hint">A starter list adds a ready-made set of values to a list so you do not have to type them. It is always optional: leave a list empty to make your own values under <a href="<?= Html::e(AdminUrl::to('taxonomy')) ?>">Classification</a>, where every value can be renamed, described, put in order or hidden. Adding a list never removes or changes anything you have already edited, and adding it again only restores values you deleted.</p>
-        <p class="lf-hint">Starter lists exist for <strong>ratings</strong> (AO3-style, FanFiction.net-style, movie-style or a minimal three-value set), <strong>archive warnings</strong> (AO3-style or minimal), <strong>relationship categories</strong> (the standard six) and <strong>story status</strong> (with or without &ldquo;abandoned&rdquo;). Fandoms, characters, relationships, tags, genres and categories have none: writers propose the first four as they write, and you add genres and categories yourself under <a href="<?= Html::e(AdminUrl::to('taxonomy')) ?>">Classification</a>.</p>
+        <p class="lf-hint">Starter lists exist for <strong>ratings</strong> (AO3-style, FanFiction.net-style, movie-style or a minimal three-value set), <strong>archive warnings</strong> (AO3-style or minimal), <strong>relationship categories</strong> (the standard six) and <strong>story status</strong> (with or without &ldquo;abandoned&rdquo;). Fandoms, characters, relationships, tags, genres and categories have none: writers propose the first four as they write (tags can be switched to administrator-only under Classification above), and you add genres and categories yourself under <a href="<?= Html::e(AdminUrl::to('taxonomy')) ?>">Classification</a>.</p>
 
         <?php foreach ($catalogue as $kind => $presets): ?>
             <form method="post" action="<?= Html::e($presetUrl) ?>" class="lf-form lf-presets__form">

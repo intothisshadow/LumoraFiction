@@ -49,6 +49,17 @@ use LumoraFiction\Services\DownloadSettings;
 use LumoraFiction\Services\StoryDocumentFactory;
 use LumoraFiction\Services\StoryDownloads;
 use LumoraFiction\Controllers\NewsController;
+use LumoraFiction\Controllers\Admin\PrivacyRequestsController;
+use LumoraFiction\Controllers\Admin\PrivacySettingsController;
+use LumoraFiction\Controllers\PrivacyController;
+use LumoraFiction\Services\AccountDataExporter;
+use LumoraFiction\Services\AccountDeletionService;
+use LumoraFiction\Services\PrivacySettings;
+use LumoraFiction\Controllers\Admin\PageController as AdminPageController;
+use LumoraFiction\Controllers\PageController;
+use LumoraFiction\Core\Theme\PagePresentation;
+use LumoraFiction\Services\PagePresenter;
+use LumoraFiction\Services\PageService;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\NewsSettings;
@@ -203,6 +214,22 @@ final class Kernel
 
     public ?DownloadCounter $downloadCounter = null;
 
+    /**
+     * Static pages and the object that links them from the menus, built at boot for the same reason.
+     */
+    public ?PageService $pages = null;
+
+    public ?PagePresentation $pagePresentation = null;
+
+    /**
+     * Privacy settings, the data export and account deletion, built with the other services at boot.
+     */
+    public ?PrivacySettings $privacy = null;
+
+    public ?AccountDataExporter $accountExporter = null;
+
+    public ?AccountDeletionService $accountDeletion = null;
+
     public function __construct(
         public readonly Configuration $config,
         public readonly Database $database,
@@ -256,7 +283,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -334,7 +361,28 @@ final class Kernel
         $presenter = new StoryPresenter($covers);
         $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks);
         $newsPresenter = new NewsPresenter($renderer, $kernel->users);
-        $authorProfiles = new AuthorProfileService($kernel->database, $renderer, new AvatarImageStore($root . '/content/uploads/avatars'), $kernel->audit);
+        // The closure is evaluated at save time, so a route a plugin adds later still counts as taken.
+        $kernel->pages = new PageService($kernel->database, $kernel->audit, static fn (string $slug): bool => $router->isRouted('/' . $slug), $kernel->hooks);
+        $kernel->pagePresentation = new PagePresentation($kernel->pages, rtrim((string) $config->get('site_url', ''), '/'));
+        $kernel->pagePresentation->register($hooks);
+        $avatars = new AvatarImageStore($root . '/content/uploads/avatars');
+        $authorProfiles = new AuthorProfileService($kernel->database, $renderer, $avatars, $kernel->audit);
+
+        $kernel->privacy = new PrivacySettings($config, $database, $audit, $kernel->pages);
+        $kernel->accountExporter = new AccountDataExporter($database);
+        $kernel->accountDeletion = new AccountDeletionService(
+            $database,
+            $stories,
+            new BookmarkService($database, $stories),
+            new ReadingProgressService($database, $stories),
+            new StoryFollowService($database, $stories),
+            $kernel->privacy,
+            $audit,
+            $avatars,
+            $hooks,
+        );
+        // The privacy policy reaches every theme through one filter, so a theme never learns how the page is chosen.
+        $hooks->addFilter('lf_privacy_policy', static fn (mixed $link): mixed => $kernel->privacy?->link() ?? $link);
         $flash = new FlashMessages($sessions);
         $editorSettings = new EditorSettings($config, $database, $audit);
 
@@ -361,6 +409,11 @@ final class Kernel
 
         // Plugins and later features add their routes here.
         $hooks->doAction('routes_register', $router);
+
+        // A page's address is a single path segment. It is the router's route of last resort, so it answers only an
+        // address that nothing else, a plugin's route included, owns, and a POST to an unknown address stays a 404.
+        $pagePages = new PageController($kernel->themes, $kernel->pages, new PagePresenter($renderer), $kernel->pagePresentation, $kernel->auth);
+        $router->fallbackGet(PublicUrl::PAGE, $pagePages->show(...));
         $hooks->doAction('kernel_booted', $kernel);
 
         return $kernel;
@@ -376,7 +429,8 @@ final class Kernel
         $bookmarkPresenter = new BookmarkPresenter($bookmarks);
         $storyFollows = new StoryFollowService($kernel->database, $stories);
         $followPresenter = new FollowPresenter();
-        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows);
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows, $kernel->privacy);
+        $privacyPages = new PrivacyController($kernel->themes, $kernel->auth, $flash, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->audit);
         $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash, $storyFollows, $followPresenter);
         $readingProgress = new ReadingProgressService($kernel->database, $stories);
         $readingList = new ReadingListController($kernel->themes, $kernel->auth, $readingProgress, $presenter, $kernel->users, $flash, $storyFollows, $readerPreferences);
@@ -443,6 +497,10 @@ final class Kernel
         $kernel->router->post(PublicUrl::PROFILE . '/password', $account->updatePassword(...), 'account.profile.password');
         $kernel->router->post(PublicUrl::PROFILE . '/editor', $account->updateEditor(...), 'account.profile.editor');
         $kernel->router->post(PublicUrl::READING, $account->updateReading(...), 'account.profile.reading');
+
+        $kernel->router->get(PublicUrl::account('privacy'), $privacyPages->show(...), 'account.privacy');
+        $kernel->router->post(PublicUrl::account('privacy/export'), $privacyPages->export(...), 'account.privacy.export');
+        $kernel->router->post(PublicUrl::account('privacy/delete'), $privacyPages->delete(...), 'account.privacy.delete');
 
         $kernel->router->get(PublicUrl::BOOKMARKS, $reader->list(...), 'account.bookmarks');
         $kernel->router->post(PublicUrl::BOOKMARK_ADD, $reader->add(...), 'account.bookmarks.add');
@@ -553,6 +611,9 @@ final class Kernel
             new UpdatesController($kernel->auth, $view, $flash, $updates, $updateChecker, $updateStorage, $kernel->audit),
             new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit),
             new MaintenanceModeController($kernel->auth, $view, $flash, $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit)),
+            new AdminPageController($kernel->auth, $view, $flash, $kernel->pages ?? throw new \LogicException('Pages are built at boot.'), $editor, $kernel->themes, new PagePresenter($renderer)),
+            new PrivacySettingsController($kernel->auth, $view, $flash, $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->pages),
+            new PrivacyRequestsController($kernel->auth, $view, $flash, $kernel->users, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy, $kernel->audit),
         );
     }
 

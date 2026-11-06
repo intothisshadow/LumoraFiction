@@ -139,6 +139,8 @@ Tags that print, print escaped text. A tag that returns a value returns it alrea
 | `lf_part(string $name, array $data = [])` | Include `parts/{name}.php`. The keys of `$data` become the variables of the part, so pass one array and let the part unpack it. A name may only hold lower-case letters, digits and hyphens. |
 | `lf_downloads()` | The story page's download menu, drawn by the theme's `parts/downloads.php` (or the built-in theme's when the theme has none). Prints nothing when the story cannot be downloaded, because core decides that: the site switch, the story's own choice and its Author's default are all applied before the theme sees anything. Call it once on `story.php`, for example after the follow button. |
 | `lf_navigation(string $label = 'Main')` | The main menu as a list of links in a `nav` element. |
+| `lf_footer_links(string $label = 'Footer')` | The footer link list: the static pages an administrator placed in the footer, plus anything a plugin adds through the `lf_footer_items` filter, as a `nav.lf-footer-links` holding a list. Prints nothing when there are none, so call it unconditionally inside the footer. |
+| `lf_privacy_link(string $before = '', string $after = '')` | A paragraph (`p.lf-privacy-link`) holding a link to the privacy policy page the administrator chose, with your own words around it, such as `lf_privacy_link('Please read our ', '.')`. Prints nothing while no published page is chosen. |
 | `lf_pagination()` | Previous and next links with a window of page numbers. Prints nothing when there is one page. |
 | `lf_is(string $view): bool` | Whether the page is the given view. |
 
@@ -182,6 +184,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | Name | Contents |
 | ---- | -------- |
 | `story.title`, `story.author`, `story.summary`, `story.notes`, `story.disclaimer` | Text. The author is the display name. |
+| `story.end_notes` | The author's closing note for the whole story, plain text. Print it after the chapter list in an element with the class `lf-story__end-notes`. On a chapter page the same field is empty unless the chapter is the last one of a finished story, so a chapter template prints it the same way without knowing the rule. |
 | `story.author_url` | The address of the author's page. Empty on a preview, so check it with `lf_has('story.author_url')` and print the name as plain text when it is empty. |
 | `story.status` | Where the story stands, such as "Ongoing". |
 | `story.words` | The word count, formatted. |
@@ -201,6 +204,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 | ---- | -------- |
 | `story.title`, `story.url` and the other story fields above | The story the chapter belongs to. |
 | `chapter.number`, `chapter.title`, `chapter.words`, `chapter.notes` | Text. A chapter without a title gets "Chapter N". |
+| `chapter.end_notes` | The author's note after the chapter, plain text, empty when there is none (check with `lf_has('chapter.end_notes')`). Print it below `chapter.html` and before the bottom chapter navigation, in an element with the class `lf-chapter__end-notes`. `chapter.notes` stays above the text. |
 | `chapter.position`, `chapter.total` | Where the chapter stands among the chapters a reader can open, counting from one, and how many there are. Both are empty on a preview, so check `lf_has('chapter.total')`. A chapter that is hidden leaves no gap, so `position` can differ from `number`. |
 | `chapter.html` | The chapter's text, already sanitised. Print it with `lf_field('chapter.html')`. |
 | `previous`, `next` | `{title, url}`, or nothing at the ends of the story. Check with `lf_has('previous.url')`. |
@@ -210,6 +214,7 @@ Never print a value from `lf_items()` without `lf_e()`.
 
 | View | Data |
 | ---- | ---- |
+| `page` | A static page (About, FAQ, the privacy policy): `page.title`, `page.slug`, `page.html` (the text, already sanitised) and `page.updated`. The page's meta description and canonical address are printed into `<head>` by core, so the template only prints the title and `page.html`. The view is also used for the administrator's preview of a draft, which sets `lf-is-preview`. |
 | `404` | `message`. |
 | `maintenance` | `message`, the administrator's text for visitors (plain text, escaped by `lf_field()`). The page is drawn with status 503 and is not indexed; the theme prints only the notice, with no link into the site, since every public page is closed to the visitor. A theme without `maintenance.php` shows its `404.php`, which prints the same title and message. During an update the site shows a plain page instead of any theme, because the database may be changing underneath it. |
 | `home` | `stories` (the most recently published), `updated_stories` (the most recently changed), each a list of story cards, and `news`, the latest announcements (see "News" below). Either story list is empty on a new site, and `news` is empty when there is no news, when the home page block is set to 0, or when news is switched off, so test it with `lf_has('news.posts')`. The list of places a signed-in reader left off is no longer part of the home page: it lives on the **Continue reading** page (`continue`), and a theme that still prints `continue_reading` simply finds the key missing. |
@@ -272,7 +277,7 @@ Sign-in, registration, email confirmation, password reset and the profile are al
 | `links` | Links to other account pages, each `{label, url}`, drawn below the forms. |
 | `shortcuts` | Links a signed-in member uses often, such as **My bookmarks** on the profile page, plus **Post New Story**, **My stories** and (for those who review stories) **Awaiting approval** for writers, each `{label, url}`. Draw them above the forms, under a small **Quick links** heading, and keep them quieter than the page's buttons. Empty on every other page. |
 
-A form is `{id, action, csrf_token, submit, heading, fields, errors}`. The part prints the hidden `csrf_token` field itself, which every form must carry, and then fires `do_action('lf_form_fields', $form['id'])` once, inside the `<form>` and before the first field. Core uses that action to print the hidden spam-trap and timing fields on the registration, password-reset and confirmation-email forms; a theme that leaves the call out cannot register anyone, because those forms are then refused as sent without their timing check. Give the trap's wrapper, `lf-form__trap`, a rule that takes it off the screen without `display: none` (some programs skip fields that are not displayed): position it far off to the left, one pixel square, as Storybook's stylesheet does. A theme without the rule still works, but visitors see two odd extra fields. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
+A form is `{id, action, csrf_token, submit, heading, fields, errors}`, and may also carry `intro`, a sentence to print under the heading (the **Your data and privacy** page uses it for a form that has no fields). The part prints the hidden `csrf_token` field itself, which every form must carry, and then fires `do_action('lf_form_fields', $form['id'])` once, inside the `<form>` and before the first field. Core uses that action to print the hidden spam-trap and timing fields on the registration, password-reset and confirmation-email forms; a theme that leaves the call out cannot register anyone, because those forms are then refused as sent without their timing check. Give the trap's wrapper, `lf-form__trap`, a rule that takes it off the screen without `display: none` (some programs skip fields that are not displayed): position it far off to the left, one pixel square, as Storybook's stylesheet does. A theme without the rule still works, but visitors see two odd extra fields. A field is `{name, id, label, type, value, autocomplete, hint, error, options}`; the type is `text`, `email`, `password` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()`. Link each hint and error to its field with `aria-describedby`, and mark a field that has an error with `aria-invalid`. Passwords are never sent back to the page, so `value` is always empty for them. The form's `errors` are messages about the form as a whole, each `{message}`.
 
 Do not change the field names or the form's `action`: the account controller reads them.
 
@@ -326,6 +331,8 @@ A feature adds what it needs in one place, and every theme gets it.
 | `lf_body_class` | Filter, `list<string>` | Add classes to `<body>`. |
 | `lf_document_title` | Filter, `string` | Change the whole `<title>`. |
 | `lf_navigation_items` | Filter, list of `{label, url, current?}` | Add items to the main menu. Core uses it to append an **Admin** item for signed-in people who may use the admin area, so `lf_navigation()` can show one more item for staff than for readers; a theme needs no code for it and must not hide or reorder it by who is signed in. |
+| `lf_footer_items` | Filter, list of `{label, url, current?}` | Add links to the footer list that `lf_footer_links()` prints. Core adds the pages an administrator placed in the footer. Addresses must be paths on this site, like menu items. |
+| `lf_privacy_policy` | Filter, `{label, url}` or null | The privacy policy link that `lf_privacy_link()` prints. Core supplies it from the page the administrator chose. |
 | `theme_option_fields` | Filter, list of field definitions | Declare theme options (see below). |
 
 Stylesheets and scripts must be paths on this site, starting with a single `/`. Anything else is ignored, so the Content-Security-Policy, which allows only this site's own files, keeps meaning what it says. A theme that needs more calls the `csp_directives` filter and takes responsibility for it.

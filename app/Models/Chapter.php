@@ -35,6 +35,7 @@ final readonly class Chapter
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
         public ?DateTimeImmutable $trashedAt = null,
+        public string $endNotes = '',
     ) {
     }
 

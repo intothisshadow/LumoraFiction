@@ -418,7 +418,7 @@ final class AuthService
      * Checks a password the person typed to authorise a change to their own account. Wrong guesses count towards
      * the same lockout as the sign-in form, so a stolen session cannot be used to guess the password.
      */
-    private function confirmPassword(User $user, string $password, string $ipAddress): ?string
+    public function confirmPassword(User $user, string $password, string $ipAddress): ?string
     {
         if ($this->throttle->secondsUntilUnlocked($ipAddress) > 0) {
             return 'Too many failed attempts. Please try again later.';

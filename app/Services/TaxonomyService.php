@@ -30,7 +30,8 @@ use PDOException;
 /**
  * Curating the lists (renaming, merging, aliases, deleting) belongs to administrators; writers may only
  * pick terms and, for the kinds that allow it, propose new ones while writing. A proposed term is usable
- * at once and is flagged "not yet reviewed" for an administrator to approve or merge. Names are stored as
+ * at once and is flagged "not yet reviewed" for an administrator to approve or merge; what an administrator
+ * adds or edits is reviewed already, since nobody is left to ask. Names are stored as
  * written and escaped by whatever prints them. Public story counts are kept on each term so a listing
  * never has to count; whatever changes a story's visibility asks for them to be refreshed.
  */
@@ -70,6 +71,29 @@ final class TaxonomyService
     public function isEnabled(TermType $type): bool
     {
         return in_array($type, $this->enabledTypes(), true);
+    }
+
+    /**
+     * Whether writers may add new terms of this kind while writing. The enum holds the fixed rule; tags can also be
+     * closed by the administrator, so every caller asks here instead of the enum. A kind writers cannot add to is a
+     * curated list: ordered by hand, with descriptions and hiding.
+     */
+    public function writersMayPropose(TermType $type): bool
+    {
+        if (!$type->writersMayPropose()) {
+            return false;
+        }
+
+        // Closed only by a real "false", so a missing or damaged value keeps the archive open as before.
+        return $type !== TermType::Tag || $this->config->setting('taxonomy.writer_tags') !== false;
+    }
+
+    /**
+     * Staff who may approve terms: the people who may curate the lists at all.
+     */
+    public function canCurate(User $actor): bool
+    {
+        return $actor->can(Capability::ManageSite);
     }
 
     /**
@@ -214,9 +238,11 @@ final class TaxonomyService
     public function list(TermType $type, array $filters = [], int $limit = 50, int $offset = 0): array
     {
         [$where, $params] = $this->filter($type, $filters);
+        // An open list is alphabetical even if it was ordered by hand while writers could not add to it.
+        $order = $this->writersMayPropose($type) ? 't.name_key, t.id' : 't.sort_order, t.name_key, t.id';
 
         return $this->hydrateAll($this->database->fetchAll(
-            'SELECT t.* FROM {prefix}terms t WHERE ' . $where . ' ORDER BY t.sort_order, t.name_key, t.id LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
+            'SELECT t.* FROM {prefix}terms t WHERE ' . $where . ' ORDER BY ' . $order . ' LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
             $params,
         ));
     }
@@ -567,7 +593,7 @@ final class TaxonomyService
                     $this->insertAlias($term->id, $term->type, $term->parentId, $term->name, $oldKey);
                 }
 
-                $this->audit->record($actor->id, 'term.rename', 'term', (string) $term->id, ['from' => $term->name, 'to' => $name], $ipAddress);
+                $this->audit->record($actor->id, 'term.rename', 'term', (string) $term->id, ['from' => $term->name, 'to' => $name] + $this->approveOnEdit($term), $ipAddress);
             });
         } catch (PDOException $exception) {
             if (($exception->errorInfo[1] ?? null) === 1062) {
@@ -636,7 +662,7 @@ final class TaxonomyService
         if ($term->description !== $description) {
             $this->database->transaction(function () use ($actor, $term, $description, $ipAddress): void {
                 $this->database->execute('UPDATE {prefix}terms SET description = :description WHERE id = :id', ['description' => $description, 'id' => $term->id]);
-                $this->audit->record($actor->id, 'term.describe', 'term', (string) $term->id, [], $ipAddress);
+                $this->audit->record($actor->id, 'term.describe', 'term', (string) $term->id, $this->approveOnEdit($term), $ipAddress);
             });
         }
 
@@ -656,7 +682,7 @@ final class TaxonomyService
 
         $term = $this->mustFind($termId);
 
-        if ($term->type->writersMayPropose() || ($direction !== 'up' && $direction !== 'down')) {
+        if ($this->writersMayPropose($term->type) || ($direction !== 'up' && $direction !== 'down')) {
             throw new TaxonomyException('This list is kept in alphabetical order.');
         }
 
@@ -758,7 +784,7 @@ final class TaxonomyService
         try {
             $this->database->transaction(function () use ($actor, $term, $alias, $ipAddress): void {
                 $this->insertAlias($term->id, $term->type, $term->parentId, $alias, $this->nameKey($alias));
-                $this->audit->record($actor->id, 'term.alias_add', 'term', (string) $term->id, ['alias' => $alias], $ipAddress);
+                $this->audit->record($actor->id, 'term.alias_add', 'term', (string) $term->id, ['alias' => $alias] + $this->approveOnEdit($term), $ipAddress);
             });
         } catch (PDOException $exception) {
             if (($exception->errorInfo[1] ?? null) === 1062) {
@@ -782,9 +808,11 @@ final class TaxonomyService
             throw new TaxonomyException('That alias no longer exists.');
         }
 
-        $this->database->transaction(function () use ($actor, $row, $aliasId, $ipAddress): void {
+        $owner = $this->find((int) $row['term_id']);
+
+        $this->database->transaction(function () use ($actor, $row, $owner, $aliasId, $ipAddress): void {
             $this->database->execute('DELETE FROM {prefix}term_aliases WHERE id = :id', ['id' => $aliasId]);
-            $this->audit->record($actor->id, 'term.alias_remove', 'term', (string) $row['term_id'], ['alias' => (string) $row['alias']], $ipAddress);
+            $this->audit->record($actor->id, 'term.alias_remove', 'term', (string) $row['term_id'], ['alias' => (string) $row['alias']] + ($owner === null ? [] : $this->approveOnEdit($owner)), $ipAddress);
         });
 
         return $this->find((int) $row['term_id']);
@@ -901,8 +929,8 @@ final class TaxonomyService
     /**
      * Sets a story's terms for the kinds present in $selection; kinds left out, and kinds the archive mode
      * has switched off, keep what they have. A whole number is the id of an existing term and text is a name:
-     * a name that matches a term (or an alias) uses it, and otherwise becomes a new, unreviewed term when
-     * that kind lets writers propose. The caller has already checked that the actor may change the story, and
+     * a name that matches a term (or an alias) uses it, and otherwise becomes a new term when that kind lets
+     * writers propose: unreviewed for a writer, already reviewed for someone who may curate. The caller has already checked that the actor may change the story, and
      * runs this inside a transaction so a refused selection leaves no half-made terms behind.
      *
      * @param array<string, list<int|string>> $selection kind name => ids or names
@@ -981,7 +1009,7 @@ final class TaxonomyService
                 continue;
             }
 
-            if (!$type->writersMayPropose() && $this->count($type, ['visible' => true]) === 0) {
+            if (!$this->writersMayPropose($type) && $this->count($type, ['visible' => true]) === 0) {
                 continue;
             }
 
@@ -1086,7 +1114,7 @@ final class TaxonomyService
             return $term;
         }
 
-        if (!$type->writersMayPropose() || !$actor->can(Capability::WriteStories)) {
+        if (!$this->writersMayPropose($type) || !$actor->can(Capability::WriteStories)) {
             $errors[$type->value] = '"' . $name . '" is not on the list of ' . strtolower($type->pluralLabel()) . '. Choose one from the list.';
 
             return null;
@@ -1103,8 +1131,10 @@ final class TaxonomyService
 
     private function propose(User $actor, TermType $type, string $name, int $parentId, string $ipAddress): Term
     {
-        $id = $this->insertTerm($type, $parentId, $name, false, $actor->id);
-        $this->audit->record($actor->id, 'term.propose', 'term', (string) $id, ['type' => $type->value, 'name' => $name], $ipAddress);
+        // Staff have nobody to ask, so what they add is approved on the spot; the review queue then holds only writers' proposals.
+        $reviewed = $this->canCurate($actor);
+        $id = $this->insertTerm($type, $parentId, $name, $reviewed, $actor->id);
+        $this->audit->record($actor->id, 'term.propose', 'term', (string) $id, ['type' => $type->value, 'name' => $name] + ($reviewed ? ['reviewed' => true] : []), $ipAddress);
 
         return $this->mustFind($id);
     }
@@ -1248,9 +1278,26 @@ final class TaxonomyService
      */
     private function requireCurator(User $actor): void
     {
-        if (!$actor->can(Capability::ManageSite)) {
+        if (!$this->canCurate($actor)) {
             throw new TaxonomyException('You may not change the classification lists.');
         }
+    }
+
+    /**
+     * A staff edit means a person has looked at the term, so an unreviewed one becomes reviewed in the same
+     * transaction. Returns the audit detail that tells it apart from an edit of an already reviewed term.
+     *
+     * @return array{reviewed?: true}
+     */
+    private function approveOnEdit(Term $term): array
+    {
+        if ($term->reviewed) {
+            return [];
+        }
+
+        $this->database->execute('UPDATE {prefix}terms SET reviewed = 1 WHERE id = :id', ['id' => $term->id]);
+
+        return ['reviewed' => true];
     }
 
     /**
@@ -1294,7 +1341,7 @@ final class TaxonomyService
         $base = Slug::fromText($name, self::SLUG_BASE_MAX, 'term');
 
         // A short list that is ordered by hand puts a new value last. The open lists stay alphabetical, so their order is 0.
-        $order = $type->writersMayPropose() ? 0 : 1 + (int) $this->database->fetchColumn('SELECT COALESCE(MAX(sort_order), 0) FROM {prefix}terms WHERE type = :type', ['type' => $type->value]);
+        $order = $this->writersMayPropose($type) ? 0 : 1 + (int) $this->database->fetchColumn('SELECT COALESCE(MAX(sort_order), 0) FROM {prefix}terms WHERE type = :type', ['type' => $type->value]);
 
         for ($attempt = 0; $attempt < self::SLUG_ATTEMPTS; $attempt++) {
             $slug = $attempt === 0 ? $this->freeSlug($type, $base) : $base . '-' . bin2hex(random_bytes(3));

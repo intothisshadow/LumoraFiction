@@ -73,8 +73,12 @@ CSS;
         foreach ($document->chapters as $chapter) {
             $out .= '<section class="lf-dl-chapter" id="chapter-' . $chapter['number'] . '"><h2>' . Html::e($chapter['title']) . '</h2>';
             $out .= $chapter['notes'] === '' ? '' : '<aside class="lf-dl-notes">' . $this->lines($chapter['notes']) . '</aside>';
-            $out .= $chapter['html'] . '</section>';
+            $out .= $chapter['html'];
+            $out .= ($chapter['end_notes'] ?? '') === '' ? '' : '<aside class="lf-dl-notes">' . $this->lines($chapter['end_notes']) . '</aside>';
+            $out .= '</section>';
         }
+
+        $out .= $this->paragraphs('End notes', $document->endNotes);
 
         return $out . '</body></html>' . "\n";
     }

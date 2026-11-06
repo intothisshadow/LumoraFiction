@@ -21,7 +21,7 @@ use LumoraFiction\Models\Story;
 
 /** @var Story $story */
 /** @var Chapter|null $chapter */
-/** @var array{title: string, content: string, content_format: string, notes: string} $values */
+/** @var array{title: string, content: string, content_format: string, notes: string, end_notes: string} $values */
 /** @var string $editor trusted markup from the content editor */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
@@ -30,7 +30,7 @@ use LumoraFiction\Models\Story;
 /** @var string $listUrl */
 /** @var array<string, string> $urls */
 /** @var int $revisionCount earlier versions kept of this chapter */
-/** @var array{title: int, notes: int} $limits */
+/** @var array{title: int, notes: int, end_notes: int} $limits */
 
 $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class="lf-error" id="' . Html::e($name) . '_error">' . Html::e($errors[$name]) . '</p>' : '';
 ?>
@@ -62,6 +62,16 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
     <?= $problem('content') ?>
 
     <?= $editor ?>
+
+    <details class="lf-details"<?= $values['end_notes'] !== '' || isset($errors['end_notes']) ? ' open' : '' ?>>
+        <summary>End notes for this chapter</summary>
+        <div class="lf-field<?= isset($errors['end_notes']) ? ' lf-field--error' : '' ?>">
+            <label for="end_notes">End notes</label>
+            <textarea id="end_notes" name="end_notes" rows="4" aria-describedby="end_notes_hint<?= isset($errors['end_notes']) ? ' end_notes_error' : '' ?>"><?= Html::e($values['end_notes']) ?></textarea>
+            <p class="lf-hint" id="end_notes_hint">Shown after the text of this chapter, before the buttons to the next one. Plain text, up to <?= number_format($limits['end_notes']) ?> characters. Save with the buttons above.</p>
+            <?= $problem('end_notes') ?>
+        </div>
+    </details>
 </form>
 
 <?php if ($chapter !== null): ?>

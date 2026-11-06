@@ -90,9 +90,13 @@ CSS;
 
         $navigation = [];
 
-        foreach ($document->chapters as $chapter) {
+        $lastChapter = array_key_last($document->chapters);
+
+        foreach ($document->chapters as $index => $chapter) {
             $name = sprintf('chapter-%03d.xhtml', $chapter['number']);
-            $zip->addFromString('OEBPS/' . $name, $this->page($document, $chapter['title'], $this->chapterBody($chapter)));
+            // The story's closing note has no page of its own: it ends the last chapter.
+            $closing = $index === $lastChapter && trim($document->endNotes) !== '' ? '<h2>End notes</h2>' . $this->lines($document->endNotes) : '';
+            $zip->addFromString('OEBPS/' . $name, $this->page($document, $chapter['title'], $this->chapterBody($chapter, $closing)));
             $items[] = '<item id="c' . $chapter['number'] . '" href="' . $name . '" media-type="application/xhtml+xml"/>';
             $spine[] = '<itemref idref="c' . $chapter['number'] . '"/>';
             $navigation[] = '<li><a href="' . $name . '">' . $this->e($chapter['title']) . '</a></li>';
@@ -174,13 +178,15 @@ CSS;
     }
 
     /**
-     * @param array{number: int, title: string, notes: string, html: string} $chapter
+     * @param array{number: int, title: string, notes: string, html: string, end_notes?: string} $chapter
      */
-    private function chapterBody(array $chapter): string
+    private function chapterBody(array $chapter, string $closing = ''): string
     {
         return '<h2>' . $this->e($chapter['title']) . '</h2>'
             . ($chapter['notes'] === '' ? '' : '<div class="notes">' . $this->lines($chapter['notes']) . '</div>')
-            . ($chapter['html'] === '' ? '<p></p>' : $this->xhtml($chapter['html']));
+            . ($chapter['html'] === '' ? '<p></p>' : $this->xhtml($chapter['html']))
+            . (($chapter['end_notes'] ?? '') === '' ? '' : '<div class="notes">' . $this->lines($chapter['end_notes']) . '</div>')
+            . $closing;
     }
 
     private function page(StoryDocument $document, string $title, string $body): string

@@ -41,6 +41,7 @@ final readonly class Story
         public string $coverFile = '',
         public string $coverAlt = '',
         public ?DateTimeImmutable $trashedAt = null,
+        public string $endNotes = '',
     ) {
     }
 

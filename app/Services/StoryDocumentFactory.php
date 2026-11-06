@@ -60,6 +60,7 @@ final class StoryDocumentFactory
                 'number' => $chapter->number,
                 'title' => $chapter->title,
                 'notes' => $chapter->notes,
+                'end_notes' => $chapter->endNotes,
                 'html' => $this->renderer->render($chapter->content, $chapter->format),
             ];
         }
@@ -87,6 +88,7 @@ final class StoryDocumentFactory
             coverPath: $cover,
             coverType: $cover === '' ? '' : (self::COVER_TYPES[strtolower(pathinfo($cover, PATHINFO_EXTENSION))] ?? ''),
             coverAlt: $story->coverAlt,
+            endNotes: $story->endNotes,
         );
     }
 

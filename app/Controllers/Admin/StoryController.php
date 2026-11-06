@@ -558,7 +558,7 @@ final class StoryController extends WriterController
 
         foreach ($this->taxonomy->enabledTypes() as $type) {
             $single = $type->isSingleChoice();
-            $names = !$single && $type->writersMayPropose();
+            $names = !$single && $this->taxonomy->writersMayPropose($type);
             $options = $names ? [] : $this->taxonomy->list($type, ['visible' => true], 200);
 
             // A value that was hidden after this story chose it stays on the list, so saving the form does not drop it.
@@ -629,6 +629,7 @@ final class StoryController extends WriterController
                 'title' => StoryService::TITLE_MAX,
                 'summary' => StoryService::SUMMARY_MAX,
                 'notes' => StoryService::NOTES_MAX,
+                'end_notes' => StoryService::END_NOTES_MAX,
                 'disclaimer' => StoryService::DISCLAIMER_MAX,
                 'cover_alt' => StoryService::COVER_ALT_MAX,
             ],
@@ -730,7 +731,7 @@ final class StoryController extends WriterController
      */
     private function defaultValues(): array
     {
-        return ['title' => '', 'summary' => '', 'notes' => '', 'disclaimer' => '', 'language' => 'en', 'work_status' => WorkStatus::Ongoing->value, 'cover_alt' => ''];
+        return ['title' => '', 'summary' => '', 'notes' => '', 'end_notes' => '', 'disclaimer' => '', 'language' => 'en', 'work_status' => WorkStatus::Ongoing->value, 'cover_alt' => ''];
     }
 
     /**
@@ -742,6 +743,7 @@ final class StoryController extends WriterController
             'title' => $story->title,
             'summary' => $story->summary,
             'notes' => $story->notes,
+            'end_notes' => $story->endNotes,
             'disclaimer' => $story->disclaimer,
             'language' => $story->language,
             'work_status' => $story->workStatus->value,
@@ -816,7 +818,7 @@ final class StoryController extends WriterController
         foreach ($this->taxonomy->enabledTypes() as $type) {
             $entry = $state[$type->value] ?? ['ids' => [], 'text' => ''];
 
-            if ($type->isSingleChoice() || !$type->writersMayPropose()) {
+            if ($type->isSingleChoice() || !$this->taxonomy->writersMayPropose($type)) {
                 $selection[$type->value] = $entry['ids'];
 
                 continue;
@@ -853,7 +855,7 @@ final class StoryController extends WriterController
      */
     private function keptFields(): array
     {
-        $fields = ['title', 'summary', 'notes', 'disclaimer', 'language', 'work_status', 'cover_alt'];
+        $fields = ['title', 'summary', 'notes', 'end_notes', 'disclaimer', 'language', 'work_status', 'cover_alt'];
 
         foreach (TermType::cases() as $type) {
             array_push($fields, 'term_' . $type->value, 'terms_' . $type->value, 'names_' . $type->value);

@@ -51,7 +51,7 @@ final class ChapterController extends WriterController
     private const PATH = 'stories';
 
     /** @var list<string> */
-    private const KEPT = ['title', 'content', 'content_format', 'notes'];
+    private const KEPT = ['title', 'content', 'content_format', 'notes', 'end_notes'];
 
     public function __construct(
         AuthService $auth,
@@ -145,7 +145,7 @@ final class ChapterController extends WriterController
             return $this->missing('That story is not available.');
         }
 
-        return $this->formPage($request, $user, $story, null, ['title' => '', 'content' => '', 'content_format' => '', 'notes' => ''], [], 200);
+        return $this->formPage($request, $user, $story, null, ['title' => '', 'content' => '', 'content_format' => '', 'notes' => '', 'end_notes' => ''], [], 200);
     }
 
     /**
@@ -642,7 +642,7 @@ final class ChapterController extends WriterController
                 'revisions' => AdminUrl::to('chapters/' . $chapter->id . '/revisions'),
             ],
             'revisionCount' => $chapter === null ? 0 : $this->chapters->countRevisions($chapter->id),
-            'limits' => ['title' => ChapterService::TITLE_MAX, 'notes' => ChapterService::NOTES_MAX],
+            'limits' => ['title' => ChapterService::TITLE_MAX, 'notes' => ChapterService::NOTES_MAX, 'end_notes' => ChapterService::END_NOTES_MAX],
         ], $user, $chapter === null ? 'New chapter' : 'Edit chapter', self::PATH, $this->flash->pull($request->cookies), $status);
     }
 
@@ -694,23 +694,24 @@ final class ChapterController extends WriterController
             'content' => $request->input('content') ?? '',
             'content_format' => $request->input('content_format') ?? '',
             'notes' => $request->input('notes') ?? '',
+            'end_notes' => $request->input('end_notes') ?? '',
         ];
     }
 
     /**
-     * @return array{title: string, content: string, content_format: string, notes: string}
+     * @return array{title: string, content: string, content_format: string, notes: string, end_notes: string}
      */
     private function valuesOf(Chapter $chapter): array
     {
-        return ['title' => $chapter->title, 'content' => $chapter->content, 'content_format' => $chapter->format->value, 'notes' => $chapter->notes];
+        return ['title' => $chapter->title, 'content' => $chapter->content, 'content_format' => $chapter->format->value, 'notes' => $chapter->notes, 'end_notes' => $chapter->endNotes];
     }
 
     /**
-     * @param array{title: string, content: string, content_format: string, notes: string} $values
-     * @return array{title: string, content: string, format: string, notes: string}
+     * @param array{title: string, content: string, content_format: string, notes: string, end_notes: string} $values
+     * @return array{title: string, content: string, format: string, notes: string, end_notes: string}
      */
     private function serviceInput(array $values): array
     {
-        return ['title' => $values['title'], 'content' => $values['content'], 'format' => $values['content_format'], 'notes' => $values['notes']];
+        return ['title' => $values['title'], 'content' => $values['content'], 'format' => $values['content_format'], 'notes' => $values['notes'], 'end_notes' => $values['end_notes']];
     }
 }

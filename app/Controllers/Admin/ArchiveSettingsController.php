@@ -116,6 +116,7 @@ final class ArchiveSettingsController extends AdminController
             'email_verification' => $request->checked('email_verification'),
             'hold_first_story' => $request->checked('hold_first_story'),
             'require_signin' => $request->checked('require_signin'),
+            'writer_tags' => $request->checked('writer_tags'),
         ];
 
         if (!$this->validToken($request, 'admin_settings_archive')) {

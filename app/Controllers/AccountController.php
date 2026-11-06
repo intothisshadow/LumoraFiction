@@ -38,6 +38,7 @@ use LumoraFiction\Services\FormGuard;
 use LumoraFiction\Services\GuardDecision;
 use LumoraFiction\Services\GuardOutcome;
 use LumoraFiction\Services\LoginOutcome;
+use LumoraFiction\Services\PrivacySettings;
 use LumoraFiction\Services\ReaderPreferences;
 use LumoraFiction\Services\RegistrationGuard;
 use LumoraFiction\Services\StoryFollowService;
@@ -65,6 +66,7 @@ final class AccountController
         private readonly RegistrationGuard $registrationGuard,
         private readonly FormGuard $formGuard,
         private readonly StoryFollowService $follows,
+        private readonly ?PrivacySettings $privacy = null,
     ) {
     }
 
@@ -259,9 +261,15 @@ final class AccountController
 
         $form = $this->form('account_register', PublicUrl::account('register'), 'Create account', $fields, '', isset($errors['form']) ? [$errors['form']] : []);
 
-        return $this->page($request, 'Create an account', 'register', [$form], $status, [], [
-            ['label' => 'Already have an account? Sign in', 'url' => PublicUrl::account('sign-in')],
-        ]);
+        $links = [['label' => 'Already have an account? Sign in', 'url' => PublicUrl::account('sign-in')]];
+        $policy = $this->privacy?->link();
+
+        // Someone about to hand over an email address can read what happens to it first.
+        if ($policy !== null) {
+            $links[] = ['label' => 'Read the ' . $policy['label'], 'url' => $policy['url']];
+        }
+
+        return $this->page($request, 'Create an account', 'register', [$form], $status, [], $links);
     }
 
     /**
@@ -657,6 +665,8 @@ final class AccountController
             $shortcuts[] = ['label' => $waiting > 0 ? 'Updated stories (' . number_format($waiting) . ')' : 'Updated stories', 'url' => PublicUrl::account('updates')];
             $shortcuts[] = ['label' => 'My bookmarks', 'url' => PublicUrl::account('bookmarks')];
         }
+
+        $shortcuts[] = ['label' => 'Your data and privacy', 'url' => PublicUrl::account('privacy')];
 
         return $shortcuts;
     }

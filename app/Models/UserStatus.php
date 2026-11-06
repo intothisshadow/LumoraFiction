@@ -22,4 +22,6 @@ enum UserStatus: string
     case Pending = 'pending';
     case Active = 'active';
     case Suspended = 'suspended';
+    /** An account whose personal data was removed. The row stays only so the stories kept under a neutral name still have an owner. */
+    case Deleted = 'deleted';
 }

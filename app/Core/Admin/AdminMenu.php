@@ -70,6 +70,16 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'pages',
+                'label' => 'Pages',
+                'path' => 'pages',
+                'capability' => Capability::ManageSite,
+                'children' => [
+                    ['slug' => 'pages-all', 'label' => 'All pages', 'path' => 'pages', 'capability' => Capability::ManageSite],
+                    ['slug' => 'pages-new', 'label' => 'Add a page', 'path' => 'pages/new', 'capability' => Capability::ManageSite],
+                ],
+            ],
+            [
                 'slug' => 'profile',
                 'label' => 'Author profile',
                 'path' => 'profile',
@@ -114,6 +124,7 @@ final class AdminMenu
                     ['slug' => 'settings-front-page', 'label' => 'Front page', 'path' => 'settings/front-page', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
                 ],
             ],
             [
@@ -129,6 +140,7 @@ final class AdminMenu
                     ['slug' => 'maintenance-mode', 'label' => 'Maintenance mode', 'path' => 'maintenance/mode', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-plugins', 'label' => 'Plugins', 'path' => 'maintenance/plugins', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-security-events', 'label' => 'Security events', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
+                    ['slug' => 'maintenance-privacy', 'label' => 'Privacy requests', 'path' => 'maintenance/privacy', 'capability' => Capability::ManageUsers],
                 ],
             ],
         ];

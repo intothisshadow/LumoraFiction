@@ -27,6 +27,7 @@ use LumoraFiction\Models\TermType;
 /** @var array{name: string, fandom: string, alias: string, description?: string, hidden?: bool} $values */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
+/** @var bool $curated */
 /** @var string $csrfToken */
 /** @var string $action */
 /** @var string $listUrl */
@@ -62,7 +63,7 @@ $editing = $mode === 'edit' && $term !== null;
             <p><strong>Fandom:</strong> <?= Html::e($parentName !== '' ? $parentName : 'None') ?></p>
         <?php endif; ?>
 
-        <?php if ($editing && !$type->writersMayPropose()): ?>
+        <?php if ($editing && $curated): ?>
             <div class="lf-field<?= isset($errors['name']) && str_contains($errors['name'], 'description') ? ' lf-field--error' : '' ?>">
                 <label for="description">Description</label>
                 <textarea id="description" name="description" rows="2" maxlength="300" aria-describedby="description_hint"><?= Html::e((string) ($values['description'] ?? $term->description)) ?></textarea>

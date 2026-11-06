@@ -43,6 +43,8 @@ final class ChapterService
 
     public const NOTES_MAX = 4000;
 
+    public const END_NOTES_MAX = 4000;
+
     /** Large enough to move every number out of the way during a reorder. */
     private const RENUMBER_OFFSET = 1000000;
 
@@ -96,18 +98,19 @@ final class ChapterService
 
         $this->database->transaction(function () use ($actor, $chapter, $values, $ipAddress): void {
             // What is about to be replaced is kept first, only when something it holds actually changes.
-            if ($values['title'] !== $chapter->title || $values['content'] !== $chapter->content || $values['format'] !== $chapter->format || $values['notes'] !== $chapter->notes) {
+            if ($values['title'] !== $chapter->title || $values['content'] !== $chapter->content || $values['format'] !== $chapter->format || $values['notes'] !== $chapter->notes || $values['end_notes'] !== $chapter->endNotes) {
                 $this->keepRevision($chapter, $actor->id);
             }
 
             $this->database->execute(
-                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes,
+                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes, end_notes = :end_notes,
                  word_count = :words, updated_at = :updated WHERE id = :id',
                 [
                     'title' => $values['title'],
                     'content' => $values['content'],
                     'format' => $values['format']->value,
                     'notes' => $values['notes'],
+                    'end_notes' => $values['end_notes'],
                     'words' => WordCounter::count($values['content'], $values['format']),
                     'updated' => date('Y-m-d H:i:s'),
                     'id' => $chapter->id,
@@ -462,13 +465,14 @@ final class ChapterService
         $this->database->transaction(function () use ($actor, $chapter, $revision, $ipAddress): void {
             $this->keepRevision($chapter, $actor->id);
             $this->database->execute(
-                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes,
+                'UPDATE {prefix}chapters SET title = :title, content = :content, content_format = :format, notes = :notes, end_notes = :end_notes,
                  word_count = :words, updated_at = :updated WHERE id = :id',
                 [
                     'title' => $revision->title,
                     'content' => $revision->content,
                     'format' => $revision->format->value,
                     'notes' => $revision->notes,
+                    'end_notes' => $revision->endNotes,
                     'words' => WordCounter::count($revision->content, $revision->format),
                     'updated' => date('Y-m-d H:i:s'),
                     'id' => $chapter->id,
@@ -487,14 +491,15 @@ final class ChapterService
     private function keepRevision(Chapter $chapter, ?int $userId): void
     {
         $this->database->execute(
-            'INSERT INTO {prefix}chapter_revisions (chapter_id, title, content, content_format, notes, word_count, created_by, created_at)
-             VALUES (:chapter, :title, :content, :format, :notes, :words, :user, :created)',
+            'INSERT INTO {prefix}chapter_revisions (chapter_id, title, content, content_format, notes, end_notes, word_count, created_by, created_at)
+             VALUES (:chapter, :title, :content, :format, :notes, :end_notes, :words, :user, :created)',
             [
                 'chapter' => $chapter->id,
                 'title' => $chapter->title,
                 'content' => $chapter->content,
                 'format' => $chapter->format->value,
                 'notes' => $chapter->notes,
+                'end_notes' => $chapter->endNotes,
                 'words' => $chapter->wordCount,
                 'user' => $userId,
                 'created' => date('Y-m-d H:i:s'),
@@ -551,6 +556,7 @@ final class ChapterService
             wordCount: (int) $row['word_count'],
             createdBy: $row['created_by'] === null ? null : (int) $row['created_by'],
             createdAt: new DateTimeImmutable((string) $row['created_at']),
+            endNotes: (string) ($row['end_notes'] ?? ''),
         );
     }
 
@@ -639,7 +645,7 @@ final class ChapterService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{title: string, content: string, format: ContentFormat, notes: string}
+     * @return array{title: string, content: string, format: ContentFormat, notes: string, end_notes: string}
      */
     private function validated(array $input, ?Chapter $existing): array
     {
@@ -681,15 +687,25 @@ final class ChapterService
             $errors['notes'] = 'Keep the notes to ' . self::NOTES_MAX . ' characters or fewer.';
         }
 
+        $endNotes = array_key_exists('end_notes', $input) ? $input['end_notes'] : ($existing->endNotes ?? '');
+        $endNotes = is_string($endNotes) ? trim(str_replace(["\r\n", "\r"], "\n", $endNotes)) : null;
+
+        if ($endNotes === null || !mb_check_encoding($endNotes, 'UTF-8') || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $endNotes) === 1) {
+            $errors['end_notes'] = 'This contains characters that are not allowed.';
+            $endNotes = '';
+        } elseif (mb_strlen($endNotes, 'UTF-8') > self::END_NOTES_MAX) {
+            $errors['end_notes'] = 'Keep the end notes to ' . self::END_NOTES_MAX . ' characters or fewer.';
+        }
+
         if ($errors !== []) {
             throw new StoryValidationException($errors);
         }
 
-        return ['title' => $title, 'content' => $content, 'format' => $format ?? ContentFormat::Html, 'notes' => $notes];
+        return ['title' => $title, 'content' => $content, 'format' => $format ?? ContentFormat::Html, 'notes' => $notes, 'end_notes' => $endNotes];
     }
 
     /**
-     * @param array{title: string, content: string, format: ContentFormat, notes: string} $values
+     * @param array{title: string, content: string, format: ContentFormat, notes: string, end_notes: string} $values
      */
     private function insert(int $storyId, array $values): int
     {
@@ -703,9 +719,9 @@ final class ChapterService
 
             try {
                 return (int) $this->database->insertGetId(
-                    'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, word_count,
+                    'INSERT INTO {prefix}chapters (story_id, number, title, content, content_format, notes, end_notes, word_count,
                      publication_state, published_at, created_at, updated_at)
-                     VALUES (:story, :number, :title, :content, :format, :notes, :words, :state, NULL, :created, :updated)',
+                     VALUES (:story, :number, :title, :content, :format, :notes, :end_notes, :words, :state, NULL, :created, :updated)',
                     [
                         'story' => $storyId,
                         'number' => $next,
@@ -713,6 +729,7 @@ final class ChapterService
                         'content' => $values['content'],
                         'format' => $values['format']->value,
                         'notes' => $values['notes'],
+                        'end_notes' => $values['end_notes'],
                         'words' => WordCounter::count($values['content'], $values['format']),
                         'state' => PublicationState::Draft->value,
                         'created' => $now,
@@ -789,6 +806,7 @@ final class ChapterService
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
             trashedAt: is_string($row['trashed_at'] ?? null) && $row['trashed_at'] !== '' ? new DateTimeImmutable($row['trashed_at']) : null,
+            endNotes: (string) ($row['end_notes'] ?? ''),
         );
     }
 }

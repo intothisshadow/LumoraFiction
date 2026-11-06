@@ -31,6 +31,7 @@ final readonly class ChapterRevision
         public int $wordCount,
         public ?int $createdBy,
         public DateTimeImmutable $createdAt,
+        public string $endNotes = '',
     ) {
     }
 }

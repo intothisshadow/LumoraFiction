@@ -58,7 +58,7 @@ final class TermSuggestController
         $type = TermType::tryFrom($request->queryValue('type') ?? '');
 
         // Only the kinds a writer types by name, and only those the archive mode has not switched off.
-        if ($type === null || !$type->writersMayPropose() || !$this->taxonomy->isEnabled($type)) {
+        if ($type === null || !$this->taxonomy->writersMayPropose($type) || !$this->taxonomy->isEnabled($type)) {
             return $this->json(['ok' => false, 'message' => 'That kind cannot be suggested.'], 422);
         }
 
