@@ -35,6 +35,7 @@ final readonly class ThemeInfo
         public string $requiresPhp = '',
         public string $requiresApp = '',
         public bool $bundled = false,
+        public string $designUri = '',
     ) {
     }
 

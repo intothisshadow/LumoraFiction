@@ -80,8 +80,8 @@ $editing = $mode === 'edit' && $term !== null;
         <?php if ($editing): ?>
             <div class="lf-choice">
                 <input type="checkbox" id="reviewed" name="reviewed" value="1"<?= $term->reviewed ? ' checked' : '' ?>>
-                <label for="reviewed">Reviewed</label>
-                <p class="lf-hint">Untick to mark a term as waiting for review. Terms writers propose start unticked.</p>
+                <label for="reviewed">Approved</label>
+                <p class="lf-hint">Untick to mark a term as unapproved, waiting for review. Terms writers propose start unticked.</p>
             </div>
             <p class="lf-hint"><?= (int) $term->storyCount ?> public <?= $term->storyCount === 1 ? 'story uses' : 'stories use' ?> this term. Address: <code><?= Html::e($term->slug) ?></code></p>
         <?php endif; ?>

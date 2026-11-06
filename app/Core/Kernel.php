@@ -51,6 +51,16 @@ use LumoraFiction\Services\StoryDocumentFactory;
 use LumoraFiction\Services\StoryDownloads;
 use LumoraFiction\Controllers\NewsController;
 use LumoraFiction\Controllers\Admin\PrivacyRequestsController;
+use LumoraFiction\Controllers\Admin\CommentsController as AdminCommentsController;
+use LumoraFiction\Controllers\Admin\CommentSettingsController;
+use LumoraFiction\Controllers\CommentController;
+use LumoraFiction\Services\ActivityDescriber;
+use LumoraFiction\Services\CommentGuard;
+use LumoraFiction\Services\CommentNotifier;
+use LumoraFiction\Services\CommentPresenter;
+use LumoraFiction\Services\CommentService;
+use LumoraFiction\Services\CommentSettings;
+use LumoraFiction\Controllers\Admin\SiteLocationController;
 use LumoraFiction\Controllers\Admin\PrivacySettingsController;
 use LumoraFiction\Controllers\PrivacyController;
 use LumoraFiction\Services\AccountDataExporter;
@@ -144,6 +154,7 @@ use LumoraFiction\Services\RegistrationGuard;
 use LumoraFiction\Services\SecurityEventLog;
 use LumoraFiction\Services\SecuritySettings;
 use LumoraFiction\Services\SiteAlerts;
+use LumoraFiction\Services\SiteLocation;
 use LumoraFiction\Services\SpamSettings;
 use LumoraFiction\Services\BookmarkService;
 use LumoraFiction\Services\FollowPresenter;
@@ -194,6 +205,13 @@ final class Kernel
      * Whether visitors are being turned away, set once the kernel has booted; the front controller's own check runs earlier.
      */
     public ?MaintenanceMode $maintenance = null;
+
+    /**
+     * Reader comments, set once the kernel has booted.
+     */
+    public ?CommentService $comments = null;
+
+    public ?CommentGuard $commentGuard = null;
 
     /**
      * Applies database changes that arrived with newly uploaded files, when an Administrator opens the admin.
@@ -284,7 +302,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -306,7 +324,7 @@ final class Kernel
         $audit = new AuditLogService($database);
         $mailer = new NativeMailer('noreply@' . (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost'));
         $alerts = new SiteAlerts($database, $config, $hooks, $audit, $mailer, (string) $config->setting('site.name', 'Lumora Fiction'), $siteUrl);
-        (new CoreAlerts($config, $root))->register($hooks);
+        (new CoreAlerts($config, $root, new SiteLocation($config, $root, $audit, $root . '/config/config.php')))->register($hooks);
         $notifications = new NotificationService($database);
         (new StoryNotifier($notifications, $database))->register($hooks);
         $securityEvents = new SecurityEventLog($database, $config, $alerts);
@@ -370,7 +388,14 @@ final class Kernel
         $authorProfiles = new AuthorProfileService($kernel->database, $renderer, $avatars, $kernel->audit);
 
         $kernel->privacy = new PrivacySettings($config, $database, $audit, $kernel->pages);
-        $kernel->accountExporter = new AccountDataExporter($database);
+        $kernel->comments = new CommentService($database, new CommentSettings($config, $audit), $audit, $hooks);
+        $kernel->commentGuard = new CommentGuard($formGuard, $spamSettings, $akismet);
+        (new CommentNotifier($notifications, $kernel->comments, $database, $mailer, $siteUrl, (string) $config->setting('site.name', 'Lumora Fiction')))->register($hooks);
+        // A deleted account keeps its comments under the neutral name; what it reported and its own settings go.
+        $hooks->addAction('account_deleted', static function (int $userId) use ($kernel): void {
+            $kernel->comments?->forgetUser($userId);
+        });
+        $kernel->accountExporter = new AccountDataExporter($database, $kernel->comments);
         $kernel->accountDeletion = new AccountDeletionService(
             $database,
             $stories,
@@ -426,11 +451,13 @@ final class Kernel
     private static function registerPublic(self $kernel, ThemeOptions $themeOptions, TaxonomyService $taxonomy, StoryService $stories, ChapterService $chapters, ContentRenderer $renderer, StoryPresenter $presenter, FlashMessages $flash, EditorSettings $editorSettings, RegistrationGuard $registrationGuard, FormGuard $formGuard, AuthorProfileService $authorProfiles, NewsService $news, NewsPresenter $newsPresenter): void
     {
         $readerPreferences = new ReaderPreferences($kernel->database);
+        $commentService = $kernel->comments ?? throw new \LogicException('Built at boot.');
+        $commentPresenter = new CommentPresenter($commentService);
         $bookmarks = new BookmarkService($kernel->database, $stories);
         $bookmarkPresenter = new BookmarkPresenter($bookmarks);
         $storyFollows = new StoryFollowService($kernel->database, $stories);
         $followPresenter = new FollowPresenter();
-        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows, $kernel->privacy);
+        $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows, $kernel->privacy, $commentService);
         $privacyPages = new PrivacyController($kernel->themes, $kernel->auth, $flash, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->audit);
         $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash, $storyFollows, $followPresenter);
         $readingProgress = new ReadingProgressService($kernel->database, $stories);
@@ -470,6 +497,7 @@ final class Kernel
             $kernel->downloadAccess !== null && $kernel->storyDownloads !== null && $kernel->downloadCounter !== null
                 ? new DownloadPresenter($kernel->config, $kernel->downloadAccess, $kernel->storyDownloads, $kernel->downloadCounter)
                 : null,
+            $commentPresenter,
         );
         $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config);
 
@@ -498,6 +526,7 @@ final class Kernel
         $kernel->router->post(PublicUrl::PROFILE . '/password', $account->updatePassword(...), 'account.profile.password');
         $kernel->router->post(PublicUrl::PROFILE . '/editor', $account->updateEditor(...), 'account.profile.editor');
         $kernel->router->post(PublicUrl::READING, $account->updateReading(...), 'account.profile.reading');
+        $kernel->router->post(PublicUrl::COMMENT_PREFERENCES, $account->updateComments(...), 'account.profile.comments');
 
         // Route patterns never carry the install folder, so these are written out rather than built with PublicUrl::account().
         $kernel->router->get('/account/privacy', $privacyPages->show(...), 'account.privacy');
@@ -526,6 +555,14 @@ final class Kernel
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
 
+        $commentPages = new CommentController($kernel->themes, $kernel->auth, $commentService, $commentPresenter, $kernel->commentGuard ?? throw new \LogicException('Built at boot.'), $stories, $chapters, $flash);
+        $kernel->router->post(PublicUrl::COMMENT_POST, $commentPages->post(...), 'comment.post');
+        $kernel->router->get(PublicUrl::COMMENT_EDIT, $commentPages->showEdit(...), 'comment.edit');
+        $kernel->router->post(PublicUrl::COMMENT_EDIT, $commentPages->edit(...), 'comment.edit.submit');
+        $kernel->router->post(PublicUrl::COMMENT_DELETE, $commentPages->delete(...), 'comment.delete');
+        $kernel->router->get(PublicUrl::COMMENT_REPORT, $commentPages->showReport(...), 'comment.report');
+        $kernel->router->post(PublicUrl::COMMENT_REPORT, $commentPages->report(...), 'comment.report.submit');
+
         if ($kernel->downloadAccess !== null && $kernel->storyDownloads !== null && $kernel->downloadCounter !== null) {
             $downloads = new DownloadController($kernel->themes, $stories, $kernel->downloadAccess, $kernel->storyDownloads, $kernel->downloadCounter, $kernel->auth, $kernel->config);
             $kernel->router->get(PublicUrl::DOWNLOAD, $downloads->download(...), 'story.download');
@@ -553,6 +590,7 @@ final class Kernel
             static fn (User $user): int => $alerts->badgeCount($user),
             static fn (User $user): int => $notifications->countUnread($user),
             static fn (User $user): array => $maintenanceNotice->forUser($user),
+            static fn (User $user): int => $kernel->comments?->queueCount($user) ?? 0,
         );
         $kernel->admin = $view;
 
@@ -578,15 +616,15 @@ final class Kernel
         AdminRoutes::register(
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
-            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news, $maintenanceNotice),
+            new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news, $maintenanceNotice, new ActivityDescriber(), $kernel->comments),
             new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets')),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
             new TermSuggestController($kernel->auth, $taxonomy),
             new AuthorProfileController($kernel->auth, $view, $flash, $authorProfiles, $editor, $kernel->downloadAccess, $kernel->config),
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
-            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config),
-            new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config, $kernel->comments),
+            new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter, $kernel->comments),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
             new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config, $authorProfiles),
             new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, $themeSettings, $themeOptions, new ThemeManager(
@@ -618,6 +656,9 @@ final class Kernel
             new AdminPageController($kernel->auth, $view, $flash, $kernel->pages ?? throw new \LogicException('Pages are built at boot.'), $editor, $kernel->themes, new PagePresenter($renderer)),
             new PrivacySettingsController($kernel->auth, $view, $flash, $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->pages),
             new PrivacyRequestsController($kernel->auth, $view, $flash, $kernel->users, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy, $kernel->audit),
+            new AdminCommentsController($kernel->auth, $view, $flash, $kernel->comments ?? throw new \LogicException('Built at boot.')),
+            new CommentSettingsController($kernel->auth, $view, $flash, new CommentSettings($kernel->config, $kernel->audit)),
+            new SiteLocationController($kernel->auth, $view, $flash, new SiteLocation($kernel->config, $root, $kernel->audit, $root . '/config/config.php'), $kernel->config),
         );
     }
 

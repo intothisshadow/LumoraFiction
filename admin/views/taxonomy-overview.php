@@ -31,7 +31,7 @@ use LumoraFiction\Models\TermType;
 ?>
 <?= $errorSummary ?>
 
-<p class="lf-lead">The lists writers choose from when they classify a story. Writers can add new fandoms, characters, relationships, and tags while writing; those wait here, marked as not yet reviewed, until you approve or merge them. Ratings, archive warnings, relationship categories and story status can be filled from ready-made <a href="<?= Html::e(AdminUrl::to('settings/archive')) ?>#lf-presets-heading">starter lists</a> under Settings.</p>
+<p class="lf-lead">The lists writers choose from when they classify a story. Writers can add new fandoms, characters, relationships, and tags while writing; those wait here, marked as unapproved, until you approve or merge them. Ratings, archive warnings, relationship categories and story status can be filled from ready-made <a href="<?= Html::e(AdminUrl::to('settings/archive')) ?>#lf-presets-heading">starter lists</a> under Settings.</p>
 
 <table class="lf-table lf-table--lists">
     <caption class="lf-visually-hidden">Classification lists</caption>
@@ -39,7 +39,7 @@ use LumoraFiction\Models\TermType;
         <tr>
             <th scope="col">List</th>
             <th scope="col">Terms</th>
-            <th scope="col">Not yet reviewed</th>
+            <th scope="col">Unapproved</th>
         </tr>
     </thead>
     <tbody>
@@ -50,7 +50,7 @@ use LumoraFiction\Models\TermType;
                 <td><?= (int) $row['total'] ?></td>
                 <td>
                     <?php if ($row['unreviewed'] > 0): ?>
-                        <a href="<?= Html::e($baseUrl . '/' . $type->value . '?unreviewed=1') ?>"><?= (int) $row['unreviewed'] ?></a>
+                        <a href="<?= Html::e($baseUrl . '/' . $type->value . '?status=unapproved') ?>"><?= (int) $row['unreviewed'] ?></a>
                     <?php else: ?>
                         0
                     <?php endif; ?>

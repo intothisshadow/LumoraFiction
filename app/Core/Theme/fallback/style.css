@@ -393,6 +393,131 @@ a:focus-visible {
     border-left: 4px solid var(--lf-fb-border);
 }
 
+/* Comments under a chapter. */
+
+.lf-comments {
+    margin: 2rem 0 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--lf-fb-border);
+}
+
+.lf-comments__heading {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+}
+
+.lf-comments__count,
+.lf-comments__empty,
+.lf-comments__page-status,
+.lf-comment__date,
+.lf-comment__edited,
+.lf-comment__status {
+    color: var(--lf-fb-muted);
+}
+
+.lf-comments__closed {
+    margin: 0 0 1rem;
+}
+
+.lf-comments__list {
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-comment {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--lf-fb-surface);
+    border: 1px solid var(--lf-fb-border);
+}
+
+.lf-comment--author {
+    border-left: 4px solid var(--lf-fb-link);
+}
+
+.lf-comment--pending {
+    border-style: dashed;
+}
+
+.lf-comment__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin: 0 0 0.4rem;
+    font-size: 0.9rem;
+}
+
+.lf-comment__name {
+    font-weight: 600;
+}
+
+.lf-comment__badge {
+    padding: 0.05rem 0.5rem;
+    color: var(--lf-fb-link);
+    border: 1px solid var(--lf-fb-link);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.lf-comment__body {
+    overflow-wrap: anywhere;
+}
+
+.lf-comment__body p {
+    margin: 0 0 0.6rem;
+}
+
+.lf-comment__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.lf-comment__delete {
+    display: inline;
+    margin: 0;
+}
+
+.lf-comment__action--button {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--lf-fb-link);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.lf-comments__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.lf-comments__page-link {
+    color: var(--lf-fb-link);
+}
+
+.lf-comments__form {
+    margin-top: 1rem;
+}
+
+.lf-form__textarea {
+    min-height: 7rem;
+    resize: vertical;
+}
+
+.lf-story__comment-count {
+    color: var(--lf-fb-muted);
+}
+
 .lf-chapter__text {
     margin-block: 1.5rem;
     font-family: Georgia, "Times New Roman", serif;

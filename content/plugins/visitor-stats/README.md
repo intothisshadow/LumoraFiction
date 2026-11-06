@@ -11,9 +11,8 @@ Turning the plugin on collects nothing by itself. Counting starts only when you 
 
 ## What is counted
 
-One view is counted each time someone who is **not signed in** opens a story page or a chapter page. These never count:
+One view is counted each time someone opens a story page or a chapter page, whether or not they are signed in. A signed-in reader is counted anonymously in the same totals: the plugin does not look at who they are and stores nothing about them, so your own visits and the story author's are counted like anyone else's. These never count:
 
-- Signed-in people, including you and the story's own author.
 - Previews, drafts, stories waiting for approval and unpublished stories.
 - Search engine robots and other programs that say what they are, and a browser that is only loading a page in the background to be quick.
 

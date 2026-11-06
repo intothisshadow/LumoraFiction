@@ -1324,6 +1324,167 @@ a.lf-term-link:hover {
     white-space: pre-line;
 }
 
+/* Comments under a chapter. Colours come from the tokens above, so dark mode follows without extra rules. */
+
+.lf-comments {
+    margin: 2.5rem 0 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--lf-border);
+}
+
+.lf-comments__heading {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+}
+
+.lf-comments__count {
+    color: var(--lf-muted);
+    font-size: 0.9em;
+    font-weight: normal;
+}
+
+.lf-comments__closed {
+    margin: 0 0 1rem;
+}
+
+.lf-comments__empty {
+    margin: 0 0 1.5rem;
+    color: var(--lf-muted);
+}
+
+.lf-comments__list {
+    margin: 0 0 1.5rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-comment {
+    margin: 0 0 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-comment--author {
+    border-left: 4px solid var(--lf-link);
+}
+
+.lf-comment--pending {
+    border-style: dashed;
+}
+
+.lf-comment__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin: 0 0 0.4rem;
+    font-family: var(--lf-font-ui);
+    font-size: 0.9rem;
+}
+
+.lf-comment__name {
+    font-weight: 600;
+}
+
+/* Real text with a border, not colour alone, so it reads the same in forced-colours mode and to a screen reader. */
+.lf-comment__badge {
+    padding: 0.05rem 0.5rem;
+    background: var(--lf-bg);
+    color: var(--lf-link);
+    border: 1px solid var(--lf-link);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.lf-comment__date,
+.lf-comment__edited {
+    color: var(--lf-muted);
+}
+
+.lf-comment__status {
+    margin: 0 0 0.5rem;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.lf-comment__body {
+    overflow-wrap: anywhere;
+}
+
+.lf-comment__body p {
+    margin: 0 0 0.6rem;
+}
+
+.lf-comment__body p:last-child {
+    margin-bottom: 0;
+}
+
+.lf-comment__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    margin-top: 0.5rem;
+    font-family: var(--lf-font-ui);
+    font-size: 0.85rem;
+}
+
+.lf-comment__action {
+    color: var(--lf-link);
+}
+
+.lf-comment__action:hover {
+    color: var(--lf-link-hover);
+}
+
+.lf-comment__delete {
+    display: inline;
+    margin: 0;
+}
+
+.lf-comment__action--button {
+    padding: 0;
+    background: none;
+    border: 0;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.lf-comments__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin: 0 0 1.5rem;
+    font-family: var(--lf-font-ui);
+}
+
+.lf-comments__page-link {
+    color: var(--lf-link);
+}
+
+.lf-comments__page-status {
+    color: var(--lf-muted);
+}
+
+.lf-comments__form {
+    margin-top: 1rem;
+}
+
+.lf-comments__signin {
+    margin: 0;
+    font-family: var(--lf-font-ui);
+}
+
+.lf-form__textarea {
+    min-height: 7rem;
+    resize: vertical;
+}
+
 .lf-chapter__text {
     margin-block: 2rem;
     font-family: var(--lf-story-font);

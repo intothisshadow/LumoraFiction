@@ -577,6 +577,9 @@ fieldset.lf-card legend {
 
 .lf-field input[type="text"],
 .lf-field input[type="password"],
+.lf-field input[type="url"],
+.lf-field input[type="email"],
+.lf-field input[type="date"],
 .lf-field select {
     width: 100%;
     max-width: 28rem;
@@ -708,6 +711,40 @@ fieldset.lf-card legend {
     flex-wrap: wrap;
     gap: 0.5rem 1rem;
     margin: 1rem 0;
+}
+
+.lf-status-filter ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.5rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-status-filter__link {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text);
+    text-decoration: none;
+}
+
+/* The current choice is told apart by weight and a filled background as well as colour. */
+.lf-status-filter__link--current {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: bold;
+}
+
+.lf-bulk__count {
+    font-weight: bold;
+}
+
+.lf-bulk__matching {
+    margin: 0 0 1rem;
 }
 
 .lf-alias-list {
@@ -1041,7 +1078,7 @@ fieldset.lf-card legend {
 }
 
 .lf-theme-details__shot {
-    max-width: 30rem;
+    max-width: 20rem;
 }
 
 .lf-theme-card__actions,
@@ -1097,6 +1134,25 @@ fieldset.lf-card legend {
     margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--border);
+}
+
+/* The tick box and its words sit on one row; a block label would drop below the box. */
+.lf-theme-details__update .lf-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.lf-theme-details__update .lf-choice input {
+    flex: none;
+    margin: 0;
+}
+
+.lf-theme-details__update .lf-choice label {
+    display: inline;
+    margin: 0;
+    font-weight: normal;
 }
 
 .lf-dialog {

@@ -100,6 +100,20 @@ if (!function_exists('lf_downloads')) {
     }
 }
 
+if (!function_exists('lf_comments')) {
+    /**
+     * Prints the comments under a chapter through the theme's comments part: the list, the count, and the form with its
+     * form token and spam-guard fields. Whether comments are on, closed or unavailable is decided in core, so a theme
+     * only calls this and never re-implements the form.
+     */
+    function lf_comments(): void
+    {
+        if (ThemeContext::current()?->has('comments.anchor') === true) {
+            ThemeContext::current()->part('comments');
+        }
+    }
+}
+
 if (!function_exists('lf_navigation')) {
     /** Prints the main menu as a list of links. */
     function lf_navigation(string $label = 'Main'): void

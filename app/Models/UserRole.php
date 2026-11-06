@@ -54,9 +54,11 @@ enum UserRole: string
                 Capability::PublishWithoutReview,
                 Capability::Bookmark,
                 Capability::PublishNews,
+                Capability::Comment,
+                Capability::ModerateComments,
             ],
-            self::Author => [Capability::AccessAdmin, Capability::WriteStories, Capability::Bookmark],
-            self::Reader => [Capability::Bookmark],
+            self::Author => [Capability::AccessAdmin, Capability::WriteStories, Capability::Bookmark, Capability::Comment],
+            self::Reader => [Capability::Bookmark, Capability::Comment],
         };
     }
 

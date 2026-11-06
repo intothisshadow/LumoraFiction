@@ -28,4 +28,6 @@ enum Capability: string
     case PublishWithoutReview = 'publish_without_review';
     case Bookmark = 'bookmark';
     case PublishNews = 'publish_news';
+    case Comment = 'comment';
+    case ModerateComments = 'moderate_comments';
 }

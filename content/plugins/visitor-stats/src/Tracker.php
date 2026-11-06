@@ -63,7 +63,8 @@ final class Tracker
      */
     public function handle(Story $story, ?Chapter $chapter, ?User $viewer, Request $request): void
     {
-        if (!self::isOn($this->config) || $viewer !== null || $request->method !== 'GET' || $this->isPrefetch($request)) {
+        // $viewer is deliberately ignored: a signed-in reader counts like anyone else and nothing about them is kept.
+        if (!self::isOn($this->config) || $request->method !== 'GET' || $this->isPrefetch($request)) {
             return;
         }
 

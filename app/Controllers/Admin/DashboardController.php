@@ -28,6 +28,7 @@ use LumoraFiction\Models\User;
 use LumoraFiction\Services\ActivityDescriber;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\MaintenanceNotice;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\SiteAlerts;
@@ -50,6 +51,7 @@ final class DashboardController extends AdminController
         private readonly NewsService $news,
         private readonly ?MaintenanceNotice $maintenance = null,
         private readonly ActivityDescriber $describer = new ActivityDescriber(),
+        private readonly ?CommentService $comments = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -81,6 +83,8 @@ final class DashboardController extends AdminController
             'writing' => $user->can(Capability::WriteStories) ? $this->stories->countsByState($user->id) : null,
             'awaitingApproval' => $user->can(Capability::ModerateStories) ? $this->stories->countPending($user) : null,
             'reviewUrl' => AdminUrl::to('review'),
+            'commentsWaiting' => $this->comments !== null && $user->can(Capability::WriteStories) && $this->comments->settings()->enabled() ? $this->comments->queueCount($user) : null,
+            'commentsUrl' => AdminUrl::to('comments') . '?status=pending',
             'newsCounts' => $user->can(Capability::PublishNews) ? $this->news->countsByState() : null,
             'newsUrl' => AdminUrl::to('news'),
             'newNewsUrl' => AdminUrl::to('news/new'),

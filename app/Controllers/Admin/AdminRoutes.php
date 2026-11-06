@@ -59,6 +59,9 @@ final class AdminRoutes
         PageController $pages,
         PrivacySettingsController $privacySettings,
         PrivacyRequestsController $privacyRequests,
+        CommentsController $commentsScreen,
+        CommentSettingsController $commentSettings,
+        SiteLocationController $siteLocation,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -143,6 +146,7 @@ final class AdminRoutes
         $router->get('/admin/taxonomy/{type}', $taxonomy->list(...), 'admin.taxonomy.list');
         $router->get('/admin/taxonomy/{type}/new', $taxonomy->showCreate(...));
         $router->post('/admin/taxonomy/{type}/new', $taxonomy->create(...));
+        $router->post('/admin/taxonomy/{type}/bulk', $taxonomy->bulk(...));
         // The fixed words "all", "new" and "bulk" come before {id} so they are never read as a story number.
         $router->get('/admin/stories', $stories->index(...), 'admin.stories');
         $router->get('/admin/stories/all', $stories->all(...), 'admin.stories.all');
@@ -219,5 +223,13 @@ final class AdminRoutes
         $router->post('/admin/maintenance/backups/{id}/delete', $backups->delete(...));
         $router->get('/admin/maintenance/mode', $maintenanceMode->show(...), 'admin.maintenance-mode');
         $router->post('/admin/maintenance/mode', $maintenanceMode->update(...));
+        $router->get('/admin/comments', $commentsScreen->index(...), 'admin.comments');
+        $router->post('/admin/comments/bulk', $commentsScreen->bulk(...), 'admin.comments.bulk');
+        $router->post('/admin/comments/closure', $commentsScreen->closure(...), 'admin.comments.closure');
+        $router->post('/admin/comments/account',$commentsScreen->account(...), 'admin.comments.account');
+        $router->get('/admin/settings/comments', $commentSettings->show(...), 'admin.settings.comments');
+        $router->post('/admin/settings/comments', $commentSettings->update(...));
+        $router->get('/admin/maintenance/site-location',$siteLocation->show(...), 'admin.site-location');
+        $router->post('/admin/maintenance/site-location', $siteLocation->update(...));
     }
 }

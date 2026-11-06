@@ -171,6 +171,25 @@ final class Configuration
     }
 
     /**
+     * Changes one value in config.php and writes the file again the same safe way the installer does. Only for a value
+     * an administrator may confirm from the admin (the site address); credentials and the secret key never change here.
+     */
+    public function updateFileValue(string $key, string $value): void
+    {
+        if ($key !== 'site_url') {
+            throw new InvalidArgumentException('That configuration value cannot be changed from the admin.');
+        }
+
+        $this->ensureFileLoaded();
+        $data = $this->fileConfig;
+        $data[$key] = $value;
+
+        self::generate($this->configFile, $data);
+
+        $this->fileConfig = $data;
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     private static function validateFileConfig(array $data): void

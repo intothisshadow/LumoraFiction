@@ -115,7 +115,14 @@ final class TaxonomyController extends AdminController
             return $this->missing('That kind of classification is not available.');
         }
 
-        $filters = ['search' => $request->queryValue('q') ?? '', 'unreviewed' => $request->queryValue('unreviewed') === '1'];
+        $listUrl = AdminUrl::to(self::PATH . '/' . $type->value);
+
+        // The older address of the unapproved filter, still linked from bookmarks, becomes the current one.
+        if ($request->queryValue('unreviewed') === '1' && $request->queryValue('status') === null) {
+            return Response::redirect($listUrl . $this->listQuery($request->queryValue('q') ?? '', 'unapproved', (int) ($request->queryValue('page') ?? 1)), 302);
+        }
+
+        $filters = ['search' => $request->queryValue('q') ?? '', 'status' => $this->status($request->queryValue('status'))];
         $total = $this->taxonomy->count($type, $filters);
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($pages, max(1, (int) ($request->queryValue('page') ?? 1)));
@@ -127,15 +134,110 @@ final class TaxonomyController extends AdminController
             'terms' => $terms,
             'parents' => $this->taxonomy->namesFor(array_map(static fn (Term $term): int => $term->parentId, $terms)),
             'filters' => $filters,
+            'statusCounts' => $this->taxonomy->statusCounts($type, $filters['search']),
             'total' => $total,
             'page' => $page,
             'pages' => $pages,
-            'listUrl' => AdminUrl::to(self::PATH . '/' . $type->value),
+            'perPage' => self::PER_PAGE,
+            'bulkUrl' => $listUrl . '/bulk',
+            'bulkLimit' => TaxonomyService::BULK_LIMIT,
+            'listUrl' => $listUrl,
             'newUrl' => AdminUrl::to(self::PATH . '/' . $type->value . '/new'),
             'overviewUrl' => AdminUrl::to(self::PATH),
             'termUrl' => AdminUrl::to(self::PATH . '/term'),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
         ], $user, $type->pluralLabel(), self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Approves, unapproves or deletes the ticked terms, or every term the current filter matches. Deleting, and any
+     * action on "everything that matches", asks for confirmation with the exact count first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $type = $this->enabledType($params['type'] ?? '');
+
+        if ($type === null) {
+            return $this->missing('That kind of classification is not available.');
+        }
+
+        $search = trim($request->input('q') ?? '');
+        $status = $this->status($request->input('status'));
+        $page = max(1, (int) ($request->input('page') ?? 1));
+        $back = Response::redirect(AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page), 303);
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return $back;
+        }
+
+        $action = $request->input('bulk_action') ?? '';
+        $everything = $request->checked('all_matching');
+        $confirmed = $request->checked('confirmed');
+
+        if (!in_array($action, ['approve', 'unapprove', 'delete'], true)) {
+            $this->flash->add('error', 'Choose what to do with the selected terms.');
+
+            return $back;
+        }
+
+        $ids = [];
+
+        if ($everything) {
+            // Read now, from the filter as it stands, and one more than the cap so "too many" can be told from "exactly the cap".
+            $ids = $this->taxonomy->idsMatching($type, ['search' => $search, 'status' => $status], TaxonomyService::BULK_LIMIT + 1);
+
+            if (count($ids) > TaxonomyService::BULK_LIMIT) {
+                $this->flash->add('error', 'More than ' . TaxonomyService::BULK_LIMIT . ' terms match. Narrow the list with the search or the status filter, then try again.');
+
+                return $back;
+            }
+
+            if ($confirmed && count($ids) !== (int) ($request->input('expected') ?? -1)) {
+                $this->flash->add('error', 'The list changed since you asked, so nothing was changed. Please check it and try again.');
+
+                return $back;
+            }
+        } else {
+            foreach ($request->inputList('ids') as $value) {
+                if (preg_match('/^[1-9][0-9]{0,9}\z/', $value) === 1) {
+                    $ids[] = (int) $value;
+                }
+            }
+
+            $ids = array_values(array_unique($ids));
+        }
+
+        if ($ids === []) {
+            $this->flash->add('error', $everything ? 'Nothing matches the current list.' : 'Tick at least one term first.');
+
+            return $back;
+        }
+
+        if (($action === 'delete' || $everything) && !$confirmed) {
+            return $this->bulkConfirmPage($request, $user, $type, $action, $ids, $everything, $search, $status, $page);
+        }
+
+        try {
+            $result = $this->taxonomy->bulk($user, $type, $action, $ids, $request->ip());
+        } catch (TaxonomyException $exception) {
+            $this->flash->add('error', $exception->getMessage());
+
+            return $back;
+        }
+
+        $this->flash->add($result['changed'] > 0 || $result['skipped'] === [] ? 'success' : 'warning', $this->bulkMessage($action, $result));
+
+        return $back;
     }
 
     /**
@@ -548,6 +650,77 @@ final class TaxonomyController extends AdminController
             'action' => AdminUrl::to(self::PATH . '/term/' . $term->id . '/delete'),
             'backUrl' => AdminUrl::to(self::PATH . '/term/' . $term->id),
         ], $user, 'Delete ' . $term->name, self::PATH, $this->flash->pull($request->cookies), $status);
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function bulkConfirmPage(Request $request, User $user, TermType $type, string $action, array $ids, bool $everything, string $search, string $status, int $page): Response
+    {
+        $shown = [];
+
+        // Names are listed so the person sees what they are about to remove; a long run is cut off, the count is not.
+        foreach (array_slice($ids, 0, 50) as $id) {
+            $term = $this->taxonomy->find($id);
+
+            if ($term !== null && $term->type === $type) {
+                $shown[] = $term->name;
+            }
+        }
+
+        return $this->view->render('taxonomy-bulk-confirm', [
+            'type' => $type,
+            'action' => $action,
+            'count' => count($ids),
+            'names' => $shown,
+            'ids' => $everything ? [] : $ids,
+            'everything' => $everything,
+            'search' => $search,
+            'status' => $status,
+            'page' => $page,
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'formAction' => AdminUrl::to(self::PATH . '/' . $type->value . '/bulk'),
+            'backUrl' => AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page),
+        ], $user, 'Confirm: ' . strtolower($type->pluralLabel()), self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * @param array{changed: int, unchanged: int, skipped: array<string, int>} $result
+     */
+    private function bulkMessage(string $action, array $result): string
+    {
+        $noun = static fn (int $count): string => $count . ($count === 1 ? ' term' : ' terms');
+        $verb = ['approve' => 'approved', 'unapprove' => 'marked as unapproved', 'delete' => 'deleted'][$action];
+        $parts = [$result['changed'] > 0 ? $noun($result['changed']) . ($result['changed'] === 1 ? ' was ' : ' were ') . $verb . '.' : 'No term was ' . $verb . '.'];
+
+        if ($result['unchanged'] > 0) {
+            $parts[] = $noun($result['unchanged']) . ($result['unchanged'] === 1 ? ' was' : ' were') . ' already ' . ($action === 'approve' ? 'approved' : 'unapproved') . '.';
+        }
+
+        $skipped = [];
+
+        foreach ($result['skipped'] as $reason => $count) {
+            $skipped[] = $noun($count) . ' skipped: ' . $reason;
+        }
+
+        if ($skipped !== []) {
+            $parts[] = implode('; ', $skipped) . '.';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /** Only the two real filters are honoured; anything else shows the whole list. */
+    private function status(?string $value): string
+    {
+        return in_array($value, ['approved', 'unapproved'], true) ? (string) $value : '';
+    }
+
+    private function listQuery(string $search, string $status, int $page): string
+    {
+        $parts = array_filter(['q' => $search, 'status' => $status, 'page' => $page > 1 ? (string) $page : ''], static fn (string $value): bool => $value !== '');
+
+        return $parts === [] ? '' : '?' . http_build_query($parts);
     }
 
     /**

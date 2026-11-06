@@ -327,3 +327,18 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
         <p class="lf-hint">A copy has the same details and classification, and its chapters as drafts, but no cover picture. The trash keeps a story, unpublished, until you restore it or the retention period ends.</p>
     </section>
 <?php endif; ?>
+
+<?php if (is_array($commentControl ?? null)): ?>
+    <section class="lf-card" aria-labelledby="comments-heading">
+        <h2 id="comments-heading">Comments</h2>
+        <form method="post" action="<?= Html::e($commentAction) ?>" class="lf-inline-form">
+            <input type="hidden" name="csrf_token" value="<?= Html::e($commentToken) ?>">
+            <input type="hidden" name="story" value="<?= (int) $commentControl['story'] ?>">
+            <input type="hidden" name="chapter" value="0">
+            <input type="hidden" name="return" value="story">
+            <input type="hidden" name="closed" value="<?= $commentControl['closed'] ? '0' : '1' ?>">
+            <p><?= $commentControl['closed'] ? 'Comments are turned off for this whole story.' : 'Readers may comment on this story&rsquo;s chapters.' ?>
+                <button type="submit" class="lf-button lf-button--secondary"><?= $commentControl['closed'] ? 'Turn comments on' : 'Turn comments off' ?></button></p>
+        </form>
+    </section>
+<?php endif; ?>

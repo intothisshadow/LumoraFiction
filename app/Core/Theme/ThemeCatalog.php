@@ -27,7 +27,7 @@ final class ThemeCatalog
     public const FALLBACK_SLUG = 'fallback';
 
     /** Themes that ship with the application; deleting one is allowed but comes back with the next update. */
-    public const BUNDLED = ['storybook'];
+    public const BUNDLED = ['storybook', 'rosewine', 'lavender-mist'];
 
     /** The header sits at the top of the stylesheet; reading more than this would only be reading CSS. */
     private const HEADER_BYTES = 8192;
@@ -82,7 +82,7 @@ final class ThemeCatalog
      * Reads the comment at the top of a stylesheet. Returns null when there is no usable header: a name and a
      * version are both required, and a version must look like one.
      *
-     * @return array{name: string, version: string, author: string, description: string, requires_php: string, requires_app: string}|null
+     * @return array{name: string, version: string, author: string, design_uri: string, description: string, requires_php: string, requires_app: string}|null
      */
     public static function parseHeader(string $css): ?array
     {
@@ -97,7 +97,7 @@ final class ThemeCatalog
         $fields = [];
 
         foreach (preg_split('/\R/', $comment) ?: [] as $line) {
-            if (preg_match('/^[\s*]*(Theme Name|Version|Author|Description|Requires PHP|Requires at least)\s*:\s*(.*?)\s*\z/i', $line, $match) === 1) {
+            if (preg_match('/^[\s*]*(Theme Name|Version|Author|Design URI|Description|Requires PHP|Requires at least)\s*:\s*(.*?)\s*\z/i', $line, $match) === 1) {
                 $fields[strtolower($match[1])] ??= self::clean($match[2]);
             }
         }
@@ -119,6 +119,8 @@ final class ThemeCatalog
             'name' => mb_substr($name, 0, 80),
             'version' => $version,
             'author' => mb_substr($fields['author'] ?? '', 0, 80),
+            // Shown as a link, so only a plain http or https address is kept.
+            'design_uri' => preg_match('#^https?://[^\s<>"\']{1,250}\z#i', $fields['design uri'] ?? '') === 1 ? $fields['design uri'] : '',
             'description' => mb_substr($fields['description'] ?? '', 0, 300),
             'requires_php' => preg_match($plainVersion, $requiresPhp) === 1 ? $requiresPhp : '',
             'requires_app' => preg_match($plainVersion, $requiresApp) === 1 ? $requiresApp : '',
@@ -156,6 +158,7 @@ final class ThemeCatalog
             $header['requires_php'],
             $header['requires_app'],
             in_array($slug, self::BUNDLED, true),
+            $header['design_uri'],
         );
     }
 

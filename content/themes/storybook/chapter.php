@@ -45,6 +45,8 @@ lf_get_header();
     <?php endif; ?>
 
     <?php lf_part('chapter-nav', ['label' => 'Chapters, bottom']); ?>
+
+    <?php lf_comments(); ?>
 </article>
 <?php
 lf_get_footer();

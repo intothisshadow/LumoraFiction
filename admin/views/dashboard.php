@@ -30,6 +30,8 @@ use LumoraFiction\Models\User;
 /** @var array<string, int>|null $writing the writer's own story counts by publication state */
 /** @var int|null $awaitingApproval stories in the approval queue; null for someone who may not review */
 /** @var string $reviewUrl */
+/** @var int|null $commentsWaiting comments held or reported that this person may decide on; null when comments are off or not theirs to moderate */
+/** @var string $commentsUrl */
 /** @var array{draft: int, published: int}|null $newsCounts news posts by state; null for someone who may not manage news */
 /** @var string $newsUrl */
 /** @var string $newNewsUrl */
@@ -69,6 +71,17 @@ use LumoraFiction\Models\User;
             <p>No story is waiting for approval.</p>
         <?php else: ?>
             <p><a href="<?= Html::e($reviewUrl) ?>"><?= (int) $awaitingApproval ?> <?= $awaitingApproval === 1 ? 'story is' : 'stories are' ?> waiting for approval</a>.</p>
+        <?php endif; ?>
+    </section>
+<?php endif; ?>
+
+<?php if ($commentsWaiting !== null): ?>
+    <section aria-labelledby="lf-comments-heading" class="lf-card">
+        <h2 id="lf-comments-heading">Comments</h2>
+        <?php if ($commentsWaiting === 0): ?>
+            <p>No comment is waiting for a decision.</p>
+        <?php else: ?>
+            <p><a href="<?= Html::e($commentsUrl) ?>"><?= (int) $commentsWaiting ?> <?= $commentsWaiting === 1 ? 'comment is' : 'comments are' ?> waiting for a decision</a>, held for approval or reported.</p>
         <?php endif; ?>
     </section>
 <?php endif; ?>

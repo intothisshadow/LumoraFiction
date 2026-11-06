@@ -30,6 +30,14 @@ Lumora Fiction needs the web server to send unknown addresses to `index.php`. On
 
 Delete the `install` folder from the server yourself, using FTP or your file manager. Until you do, anyone who visits `/install/` sees an "already installed" page and cannot change anything, but the folder should not stay on a live site.
 
+### Moving the site to a new host, domain or folder
+
+Copy the files and the database to the new place first. Open the admin on the new address: an alert says the site seems to have moved, and **Site address and folder** (open it from the alert, or at `/admin/maintenance/site-location`) shows the saved and the detected address and folder side by side. Check the suggested address, correct it if a proxy hides the real one, and press **Update address and folder**. Until you do, emailed links, feeds and canonical addresses still use the old address. Nothing inside stories or chapters is rewritten, so a link typed into a chapter keeps pointing where it did.
+
+If the web server cannot write `config/config.php`, the screen changes nothing and shows the exact line to put there yourself: open the file and replace the `site_url` line with the one shown, then reload the page. The database table prefix and the secret key must never change when a site moves.
+
+If the site is meant to answer under two names (a test address, a CDN or a temporary host), press **Keep the old address** instead; that address is then not flagged again, and **Stop keeping these** on the same screen brings the alert back.
+
 ## After installation
 
 ### A blank page or "Something went wrong"

@@ -37,6 +37,7 @@ use LumoraFiction\Models\User;
 use LumoraFiction\Models\WorkStatus;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\DownloadAccess;
 use LumoraFiction\Services\DownloadSettings;
 use LumoraFiction\Services\StoryPermissionException;
@@ -78,6 +79,7 @@ final class StoryController extends WriterController
         private readonly StoryPresenter $presenter,
         private readonly ?DownloadAccess $downloads = null,
         private readonly ?Configuration $config = null,
+        private readonly ?CommentService $comments = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -616,6 +618,9 @@ final class StoryController extends WriterController
                 'publish' => $base . '/publish',
                 'unpublish' => $base . '/unpublish',
             ],
+            'commentControl' => $story === null ? null : $this->comments?->control($user, $story->id, 0, $story->ownerId),
+            'commentAction' => AdminUrl::to('comments/closure'),
+            'commentToken' => Csrf::token('admin_comments'),
             'chapterCount' => $story === null ? 0 : ($this->chapters->countsForStories([$story->id])[$story->id]['total'] ?? 0),
             'panels' => $story === null ? [] : $this->pluginPanels($story, $user),
             'downloadChoices' => $story === null ? [] : $this->downloadChoices($story),

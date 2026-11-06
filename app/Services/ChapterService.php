@@ -527,6 +527,9 @@ final class ChapterService
             $this->database->execute('DELETE FROM {prefix}chapter_revisions WHERE chapter_id = :id', ['id' => $chapter->id]);
             $this->database->execute('DELETE FROM {prefix}bookmarks WHERE chapter_id = :id', ['id' => $chapter->id]);
             $this->database->execute('DELETE FROM {prefix}reading_progress WHERE chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE r FROM {prefix}comment_reports r JOIN {prefix}comments m ON m.id = r.comment_id WHERE m.chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}comments WHERE chapter_id = :id', ['id' => $chapter->id]);
+            $this->database->execute('DELETE FROM {prefix}comment_closures WHERE chapter_id = :id', ['id' => $chapter->id]);
 
             if (!$chapter->isTrashed()) {
                 $this->database->execute(

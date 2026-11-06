@@ -84,4 +84,15 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
         <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
         <button type="submit" class="lf-button lf-button--secondary">Move to the trash</button>
     </form>
+    <?php if (is_array($commentControl ?? null)): ?>
+        <form method="post" action="<?= Html::e($commentAction) ?>" class="lf-inline-form">
+            <input type="hidden" name="csrf_token" value="<?= Html::e($commentToken) ?>">
+            <input type="hidden" name="story" value="<?= (int) $commentControl['story'] ?>">
+            <input type="hidden" name="chapter" value="<?= (int) $commentControl['chapter'] ?>">
+            <input type="hidden" name="return" value="chapter">
+            <input type="hidden" name="closed" value="<?= $commentControl['closed'] ? '0' : '1' ?>">
+            <p><?= $commentControl['closed'] ? 'Comments are turned off for this chapter.' : 'Readers may comment on this chapter.' ?>
+                <button type="submit" class="lf-button lf-button--secondary"><?= $commentControl['closed'] ? 'Turn comments on' : 'Turn comments off' ?></button></p>
+        </form>
+    <?php endif; ?>
 <?php endif; ?>

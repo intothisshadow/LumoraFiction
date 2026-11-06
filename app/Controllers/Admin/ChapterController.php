@@ -34,6 +34,7 @@ use LumoraFiction\Models\Story;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
@@ -64,6 +65,7 @@ final class ChapterController extends WriterController
         private readonly UserService $users,
         private readonly ThemeRenderer $themes,
         private readonly StoryPresenter $presenter,
+        private readonly ?CommentService $comments = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -641,6 +643,9 @@ final class ChapterController extends WriterController
                 'trash' => AdminUrl::to('chapters/' . $chapter->id . '/trash'),
                 'revisions' => AdminUrl::to('chapters/' . $chapter->id . '/revisions'),
             ],
+            'commentControl' => $chapter === null ? null : $this->comments?->control($user, $story->id, $chapter->id, $story->ownerId),
+            'commentAction' => AdminUrl::to('comments/closure'),
+            'commentToken' => Csrf::token('admin_comments'),
             'revisionCount' => $chapter === null ? 0 : $this->chapters->countRevisions($chapter->id),
             'limits' => ['title' => ChapterService::TITLE_MAX, 'notes' => ChapterService::NOTES_MAX, 'end_notes' => ChapterService::END_NOTES_MAX],
         ], $user, $chapter === null ? 'New chapter' : 'Edit chapter', self::PATH, $this->flash->pull($request->cookies), $status);

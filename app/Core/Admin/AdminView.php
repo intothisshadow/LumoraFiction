@@ -38,7 +38,18 @@ final class AdminView
         private readonly ?Closure $alertCount = null,
         private readonly ?Closure $notificationCount = null,
         private readonly ?Closure $maintenanceNotices = null,
+        private readonly ?Closure $commentCount = null,
     ) {
+    }
+
+    /**
+     * Numbers printed beside menu entries other than Alerts: the comments waiting for a decision, for whoever may moderate them.
+     *
+     * @return array<string, int>
+     */
+    private function menuCountsFor(User $user): array
+    {
+        return $this->commentCount !== null && $user->can(Capability::WriteStories) ? ['comments' => ($this->commentCount)($user)] : [];
     }
 
     /**
@@ -84,7 +95,7 @@ final class AdminView
             'title' => $title,
             'content' => $content,
             'user' => $user,
-            'menu' => $this->menu->forUser($user, $currentPath, $alerts),
+            'menu' => $this->menu->forUser($user, $currentPath, $alerts, $this->menuCountsFor($user)),
             'flash' => $flash,
             'siteName' => $this->siteName,
             'version' => $this->version,
@@ -110,7 +121,7 @@ final class AdminView
             'title' => $title,
             'content' => $content,
             'user' => $user,
-            'menu' => $this->menu->forUser($user, $currentPath, $alerts),
+            'menu' => $this->menu->forUser($user, $currentPath, $alerts, $this->menuCountsFor($user)),
             'flash' => $flash,
             'siteName' => $this->siteName,
             'version' => $this->version,

@@ -47,6 +47,8 @@ $errors = is_array($form['errors'] ?? null) ? $form['errors'] : [];
                         <option value="<?= lf_e($option['value'] ?? '') ?>"<?= ($option['selected'] ?? false) === true ? ' selected' : '' ?>><?= lf_e($option['label'] ?? '') ?></option>
                     <?php endforeach; ?>
                 </select>
+            <?php elseif (($field['type'] ?? '') === 'textarea'): ?>
+                <textarea class="lf-form__input lf-form__textarea" id="<?= lf_e($id) ?>" name="<?= lf_e($field['name'] ?? '') ?>" rows="<?= (int) ($field['rows'] ?? 5) ?>" maxlength="<?= (int) ($field['maxlength'] ?? 5000) ?>"<?= ($field['error'] ?? '') !== '' ? ' aria-invalid="true"' : '' ?><?= $describedBy !== '' ? ' aria-describedby="' . lf_e($describedBy) . '"' : '' ?><?= ($field['required'] ?? true) === true ? ' required' : '' ?>><?= lf_e($field['value'] ?? '') ?></textarea>
             <?php else: ?>
                 <input class="lf-form__input" id="<?= lf_e($id) ?>" name="<?= lf_e($field['name'] ?? '') ?>" type="<?= lf_e($field['type'] ?? 'text') ?>" value="<?= lf_e($field['value'] ?? '') ?>" autocomplete="<?= lf_e($field['autocomplete'] ?? 'off') ?>"<?= ($field['error'] ?? '') !== '' ? ' aria-invalid="true"' : '' ?><?= $describedBy !== '' ? ' aria-describedby="' . lf_e($describedBy) . '"' : '' ?> required>
             <?php endif; ?>

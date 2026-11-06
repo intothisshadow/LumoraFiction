@@ -65,6 +65,16 @@ final class PublicUrl
 
     public const READING = '/account/profile/reading';
 
+    public const COMMENT_PREFERENCES = '/account/profile/comments';
+
+    public const COMMENT_POST = '/story/{slug}/{number}/comment';
+
+    public const COMMENT_EDIT = '/account/comments/{id}/edit';
+
+    public const COMMENT_DELETE = '/account/comments/{id}/delete';
+
+    public const COMMENT_REPORT = '/account/comments/{id}/report';
+
     public const BOOKMARKS = '/account/bookmarks';
 
     public const BOOKMARK_ADD = '/account/bookmarks/add';
@@ -170,6 +180,19 @@ final class PublicUrl
     public static function chapter(string $slug, int $number): string
     {
         return self::story($slug) . '/' . $number;
+    }
+
+    public static function commentPost(string $slug, int $number): string
+    {
+        return self::chapter($slug, $number) . '/comment';
+    }
+
+    /**
+     * An address for one comment: commentAction(12, 'edit') is /account/comments/12/edit.
+     */
+    public static function commentAction(int $id, string $action): string
+    {
+        return self::account('comments/' . $id . '/' . $action);
     }
 
     public static function download(string $slug, string $format): string

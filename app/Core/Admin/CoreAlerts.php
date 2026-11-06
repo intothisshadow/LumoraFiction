@@ -22,6 +22,7 @@ use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Models\AlertSeverity;
 use LumoraFiction\Models\SiteAlert;
+use LumoraFiction\Services\SiteLocation;
 
 /**
  * Every message is fixed text: no folder path, setting value or visitor input is ever put in one.
@@ -31,6 +32,7 @@ final class CoreAlerts
     public function __construct(
         private readonly Configuration $config,
         private readonly string $root,
+        private readonly ?SiteLocation $location = null,
     ) {
     }
 
@@ -60,6 +62,11 @@ final class CoreAlerts
 
         if ($siteUrl === '') {
             $alerts[] = new SiteAlert('site.url_missing', AlertSeverity::Critical, 'No site address is set, so links in emails cannot be created.');
+        }
+
+        // Looked at on admin requests only (SiteLocation ignores the rest) and never changes anything by itself.
+        if ($this->location !== null && $request instanceof Request && $this->location->mismatch($request) !== null) {
+            $alerts[] = new SiteAlert('site.moved', AlertSeverity::Warning, 'The site seems to have moved: the address or the folder it is running from no longer matches what was saved. Check them and update the saved address so emailed links and feeds point at the right place.', '', 'maintenance/site-location');
         }
 
         if ($request instanceof Request && !$request->isHttps()) {

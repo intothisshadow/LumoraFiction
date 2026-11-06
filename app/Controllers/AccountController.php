@@ -34,6 +34,7 @@ use LumoraFiction\Services\AccountRules;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\EditorSettings;
+use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\FormGuard;
 use LumoraFiction\Services\GuardDecision;
 use LumoraFiction\Services\GuardOutcome;
@@ -67,7 +68,45 @@ final class AccountController
         private readonly FormGuard $formGuard,
         private readonly StoryFollowService $follows,
         private readonly ?PrivacySettings $privacy = null,
+        private readonly ?CommentService $comments = null,
     ) {
+    }
+
+    /**
+     * How a person wants to hear about comments: their own replies by email, and, for writers, new comments on their stories.
+     *
+     * @param array<string, string> $params
+     */
+    public function updateComments(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+
+        if ($user === null) {
+            return $this->mustSignIn();
+        }
+
+        if (!$this->validToken($request, 'comment_preferences')) {
+            return $this->profilePage($request, $user, ['comments' => ['summary' => self::EXPIRED]], 400);
+        }
+
+        if ($this->comments !== null) {
+            $mode = $request->input('comment_notice');
+            // Only writers have comments on their own stories to hear about, so a reader's form never changes those choices.
+            $current = $this->comments->preferences($user->id);
+            $notify = $current['notify_comments'];
+            $email = $current['email_comments'];
+
+            if ($user->can(Capability::WriteStories)) {
+                $notify = in_array($mode, ['inbox', 'both'], true);
+                $email = in_array($mode, ['email', 'both'], true);
+            }
+
+            $this->comments->savePreferences($user->id, $notify, $email, $request->input('email_replies') === 'yes');
+        }
+
+        $this->flash->add('success', 'Your comment preferences have been saved.');
+
+        return Response::redirect(PublicUrl::account('profile'), 303);
     }
 
     // ---- sign in and out ------------------------------------------------------------------------------------
@@ -629,7 +668,27 @@ final class AccountController
         }
 
         $forms[] = $this->form('reader_preferences', PublicUrl::account('profile/reading'), 'Save reading preferences', $readingFields, 'Reading', $summary('reading'));
-        $forms[] = $this->form('account_sign_out', PublicUrl::account('sign-out'), 'Sign out', [], 'Sign out');
+        if ($this->comments !== null && $this->comments->settings()->enabled()) {
+            $prefs = $this->comments->preferences($user->id);
+            $yesNo = static fn (bool $on): array => [['value' => 'yes', 'label' => 'Yes', 'selected' => $on], ['value' => 'no', 'label' => 'No', 'selected' => !$on]];
+            $fields = [];
+
+            if ($user->can(Capability::WriteStories)) {
+                $mode = $prefs['notify_comments'] ? ($prefs['email_comments'] ? 'both' : 'inbox') : ($prefs['email_comments'] ? 'email' : 'none');
+                $options = [];
+
+                foreach (['inbox' => 'In my notifications', 'both' => 'In my notifications and by email', 'email' => 'By email only', 'none' => 'Not at all'] as $value => $label) {
+                    $options[] = ['value' => $value, 'label' => $label, 'selected' => $mode === $value];
+                }
+
+                $fields[] = $this->field('comment_notice', 'Tell me about new comments on my stories', 'select', '', '', 'Only comments that appear on the page are announced, never ones held for approval.', '', $options);
+            }
+
+            $fields[] = $this->field('email_replies', 'Email me when the writer answers a chapter I commented on', 'select', '', '', '', '', $yesNo($prefs['email_replies']));
+            $forms[] = $this->form('comment_preferences', PublicUrl::account('profile/comments'), 'Save comment preferences', $fields, 'Comments', $summary('comments'));
+        }
+
+        $forms[] = $this->form('account_sign_out',PublicUrl::account('sign-out'), 'Sign out', [], 'Sign out');
 
         // The one place a person's own login name is printed back to them. The page is private and never cached.
         $intro = 'Your sign-in name is ' . $user->loginName . '. It is private and only used to sign in.';

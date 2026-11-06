@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 
 /** @var array<string, list<array{label: string, value: string, status: string, private: bool}>> $sections */
@@ -46,5 +47,8 @@ $statusWords = ['ok' => 'OK', 'warning' => 'Check', 'error' => 'Problem', 'info'
                 <?php endforeach; ?>
             </tbody>
         </table>
+        <?php if ($title === 'Application'): ?>
+            <p class="lf-hint">Moved the site, or is the address above wrong? <a href="<?= Html::e(AdminUrl::to('maintenance/site-location')) ?>">Check the site address and folder</a>.</p>
+        <?php endif; ?>
     </section>
 <?php endforeach; ?>

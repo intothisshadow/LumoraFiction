@@ -26,4 +26,4 @@ declare(strict_types=1);
         <tr><th scope="row">All time</th><td><?= number_format($totals['all']) ?></td></tr>
     </tbody>
 </table>
-<p class="lf-hint">Counts readers who are not signed in, once for each time a story or chapter page is opened.<?= $tracking ? '' : ' Counting is currently switched off, so these numbers are not growing.' ?></p>
+<p class="lf-hint">Counts readers, signed in or not, once for each time a story or chapter page is opened.<?= $tracking ? '' : ' Counting is currently switched off, so these numbers are not growing.' ?></p>

@@ -29,6 +29,7 @@ use LumoraFiction\Models\UserStatus;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ClassificationPresets;
+use LumoraFiction\Services\SiteLocation;
 use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
 use Throwable;
@@ -156,6 +157,8 @@ final class Installer
         $config->setSetting('site.name', $request->siteName);
         $config->setSetting('site.timezone', $request->timezone);
         $config->setSetting('archive.mode', $request->archiveMode);
+        // Where the site was installed, so a later move can be noticed.
+        $config->setSetting(SiteLocation::SETTING_RECORD, SiteLocation::initialRecord($request->siteUrl, $this->root));
 
         // Written explicitly so the secure choices are visible in the settings, not only implied by defaults.
         foreach (AuthService::DEFAULTS as $name => $value) {

@@ -75,6 +75,12 @@ lf_get_header();
     <?php if (lf_has('story.end_notes')): ?>
         <aside class="lf-story__end-notes" aria-label="End notes for the story"><p><?php lf_field('story.end_notes'); ?></p></aside>
     <?php endif; ?>
+
+    <?php if (lf_has('story_comments.label')): ?>
+        <p class="lf-story__comment-count"><?php lf_field('story_comments.label'); ?></p>
+    <?php endif; ?>
+
+    <?php lf_comments(); ?>
 </article>
 <?php
 lf_get_footer();

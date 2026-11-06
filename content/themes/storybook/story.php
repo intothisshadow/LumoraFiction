@@ -48,6 +48,9 @@ $groups = lf_items('term_groups');
             <div class="lf-story-meta__item"><dt class="lf-story-meta__label">Published</dt><dd class="lf-story-meta__value"><?php lf_field('story.published'); ?></dd></div>
         <?php endif; ?>
         <div class="lf-story-meta__item"><dt class="lf-story-meta__label">Updated</dt><dd class="lf-story-meta__value"><?php lf_field('story.updated'); ?></dd></div>
+        <?php if (lf_has('story_comments.label')): ?>
+            <div class="lf-story-meta__item"><dt class="lf-story-meta__label">Comments</dt><dd class="lf-story-meta__value"><?php lf_field('story_comments.label'); ?></dd></div>
+        <?php endif; ?>
     </dl>
 
     <?php if ($groups !== []): ?>
@@ -107,6 +110,8 @@ $groups = lf_items('term_groups');
     <?php if (lf_has('story.end_notes')): ?>
         <aside class="lf-story__end-notes" aria-label="End notes for the story"><p><?php lf_field('story.end_notes'); ?></p></aside>
     <?php endif; ?>
+
+    <?php lf_comments(); ?>
 </article>
 <?php
 lf_get_footer();

@@ -709,6 +709,9 @@ final class StoryService
             $this->database->execute('DELETE FROM {prefix}bookmarks WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}reading_progress WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}story_follows WHERE story_id = :id', ['id' => $story->id]);
+            $this->database->execute('DELETE r FROM {prefix}comment_reports r JOIN {prefix}comments m ON m.id = r.comment_id WHERE m.story_id = :id', ['id' => $story->id]);
+            $this->database->execute('DELETE FROM {prefix}comments WHERE story_id = :id', ['id' => $story->id]);
+            $this->database->execute('DELETE FROM {prefix}comment_closures WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
             $this->audit->record($actor?->id, $actor === null ? 'story.purge' : 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
         });

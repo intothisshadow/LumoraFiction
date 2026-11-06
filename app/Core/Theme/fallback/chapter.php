@@ -46,6 +46,8 @@ lf_get_header();
         <?php if (lf_has('previous.url')): ?><a class="lf-chapter__nav-link lf-chapter__nav-link--prev" href="<?php lf_field('previous.url'); ?>" rel="prev">&larr; <?php lf_field('previous.title'); ?></a><?php endif; ?>
         <?php if (lf_has('next.url')): ?><a class="lf-chapter__nav-link lf-chapter__nav-link--next" href="<?php lf_field('next.url'); ?>" rel="next"><?php lf_field('next.title'); ?> &rarr;</a><?php endif; ?>
     </nav>
+
+    <?php lf_comments(); ?>
 </article>
 <?php
 lf_get_footer();

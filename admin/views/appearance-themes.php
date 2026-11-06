@@ -37,7 +37,6 @@ use LumoraFiction\Helpers\Html;
 
 $anySelectable = array_filter($cards, static fn (array $card): bool => $card['selectable']) !== [];
 $canUpload = $uploadsAllowed && $canWrite;
-$sourceLabel = static fn (ThemeInfo $theme): string => $theme->builtIn ? 'Built in' : ($theme->bundled ? 'Comes with Lumora Fiction' : 'Installed');
 ?>
 <?php if ($chosenMissing !== ''): ?>
     <div class="lf-notice lf-notice--warning" role="status">
@@ -115,7 +114,7 @@ $sourceLabel = static fn (ThemeInfo $theme): string => $theme->builtIn ? 'Built 
     <?php elseif (!$canWrite): ?>
         <p class="lf-notice lf-notice--warning">The web server cannot write to the themes folder, so themes cannot be added or removed here. Copy the theme&rsquo;s folder into the themes folder by hand, or give the server permission to write to it.</p>
     <?php else: ?>
-        <p class="lf-notice lf-notice--warning">A theme is program code that runs on your site with the same access as the site itself. Only add themes from people you trust.</p>
+        <p class="lf-notice lf-notice--warning">Upload a .zip archive containing a theme folder. The destination folder name is derived from the theme&rsquo;s declared name.</p>
         <form method="post" action="<?= Html::e($installAction) ?>" enctype="multipart/form-data" class="lf-form">
             <input type="hidden" name="csrf_token" value="<?= Html::e($installToken) ?>">
             <div class="lf-field">
@@ -154,26 +153,18 @@ $sourceLabel = static fn (ThemeInfo $theme): string => $theme->builtIn ? 'Built 
             <?php endforeach; ?>
 
             <dl class="lf-theme-details__facts">
-                <dt>Version</dt>
-                <dd><?= Html::e($theme->version) ?></dd>
                 <?php if ($theme->author !== ''): ?>
                     <dt>Author</dt>
                     <dd><?= Html::e($theme->author) ?></dd>
                 <?php endif; ?>
-                <dt>Needs</dt>
-                <dd>
-                    <?php
-                    $needs = array_filter([
-                        $theme->requiresPhp !== '' ? 'PHP ' . $theme->requiresPhp . ' or newer' : '',
-                        $theme->requiresApp !== '' ? 'Lumora Fiction ' . $theme->requiresApp . ' or newer' : '',
-                    ]);
-                    ?>
-                    <?= $needs === [] ? 'Nothing beyond the basics' : Html::e(implode(', ', $needs)) ?>
-                </dd>
-                <dt>Source</dt>
-                <dd><?= Html::e($sourceLabel($theme)) ?></dd>
-                <dt>In use</dt>
-                <dd><?= $card['active'] ? 'Yes, the site shows this theme' : 'No' ?></dd>
+                <?php if ($theme->designUri !== ''): ?>
+                    <dt>Design URI</dt>
+                    <dd><a href="<?= Html::e($theme->designUri) ?>" rel="noopener noreferrer nofollow"><?= Html::e($theme->designUri) ?></a></dd>
+                <?php endif; ?>
+                <dt>Version</dt>
+                <dd><?= Html::e($theme->version) ?></dd>
+                <dt>Folder</dt>
+                <dd><?= Html::e($theme->slug) ?></dd>
             </dl>
 
             <div class="lf-theme-details__actions">

@@ -68,6 +68,13 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'comments',
+                'label' => 'Comments',
+                'path' => 'comments',
+                'capability' => Capability::WriteStories,
+                'children' => [],
+            ],
+            [
                 'slug' => 'news',
                 'label' => 'News',
                 'path' => 'news',
@@ -143,6 +150,7 @@ final class AdminMenu
                     ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-comments', 'label' => 'Comments', 'path' => 'settings/comments', 'capability' => Capability::ManageSite],
                 ],
             ],
             [
@@ -169,9 +177,10 @@ final class AdminMenu
      * The entries this user may see, ready to print. Addresses are built here, never taken from the filter.
      *
      * @param int|null $alertCount the same number the header link shows, so the two can never disagree
+     * @param array<string, int> $counts numbers to print beside other entries, by entry slug, such as the comments waiting for a decision
      * @return list<array{label: string, url: string, current: bool, open: bool, count: int|null, children: list<array{label: string, url: string, current: bool}>}>
      */
-    public function forUser(User $user, string $currentPath, ?int $alertCount = null): array
+    public function forUser(User $user, string $currentPath, ?int $alertCount = null, array $counts = []): array
     {
         $currentPath = trim($currentPath, '/');
         $visible = [];
@@ -204,7 +213,7 @@ final class AdminMenu
                 // Only one link per page is marked current: a parent with children leaves that to the child.
                 'current' => $isCurrent && !$childIsCurrent,
                 'open' => $isCurrent || $childIsCurrent,
-                'count' => $item['slug'] === 'alerts' && $alertCount !== null && $alertCount > 0 ? $alertCount : null,
+                'count' => $item['slug'] === 'alerts' ? ($alertCount !== null && $alertCount > 0 ? $alertCount : null) : (($counts[$item['slug']] ?? 0) > 0 ? $counts[$item['slug']] : null),
                 'children' => $children,
             ];
         }

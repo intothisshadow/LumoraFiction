@@ -34,8 +34,10 @@ final class AccountDataExporter
     /** A cap on the activity list, so an account with years of history cannot exhaust memory. */
     private const ACTIVITY_LIMIT = 5000;
 
-    public function __construct(private readonly Database $database)
-    {
+    public function __construct(
+        private readonly Database $database,
+        private readonly ?CommentService $comments = null,
+    ) {
     }
 
     /**
@@ -52,6 +54,7 @@ final class AccountDataExporter
             'reading_progress' => $this->progress($subject->id),
             'followed_stories' => $this->follows($subject->id),
             'notifications' => $this->notifications($subject->id),
+            'comments' => $this->comments?->exportFor($subject->id) ?? [],
             'activity' => $this->activity($subject->id),
         ];
     }

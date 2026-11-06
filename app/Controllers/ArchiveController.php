@@ -37,6 +37,7 @@ use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\CommentPresenter;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\FollowPresenter;
@@ -107,6 +108,7 @@ final class ArchiveController
         private readonly NewsService $news,
         private readonly NewsPresenter $newsPresenter,
         private readonly ?DownloadPresenter $downloadPresenter = null,
+        private readonly ?CommentPresenter $comments = null,
     ) {
     }
 
@@ -225,6 +227,12 @@ final class ArchiveController
 
             $data += $this->readerData($user, $story, null, $request->cookies, $following);
             $data['downloads'] = $this->downloadPresenter?->menu($story) ?? [];
+            $data['story_comments'] = $this->comments?->storySummary($story->id) ?? [];
+
+            // A story told in one chapter reads on this page, so its comments sit here too.
+            if ($readsHere) {
+                $data['comments'] = $this->comments?->forChapterId($user, $chapters[0]->id, $this->commentPage($request), PublicUrl::story($story->slug)) ?? [];
+            }
 
             if ($update !== null) {
                 $data['notices'][] = $update;
@@ -285,6 +293,7 @@ final class ArchiveController
             }
 
             $data += $this->readerData($user, $story, $chapter, $request->cookies, $user !== null && $this->follows->isFollowing($user, $story->id));
+            $data['comments'] = $this->comments?->forChapterId($user, $chapter->id, $this->commentPage($request), PublicUrl::chapter($story->slug, $chapter->number)) ?? [];
 
             do_action('story_viewed', $story, $chapter, $user, $request);
 
@@ -644,6 +653,14 @@ final class ArchiveController
         $this->positionScript->track($storyId, $chapterId, $position);
 
         return $position > 0 ? ['label' => 'Continue where you left off', 'percent' => (string) intdiv($position, 10)] : [];
+    }
+
+    /** The page of comments asked for; anything but a whole number above zero is the first page. */
+    private function commentPage(Request $request): int
+    {
+        $value = $request->queryValue('comments_page');
+
+        return $value !== null && preg_match('/^[1-9][0-9]{0,6}\z/', $value) === 1 ? (int) $value : 1;
     }
 
     private function chapterLabel(int $number, string $title): string

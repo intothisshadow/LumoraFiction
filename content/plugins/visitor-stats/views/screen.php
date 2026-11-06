@@ -54,7 +54,7 @@ $lists = [
             <input type="checkbox" id="track" name="track" value="1"<?= $tracking ? ' checked' : '' ?> aria-describedby="track_hint">
             <label for="track">Count views</label>
         </div>
-        <p class="lf-hint" id="track_hint">One view is counted each time someone who is not signed in opens a story or chapter. Signed-in people, previews, drafts, stories waiting for approval and search engine robots are never counted. The plugin counts nothing until this is on, and the figures so far are kept if you turn it off.</p>
+        <p class="lf-hint" id="track_hint">One view is counted each time someone opens a story or chapter, signed in or not; signed-in readers are counted anonymously in the same totals. Previews, drafts, stories waiting for approval and search engine robots are never counted. The plugin counts nothing until this is on, and the figures so far are kept if you turn it off.</p>
     </fieldset>
 
     <p><button type="submit" class="lf-button">Save</button></p>

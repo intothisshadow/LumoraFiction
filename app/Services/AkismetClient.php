@@ -86,6 +86,29 @@ final class AkismetClient
     }
 
     /**
+     * @return bool|null true when Akismet calls the comment spam, false when it does not, null when it could not be asked
+     */
+    public function isSpamComment(string $key, string $content, string $displayName, string $ipAddress, string $userAgent): ?bool
+    {
+        $fields = array_filter([
+            'blog' => $this->siteUrl,
+            'user_ip' => $ipAddress,
+            'user_agent' => mb_substr($userAgent, 0, 400),
+            'comment_type' => 'comment',
+            'comment_author' => $displayName,
+            'comment_content' => mb_substr($content, 0, 5000),
+        ], static fn (string $value): bool => $value !== '');
+
+        $body = $this->send('https://' . $key . '.' . self::HOST . '/1.1/comment-check', $fields);
+
+        return match ($body === null ? null : trim($body)) {
+            'true' => true,
+            'false' => false,
+            default => null,
+        };
+    }
+
+    /**
      * @param array<string, string> $fields
      */
     private function send(string $url, array $fields): ?string

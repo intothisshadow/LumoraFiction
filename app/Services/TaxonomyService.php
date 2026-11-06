@@ -232,7 +232,7 @@ final class TaxonomyService
      * Terms in the order the administrator set (the short lists such as ratings), then by name, which is the whole
      * order for the open lists where no order was ever set. "visible" leaves out hidden terms.
      *
-     * @param array{search?: string, unreviewed?: bool, parent?: int, visible?: bool} $filters
+     * @param array{search?: string, unreviewed?: bool, status?: string, parent?: int, visible?: bool} $filters
      * @return list<Term>
      */
     public function list(TermType $type, array $filters = [], int $limit = 50, int $offset = 0): array
@@ -248,7 +248,7 @@ final class TaxonomyService
     }
 
     /**
-     * @param array{search?: string, unreviewed?: bool, parent?: int, visible?: bool} $filters
+     * @param array{search?: string, unreviewed?: bool, status?: string, parent?: int, visible?: bool} $filters
      */
     public function count(TermType $type, array $filters = []): int
     {
@@ -861,20 +861,170 @@ final class TaxonomyService
         $this->requireCurator($actor);
 
         $term = $this->mustFind($termId);
+        $blocker = $this->deletionBlocker($term);
 
-        if ((int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}story_terms WHERE term_id = :id', ['id' => $term->id]) > 0) {
-            throw new TaxonomyException('Stories still use this term. Merge it into another term instead of deleting it.');
-        }
-
-        if ((int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}terms WHERE parent_id = :id', ['id' => $term->id]) > 0) {
-            throw new TaxonomyException('Characters or relationships still belong to this fandom. Merge or delete them first.');
+        if ($blocker !== null) {
+            throw new TaxonomyException($blocker);
         }
 
         $this->database->transaction(function () use ($actor, $term, $ipAddress): void {
-            $this->database->execute('DELETE FROM {prefix}term_aliases WHERE term_id = :id', ['id' => $term->id]);
-            $this->database->execute('DELETE FROM {prefix}terms WHERE id = :id', ['id' => $term->id]);
-            $this->audit->record($actor->id, 'term.delete', 'term', (string) $term->id, ['type' => $term->type->value, 'name' => $term->name], $ipAddress);
+            $this->removeTerm($actor, $term, $ipAddress);
         });
+    }
+
+    /** The most terms one bulk action will touch, so a single request cannot run unbounded. */
+    public const BULK_LIMIT = 500;
+
+    /** Reasons a bulk action leaves a term alone; the keys are shown to the administrator. */
+    public const SKIP_MISSING = 'not in this list any more';
+
+    public const SKIP_IN_USE = 'still used by stories';
+
+    public const SKIP_HAS_CHILDREN = 'still has characters or relationships';
+
+    /**
+     * Approves, unapproves or deletes several terms of one kind in a single transaction. A term that does not belong to
+     * the kind (or no longer exists), or that a single-term delete would refuse, is skipped and counted; an unexpected
+     * failure rolls the whole action back.
+     *
+     * @param list<int> $ids
+     * @return array{changed: int, unchanged: int, skipped: array<string, int>}
+     * @throws TaxonomyException
+     */
+    public function bulk(User $actor, TermType $type, string $action, array $ids, string $ipAddress = ''): array
+    {
+        $this->requireCurator($actor);
+
+        if (!in_array($action, ['approve', 'unapprove', 'delete'], true)) {
+            throw new TaxonomyException('Choose what to do with the selected terms.');
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            throw new TaxonomyException('Select at least one term first.');
+        }
+
+        if (count($ids) > self::BULK_LIMIT) {
+            throw new TaxonomyException('At most ' . self::BULK_LIMIT . ' terms can be changed at once. Narrow the list with the search or the status filter.');
+        }
+
+        return $this->database->transaction(function () use ($actor, $type, $action, $ids, $ipAddress): array {
+            [$marks, $params] = $this->placeholders($ids, 'bulk_');
+            $found = [];
+
+            // FOR UPDATE keeps a second administrator from changing the same terms between the check and the write.
+            foreach ($this->hydrateAll($this->database->fetchAll('SELECT * FROM {prefix}terms WHERE type = :type AND id IN (' . $marks . ') FOR UPDATE', $params + ['type' => $type->value])) as $term) {
+                $found[$term->id] = $term;
+            }
+
+            $result = ['changed' => 0, 'unchanged' => 0, 'skipped' => []];
+            $skip = static function (string $reason) use (&$result): void {
+                $result['skipped'][$reason] = ($result['skipped'][$reason] ?? 0) + 1;
+            };
+
+            foreach ($ids as $id) {
+                $term = $found[$id] ?? null;
+
+                if ($term === null) {
+                    $skip(self::SKIP_MISSING);
+
+                    continue;
+                }
+
+                if ($action === 'delete') {
+                    $blocker = $this->deletionBlocker($term);
+
+                    if ($blocker !== null) {
+                        $skip($blocker === self::DELETE_IN_USE ? self::SKIP_IN_USE : self::SKIP_HAS_CHILDREN);
+
+                        continue;
+                    }
+
+                    $this->removeTerm($actor, $term, $ipAddress);
+                    $result['changed']++;
+
+                    continue;
+                }
+
+                $reviewed = $action === 'approve';
+
+                if ($term->reviewed === $reviewed) {
+                    $result['unchanged']++;
+
+                    continue;
+                }
+
+                $this->database->execute('UPDATE {prefix}terms SET reviewed = :reviewed WHERE id = :id', ['reviewed' => $reviewed ? 1 : 0, 'id' => $term->id]);
+                $this->audit->record($actor->id, 'term.review', 'term', (string) $term->id, ['reviewed' => $reviewed, 'bulk' => true], $ipAddress);
+                $result['changed']++;
+            }
+
+            return $result;
+        });
+    }
+
+    /**
+     * Ids of the terms a filter matches, up to a limit, in list order. A bulk action on "everything that matches" reads
+     * this at the moment it runs, so it acts on the list as it is then and never on a stale set of ids.
+     *
+     * @param array{search?: string, unreviewed?: bool, status?: string} $filters
+     * @return list<int>
+     */
+    public function idsMatching(TermType $type, array $filters, int $limit): array
+    {
+        [$where, $params] = $this->filter($type, $filters);
+        $order = $this->writersMayPropose($type) ? 't.name_key, t.id' : 't.sort_order, t.name_key, t.id';
+
+        return array_map(
+            static fn (array $row): int => (int) $row['id'],
+            $this->database->fetchAll('SELECT t.id FROM {prefix}terms t WHERE ' . $where . ' ORDER BY ' . $order . ' LIMIT ' . max(1, $limit), $params),
+        );
+    }
+
+    /**
+     * How many terms are in a list, how many are approved and how many are not, for the same search text.
+     *
+     * @return array{all: int, approved: int, unapproved: int}
+     */
+    public function statusCounts(TermType $type, string $search = ''): array
+    {
+        [$where, $params] = $this->filter($type, ['search' => $search]);
+        $row = $this->database->fetchOne(
+            'SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN t.reviewed = 1 THEN 1 ELSE 0 END), 0) AS approved FROM {prefix}terms t WHERE ' . $where,
+            $params,
+        ) ?? ['total' => 0, 'approved' => 0];
+
+        $all = (int) $row['total'];
+        $approved = (int) $row['approved'];
+
+        return ['all' => $all, 'approved' => $approved, 'unapproved' => $all - $approved];
+    }
+
+    private const DELETE_IN_USE = 'Stories still use this term. Merge it into another term instead of deleting it.';
+
+    private const DELETE_HAS_CHILDREN = 'Characters or relationships still belong to this fandom. Merge or delete them first.';
+
+    /** Why a term cannot be deleted, or null when nothing depends on it. */
+    private function deletionBlocker(Term $term): ?string
+    {
+        if ((int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}story_terms WHERE term_id = :id', ['id' => $term->id]) > 0) {
+            return self::DELETE_IN_USE;
+        }
+
+        if ((int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}terms WHERE parent_id = :id', ['id' => $term->id]) > 0) {
+            return self::DELETE_HAS_CHILDREN;
+        }
+
+        return null;
+    }
+
+    /** Removes a term and its aliases and records it; the caller owns the transaction and has checked the blocker. */
+    private function removeTerm(User $actor, Term $term, string $ipAddress): void
+    {
+        $this->database->execute('DELETE FROM {prefix}term_aliases WHERE term_id = :id', ['id' => $term->id]);
+        $this->database->execute('DELETE FROM {prefix}terms WHERE id = :id', ['id' => $term->id]);
+        $this->audit->record($actor->id, 'term.delete', 'term', (string) $term->id, ['type' => $term->type->value, 'name' => $term->name], $ipAddress);
     }
 
     /**
@@ -1240,7 +1390,7 @@ final class TaxonomyService
     }
 
     /**
-     * @param array{search?: string, unreviewed?: bool, parent?: int} $filters
+     * @param array{search?: string, unreviewed?: bool, status?: string, parent?: int, visible?: bool} $filters
      * @return array{0: string, 1: array<string, mixed>}
      */
     private function filter(TermType $type, array $filters): array
@@ -1253,8 +1403,13 @@ final class TaxonomyService
             $params['parent'] = $filters['parent'];
         }
 
-        if (($filters['unreviewed'] ?? false) === true) {
+        // "unreviewed" is the older spelling of status=unapproved and is kept so existing callers and bookmarks work.
+        $status = ($filters['unreviewed'] ?? false) === true ? 'unapproved' : ($filters['status'] ?? '');
+
+        if ($status === 'unapproved') {
             $where[] = 't.reviewed = 0';
+        } elseif ($status === 'approved') {
+            $where[] = 't.reviewed = 1';
         }
 
         if (($filters['visible'] ?? false) === true) {
