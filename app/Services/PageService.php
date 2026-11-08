@@ -55,7 +55,7 @@ final class PageService
         'admin', 'account', 'author', 'authors', 'browse', 'chapter', 'story', 'stories', 'search', 'news',
         'fandom', 'character', 'relationship', 'genre', 'tag', 'category', 'rating', 'warning', 'relationship-category',
         'install', 'content', 'assets', 'storage', 'config', 'app', 'docs', 'api', 'feed', 'feeds', 'login', 'logout', 'register',
-        'index', 'new', 'rewrite-check', 'sitemap', 'robots',
+        'index', 'new', 'rewrite-check', 'sitemap', 'robots', 'theme', 'theme-options',
     ];
 
     /**

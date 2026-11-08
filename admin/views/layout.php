@@ -22,7 +22,7 @@ use LumoraFiction\Models\User;
 /** @var string $title */
 /** @var string $content trusted markup produced by another view, not user input */
 /** @var User $user */
-/** @var list<array{label: string, url: string, current: bool, open: bool, count: int|null, children: list<array{label: string, url: string, current: bool}>}> $menu */
+/** @var list<array{label: string, url: string, current: bool, open: bool, count: int|null, children: list<array{label: string, url: string, current: bool, count: int|null}>}> $menu */
 /** @var list<array{type: string, message: string}> $flash */
 /** @var string $siteName */
 /** @var string $version */
@@ -82,7 +82,7 @@ use LumoraFiction\Models\User;
                         <?php if ($item['children'] !== []): ?>
                             <ul class="lf-menu__children">
                                 <?php foreach ($item['children'] as $child): ?>
-                                    <li><a href="<?= Html::e($child['url']) ?>"<?= $child['current'] ? ' aria-current="page"' : '' ?>><?= Html::e($child['label']) ?></a></li>
+                                    <li><a href="<?= Html::e($child['url']) ?>"<?= $child['current'] ? ' aria-current="page"' : '' ?>><?= Html::e($child['label']) ?><?php if (($child['count'] ?? null) !== null): ?><span class="lf-menu__count"> (<?= (int) $child['count'] ?>)</span><?php endif; ?></a></li>
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>

@@ -81,6 +81,14 @@ final class CommentNotifier
         $where = '“' . $row['story_title'] . '”, chapter ' . (int) $row['number'];
         $url = $this->absolute(PublicUrl::chapter((string) $row['slug'], (int) $row['number']) . '#comment-' . $comment->id);
 
+        $parent = $comment->parentId === null ? null : $this->comments->find($comment->parentId);
+
+        if ($parent !== null) {
+            $this->announceReply($comment, $parent, $ownerId, $name, $where, $url);
+
+            return;
+        }
+
         if ($comment->userId === $ownerId) {
             $this->tellCommenters($comment, $ownerId, $name, $where, $url);
 
@@ -95,6 +103,41 @@ final class CommentNotifier
 
         if ($preferences['email_comments']) {
             $this->email($ownerId, 'New comment on ' . $where, ($name === '' ? 'Someone' : $name) . ' commented on ' . $where . ".\n\nRead it here: " . $url . "\n\nYou can change these emails on your profile page.");
+        }
+    }
+
+    /**
+     * A published reply tells the story's writer, as a comment does, and the person whose comment it answers. Nobody is told
+     * about their own reply, and when the writer is the one replied to they hear it once, as the person replied to.
+     */
+    private function announceReply(Comment $reply, Comment $parent, int $ownerId, string $name, string $where, string $url): void
+    {
+        $who = $name === '' ? 'Someone' : $name;
+
+        if ($reply->userId !== $ownerId && $parent->userId !== $ownerId) {
+            $preferences = $this->comments->preferences($ownerId);
+
+            if ($preferences['notify_comments']) {
+                $this->notifications->notify($ownerId, self::KIND, $reply->storyId, $who . ' replied to a comment on ' . $where . '.', 'comments');
+            }
+
+            if ($preferences['email_comments']) {
+                $this->email($ownerId, 'New reply on ' . $where, $who . ' replied to a comment on ' . $where . ".\n\nRead it here: " . $url . "\n\nYou can change these emails on your profile page.");
+            }
+        }
+
+        if ($parent->userId === $reply->userId) {
+            return;
+        }
+
+        $preferences = $this->comments->preferences($parent->userId);
+
+        if ($preferences['notify_comments']) {
+            $this->notifications->notify($parent->userId, self::KIND, $reply->storyId, $who . ' replied to your comment on ' . $where . '.', 'comments');
+        }
+
+        if ($preferences['email_replies']) {
+            $this->email($parent->userId, $who . ' replied to your comment on ' . $where, $who . ' replied to your comment on ' . $where . ".\n\nRead it here: " . $url . "\n\nYou can stop these emails on your profile page.");
         }
     }
 

@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Http\BasePath;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -31,6 +32,7 @@ use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ThemeManager;
+use LumoraFiction\Services\ThemeChoice;
 use LumoraFiction\Services\ThemeOptions;
 use LumoraFiction\Services\ThemeSettings;
 
@@ -51,6 +53,7 @@ final class AppearanceController extends AdminController
         private readonly ThemeOptions $options,
         private readonly ThemeManager $manager,
         private readonly ThemeScreenshot $screenshots,
+        private readonly ThemeChoice $choice,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -79,12 +82,18 @@ final class AppearanceController extends AdminController
                     : AdminUrl::to(self::THEMES_PATH . '/screenshot/' . $theme->slug) . '?v=' . rawurlencode($theme->version),
                 'problems' => $this->manager->problemsFor($theme),
                 'selectable' => !$theme->builtIn && !$this->manager->isInUse($theme->slug),
+                // A link to the public site that starts a preview. Not offered for the theme already in use, or one that cannot run here.
+                'previewUrl' => !$theme->builtIn && $theme->slug !== $active->slug && $this->choice->previewable($theme->slug) ? BasePath::get() . '/?theme=' . rawurlencode($theme->slug) : '',
             ];
         }
 
         return $this->view->render('appearance-themes', [
             'cards' => $cards,
             'chosenMissing' => !$this->settings->chosenIsAvailable() ? $this->settings->chosenSlug() : '',
+            'previewing' => $this->choice->storedPreview(),
+            'visitorChoice' => ['enabled' => $this->choice->enabled(), 'ticked' => $this->choice->ticked()],
+            'visitorToken' => Csrf::token('admin_appearance_visitor'),
+            'visitorAction' => AdminUrl::to(self::THEMES_PATH . '/visitor-choice'),
             'activateToken' => Csrf::token('admin_appearance_activate'),
             'installToken' => Csrf::token('admin_appearance_install'),
             'updateToken' => Csrf::token('admin_appearance_update'),
@@ -119,12 +128,100 @@ final class AppearanceController extends AdminController
         } elseif ($theme !== null && $this->manager->problemsFor($theme) !== []) {
             $this->flash->add('error', '"' . $theme->name . '" cannot be used on this site. ' . implode(' ', $this->manager->problemsFor($theme)));
         } elseif ($this->settings->activate($slug, $user, $request->ip())) {
+            // Showing a theme as a preview is pointless once it is the site's own.
+            if ($this->choice->storedPreview() === $slug) {
+                $this->choice->clearPreview();
+            }
+
             $this->flash->add('success', 'The theme was changed.');
         } else {
             $this->flash->add('error', 'That theme is not available.');
         }
 
         return Response::redirect(AdminUrl::to(self::THEMES_PATH), 303);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function saveVisitorChoice(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::THEMES_PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!$this->validToken($request, 'admin_appearance_visitor')) {
+            $this->flash->add('error', self::STALE_FORM);
+        } elseif ($this->choice->save($request->checked('visitor_choice'), $request->inputList('visitor_themes'), $user, $request->ip())) {
+            $this->flash->add('success', 'The theme choice for visitors was saved.');
+        } else {
+            $this->flash->add('success', 'Nothing needed changing.');
+        }
+
+        return Response::redirect(AdminUrl::to(self::THEMES_PATH), 303);
+    }
+
+    /**
+     * Makes the theme being previewed the site's theme, which also ends the preview.
+     *
+     * @param array<string, string> $params
+     */
+    public function activatePreview(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::THEMES_PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if (!$this->validToken($request, ThemeChoice::PREVIEW_TOKEN)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return $this->backToPreview($request);
+        }
+
+        $theme = $this->choice->activatePreview($this->settings, $user, $request->ip());
+
+        if ($theme === null) {
+            $this->flash->add('error', 'That theme is not available, so nothing was changed.');
+            $this->choice->clearPreview();
+
+            return Response::redirect(AdminUrl::to(self::THEMES_PATH), 303);
+        }
+
+        $this->flash->add('success', '"' . $theme->name . '" is now the theme of the site.');
+
+        return Response::redirect(AdminUrl::to(self::THEMES_PATH), 303);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function exitPreview(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::THEMES_PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        if ($this->validToken($request, ThemeChoice::PREVIEW_TOKEN)) {
+            $this->choice->clearPreview();
+        }
+
+        return $this->backToPreview($request);
+    }
+
+    /**
+     * Back to the public page the banner was on. The address comes from the form but must be a path on this site.
+     */
+    private function backToPreview(Request $request): Response
+    {
+        $return = $request->input('return') ?? '';
+
+        return Response::redirect(preg_match('#^/(?![/\\\\])[^\s"\'<>\\\\]{0,500}\z#', $return) === 1 ? $return : BasePath::get() . '/', 303);
     }
 
     /**
@@ -221,6 +318,14 @@ final class AppearanceController extends AdminController
                 $names = array_map(static fn ($theme): string => '"' . $theme->name . '"', $result['deleted']);
 
                 $this->flash->add('success', (count($names) === 1 ? 'The theme ' : 'The themes ') . implode(', ', $names) . (count($names) === 1 ? ' was deleted.' : ' were deleted.'));
+
+                // A preview of a theme that no longer exists would only fall back by itself; say so instead.
+                $previewed = $this->choice->storedPreview();
+
+                if ($previewed !== null && in_array($previewed, array_map(static fn ($theme): string => $theme->slug, $result['deleted']), true)) {
+                    $this->choice->clearPreview();
+                    $this->flash->add('info', 'You were previewing a theme that was just deleted, so the preview has ended.');
+                }
             }
 
             foreach ($result['kept'] as $slug => $reason) {

@@ -50,15 +50,45 @@ final class ReaderPreferences
         return ($this->forUser($userId)['updates'] ?? 'off') === 'on';
     }
 
+    /** A theme is named by its folder, a plain slug. Whether it exists, is offered and fits the site is decided when it is used. */
+    private const THEME_PATTERN = '/^[a-z][a-z0-9-]{0,49}\z/';
+
     public function __construct(
         private readonly Database $database,
     ) {
     }
 
     /**
+     * The theme this account chose, or null when it has not (or the stored name is not a plain slug).
+     */
+    public function theme(int $userId): ?string
+    {
+        return $this->forUser($userId)['theme'] ?? null;
+    }
+
+    /**
+     * Saves or clears the account's theme without touching its other choices, which the reading form and script own.
+     */
+    public function saveTheme(int $userId, ?string $slug): void
+    {
+        $saved = $this->forUser($userId);
+
+        if ($slug !== null && preg_match(self::THEME_PATTERN, $slug) === 1) {
+            $saved['theme'] = $slug;
+        } else {
+            unset($saved['theme']);
+        }
+
+        $this->database->execute(
+            'UPDATE {prefix}users SET reader_preferences = :value WHERE id = :id',
+            ['value' => $saved === [] ? null : json_encode($saved, JSON_THROW_ON_ERROR), 'id' => $userId],
+        );
+    }
+
+    /**
      * The saved choices, or an empty array when the account has none.
      *
-     * @return array<string, string>
+     * @return array<string, string> the display choices, the follow-updates choice and, when the account chose one, its theme
      */
     public function forUser(int $userId): array
     {
@@ -75,6 +105,15 @@ final class ReaderPreferences
     public function save(int $userId, mixed $input): array
     {
         $clean = self::clean($input);
+
+        // The reading form and script know nothing of the theme, so saving them must not wipe it.
+        if (!is_array($input) || !array_key_exists('theme', $input)) {
+            $theme = $this->theme($userId);
+
+            if ($theme !== null) {
+                $clean['theme'] = $theme;
+            }
+        }
 
         $this->database->execute(
             'UPDATE {prefix}users SET reader_preferences = :value WHERE id = :id',
@@ -103,6 +142,12 @@ final class ReaderPreferences
             if (is_string($value) && in_array($value, $allowed, true)) {
                 $clean[$name] = $value;
             }
+        }
+
+        $theme = $input['theme'] ?? null;
+
+        if (is_string($theme) && preg_match(self::THEME_PATTERN, $theme) === 1) {
+            $clean['theme'] = $theme;
         }
 
         return $clean;

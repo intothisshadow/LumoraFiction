@@ -23,7 +23,7 @@ use CurlHandle;
  * Only https addresses are ever requested, certificates are always verified, and the size of an answer is capped as it
  * arrives, so a wrong or hostile server cannot fill the disk. The caller decides which hosts are acceptable.
  */
-final class HttpClient implements HttpTransport
+final class HttpClient implements TokenAwareTransport
 {
     private const CONNECT_TIMEOUT = 10;
 
@@ -31,8 +31,27 @@ final class HttpClient implements HttpTransport
 
     private const MAX_REDIRECTS = 5;
 
-    public function __construct(private readonly string $userAgent)
+    private const TOKEN_HOST = 'api.github.com';
+
+    public function __construct(private readonly string $userAgent, private readonly string $token = '')
     {
+    }
+
+    public function withToken(string $token): static
+    {
+        return new static($this->userAgent, trim($token));
+    }
+
+    /**
+     * The extra header for one request: only a request to GitHub's API carries the token, never a download or a redirect target.
+     */
+    private function authorization(string $url): ?string
+    {
+        if ($this->token === '' || strtolower((string) parse_url($url, PHP_URL_HOST)) !== self::TOKEN_HOST) {
+            return null;
+        }
+
+        return 'Authorization: Bearer ' . $this->token;
     }
 
     public function fetch(string $url, int $maxBytes): string
@@ -125,7 +144,7 @@ final class HttpClient implements HttpTransport
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT,
             CURLOPT_TIMEOUT => self::TIMEOUT,
             CURLOPT_USERAGENT => $this->userAgent,
-            CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json, application/octet-stream, text/plain'],
+            CURLOPT_HTTPHEADER => array_values(array_filter(['Accept: application/vnd.github+json, application/octet-stream, text/plain', $this->authorization($url)])),
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_WRITEFUNCTION => static function (CurlHandle $curl, string $chunk) use ($sink, &$failure): int {
@@ -168,10 +187,11 @@ final class HttpClient implements HttpTransport
             'http' => [
                 'method' => 'GET',
                 'timeout' => self::TIMEOUT,
-                'follow_location' => 1,
+                // PHP resends its headers to wherever a redirect leads, so a request that carries the token follows none.
+                'follow_location' => $this->authorization($url) === null ? 1 : 0,
                 'max_redirects' => self::MAX_REDIRECTS,
                 'ignore_errors' => true,
-                'header' => "User-Agent: " . $this->userAgent . "\r\nAccept: application/vnd.github+json, application/octet-stream, text/plain\r\n",
+                'header' => "User-Agent: " . $this->userAgent . "\r\nAccept: application/vnd.github+json, application/octet-stream, text/plain\r\n" . ($this->authorization($url) ?? '') . ($this->authorization($url) === null ? '' : "\r\n"),
             ],
             'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
         ]);

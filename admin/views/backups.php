@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BackupListing;
 use LumoraFiction\Core\Update\UpdateRun;
 use LumoraFiction\Helpers\Html;
 
@@ -26,11 +27,7 @@ use LumoraFiction\Helpers\Html;
 /** @var string $updatesUrl */
 
 $kinds = ['manual' => 'Made by hand', 'pre-update' => 'Before an update', 'pre-restore' => 'Before a restore'];
-$size = static function (mixed $bytes): string {
-    $bytes = (int) $bytes;
-
-    return $bytes >= 1048576 ? number_format($bytes / 1048576, 1) . ' MB' : number_format(max(1, (int) ceil($bytes / 1024))) . ' KB';
-};
+$size = static fn (mixed $bytes): string => BackupListing::size($bytes);
 ?>
 <p class="lf-lead">A backup is a ZIP of the application files and a copy of the database, kept in the storage folder. It does not include your configuration file or the pictures and files writers have uploaded: copy those yourself if you move to another host. A backup holds every private draft and every password hash, so treat a downloaded one like a key.</p>
 

@@ -19,11 +19,13 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BackupListing;
 use LumoraFiction\Core\Admin\Tabs;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Update\ReleaseNotes;
 use LumoraFiction\Core\Update\UpdateException;
 use LumoraFiction\Core\Update\UpdateRun;
 use LumoraFiction\Core\Update\UpdateStorage;
@@ -54,6 +56,8 @@ final class UpdatesController extends AdminController
         private readonly UpdateChecker $checker,
         private readonly UpdateStorage $storage,
         private readonly AuditLogService $audit,
+        private readonly BackupListing $backupListing,
+        private readonly ReleaseNotes $releaseNotes,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -69,7 +73,7 @@ final class UpdatesController extends AdminController
             return $user;
         }
 
-        return $this->page($request, $user, ['repository' => $this->checker->settings()['repository'], 'channel' => $this->checker->settings()['channel']], []);
+        return $this->page($request, $user, $this->checker->settings(), []);
     }
 
     /**
@@ -83,7 +87,14 @@ final class UpdatesController extends AdminController
             return $user;
         }
 
-        $result = $this->checker->validate(['repository' => $request->input('repository'), 'channel' => $request->input('channel')]);
+        $result = $this->checker->validate([
+            'repository' => $request->input('repository'),
+            'channel' => $request->input('channel'),
+            'auto_check' => $request->input('auto_check') === '1',
+            'frequency' => $request->input('frequency'),
+            'github_token' => $request->input('github_token'),
+            'clear_token' => $request->input('clear_token') === '1',
+        ]);
 
         if (!$this->validToken($request, self::TOKEN)) {
             return $this->page($request, $user, $result['values'], ['form' => self::STALE_FORM], 400);
@@ -93,7 +104,7 @@ final class UpdatesController extends AdminController
             return $this->page($request, $user, $result['values'], $result['errors'], 422);
         }
 
-        $changed = $this->checker->save($result['values'], $user, $request->ip());
+        $changed = $this->checker->save($result['values'], $user, $request->ip(), $result['token'], $result['clear_token']);
         $this->flash->add('success', $changed === [] ? 'Nothing needed changing.' : 'Update settings saved.');
 
         // The form sits below the tabs and remembers which one was open.
@@ -507,7 +518,7 @@ final class UpdatesController extends AdminController
     }
 
     /**
-     * @param array{repository: string, channel: string} $values
+     * @param array{repository: string, channel: string, auto_check: bool, frequency: string} $values
      * @param array<string, string> $errors
      */
     private function page(Request $request, User $user, array $values, array $errors, int $status = 200): Response
@@ -531,8 +542,28 @@ final class UpdatesController extends AdminController
             );
         }
 
+        $release = $last['release'] ?? null;
+        $repository = $this->checker->settings()['repository'];
+        $notes = $release !== null && (string) ($release['notes'] ?? '') !== '' ? (string) $release['notes'] : '';
+        $notesHtml = $notes === '' ? '' : $this->releaseNotes->toHtml($notes);
+
         return $this->view->render('updates', [
             'tabs' => $tabs,
+            'status' => $this->checker->status(),
+            'lastAttempt' => $this->checker->lastAttempt()?->format('Y-m-d H:i'),
+            'tokenSet' => $this->checker->hasToken(),
+            'repository' => $repository,
+            'repositoryUrl' => 'https://github.com/' . $repository,
+            'releasesUrl' => 'https://github.com/' . $repository . '/releases',
+            'installFolder' => $this->storage->root(),
+            'schema' => $this->updates->schema(),
+            'systemChecks' => $this->updates->systemStatus(),
+            'notesHtml' => $notesHtml,
+            'notesPlain' => $notes,
+            'backups' => $this->backupListing->rows(3),
+            'backupToken' => Csrf::token('admin_backups'),
+            'backupCreateAction' => AdminUrl::to(BackupListing::PATH . '/create'),
+            'backupsListUrl' => AdminUrl::to(BackupListing::PATH),
             'checkFailure' => $failure,
             'version' => $this->updates->installedVersion(),
             'values' => $values,

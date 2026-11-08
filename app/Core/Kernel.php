@@ -24,6 +24,7 @@ use LumoraFiction\Controllers\Admin\UpdatesController;
 use LumoraFiction\Core\Database\Migrator;
 use LumoraFiction\Core\Http\MaintenanceFlag;
 use LumoraFiction\Core\Update\CompatibilityChecker;
+use LumoraFiction\Core\Update\ReleaseNotes;
 use LumoraFiction\Core\Update\HttpClient;
 use LumoraFiction\Core\Update\PackageInspector;
 use LumoraFiction\Core\Update\ReleaseFeed;
@@ -54,6 +55,7 @@ use LumoraFiction\Controllers\Admin\PrivacyRequestsController;
 use LumoraFiction\Controllers\Admin\CommentsController as AdminCommentsController;
 use LumoraFiction\Controllers\Admin\CommentSettingsController;
 use LumoraFiction\Controllers\CommentController;
+use LumoraFiction\Controllers\ThemeChoiceController;
 use LumoraFiction\Services\ActivityDescriber;
 use LumoraFiction\Services\CommentGuard;
 use LumoraFiction\Services\CommentNotifier;
@@ -100,6 +102,7 @@ use LumoraFiction\Controllers\Admin\DashboardController;
 use LumoraFiction\Controllers\Admin\SystemInformationController;
 use LumoraFiction\Core\Admin\AdminMenu;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BackupListing;
 use LumoraFiction\Core\Admin\CoreAlerts;
 use LumoraFiction\Core\Admin\ContentEditor;
 use LumoraFiction\Core\Database\Database;
@@ -178,10 +181,12 @@ use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Core\Media\AvatarImageStore;
 use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Services\StoryPresenter;
+use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\ThemeManager;
 use LumoraFiction\Services\ThemeOptions;
+use LumoraFiction\Services\ThemeChoice;
 use LumoraFiction\Services\ThemeSettings;
 use LumoraFiction\Services\UserService;
 
@@ -217,6 +222,16 @@ final class Kernel
      * Applies database changes that arrived with newly uploaded files, when an Administrator opens the admin.
      */
     public ?PendingMigrations $pendingMigrations = null;
+
+    /**
+     * Asks GitHub for a new release when an Administrator has turned the automatic check on and one is due.
+     */
+    public ?UpdateChecker $updateChecker = null;
+
+    /**
+     * Decides which theme public pages are drawn in: an Administrator's preview, a visitor's choice, or the site's theme.
+     */
+    public ?ThemeChoice $themeChoice = null;
 
     /**
      * The site's folder on disk, for plugins that keep files under storage/. A plugin file may sit somewhere else
@@ -302,7 +317,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -367,7 +382,14 @@ final class Kernel
         $kernel->root = $root;
         $kernel->alerts = $alerts;
         $kernel->maintenance = new MaintenanceMode($config, $database, $audit);
-        $kernel->pendingMigrations = new PendingMigrations(new Migrator($database, $root . '/app/Migrations'), $audit, $alerts);
+        $kernel->pendingMigrations = new PendingMigrations(new Migrator($database, $root . '/app/Migrations'), $audit, $alerts, new FlashMessages($sessions));
+
+        $kernel->themeChoice = new ThemeChoice($themeCatalog, $themes, $config, $auth, $sessions, new ReaderPreferences($database), $audit, $version['version'], (string) $config->get('secret_key', ''));
+        $themes->setThemeTools(static fn (string $kind): ?array => match ($kind) {
+            'switch' => $kernel->themeChoice?->switchData(),
+            'banner' => $kernel->themeChoice?->bannerData(),
+            default => null,
+        });
 
         (new StaffNavigation($auth))->register($hooks);
 
@@ -459,10 +481,11 @@ final class Kernel
         $followPresenter = new FollowPresenter();
         $account = new AccountController($kernel->themes, $kernel->auth, $kernel->users, $editorSettings, $flash, $kernel->config, $kernel->audit, $readerPreferences, $registrationGuard, $formGuard, $storyFollows, $kernel->privacy, $commentService);
         $privacyPages = new PrivacyController($kernel->themes, $kernel->auth, $flash, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->audit);
-        $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash, $storyFollows, $followPresenter);
+        $cardFacts = new StoryCardFacts($chapters, $taxonomy);
+        $reader = new ReaderController($kernel->themes, $kernel->auth, $bookmarks, $bookmarkPresenter, $stories, $presenter, $kernel->users, $flash, $storyFollows, $followPresenter, $cardFacts);
         $readingProgress = new ReadingProgressService($kernel->database, $stories);
-        $readingList = new ReadingListController($kernel->themes, $kernel->auth, $readingProgress, $presenter, $kernel->users, $flash, $storyFollows, $readerPreferences);
-        $follow = new FollowController($kernel->themes, $kernel->auth, $storyFollows, $followPresenter, $stories, $presenter, $kernel->users, $flash);
+        $readingList = new ReadingListController($kernel->themes, $kernel->auth, $readingProgress, $presenter, $kernel->users, $flash, $storyFollows, $readerPreferences, $cardFacts);
+        $follow = new FollowController($kernel->themes, $kernel->auth, $storyFollows, $followPresenter, $stories, $presenter, $kernel->users, $flash, $cardFacts);
         (new AccountNavigation($kernel->auth, $kernel->config))->register($kernel->hooks);
         (new ReaderHead($kernel->auth, $readerPreferences))->register($kernel->hooks);
         $positionScript = new ReadingPositionScript();
@@ -506,6 +529,7 @@ final class Kernel
         $kernel->router->get(PublicUrl::BROWSE, $archive->browse(...), 'browse');
         $kernel->router->get(PublicUrl::BROWSE_PAGE, $archive->browse(...), 'browse.page');
         $kernel->router->get('/theme-options.css', $public->themeOptionsStylesheet(...), 'theme.options.css');
+        $kernel->router->post('/theme', (new ThemeChoiceController($kernel->themeChoice ?? throw new \LogicException('Built at boot.'), $kernel->auth))->choose(...), 'theme.choose');
         $kernel->router->get('/theme-fallback.css', $public->fallbackStylesheet(...), 'theme.fallback.css');
 
         $kernel->router->get(PublicUrl::SIGN_IN, $account->showSignIn(...), 'account.sign_in');
@@ -559,7 +583,10 @@ final class Kernel
         $kernel->router->post(PublicUrl::COMMENT_POST, $commentPages->post(...), 'comment.post');
         $kernel->router->get(PublicUrl::COMMENT_EDIT, $commentPages->showEdit(...), 'comment.edit');
         $kernel->router->post(PublicUrl::COMMENT_EDIT, $commentPages->edit(...), 'comment.edit.submit');
+        $kernel->router->get(PublicUrl::COMMENT_DELETE, $commentPages->showDelete(...), 'comment.delete.confirm');
         $kernel->router->post(PublicUrl::COMMENT_DELETE, $commentPages->delete(...), 'comment.delete');
+        $kernel->router->get(PublicUrl::COMMENT_REPLY, $commentPages->showReply(...), 'comment.reply');
+        $kernel->router->post(PublicUrl::COMMENT_REPLY, $commentPages->reply(...), 'comment.reply.submit');
         $kernel->router->get(PublicUrl::COMMENT_REPORT, $commentPages->showReport(...), 'comment.report');
         $kernel->router->post(PublicUrl::COMMENT_REPORT, $commentPages->report(...), 'comment.report.submit');
 
@@ -591,6 +618,7 @@ final class Kernel
             static fn (User $user): int => $notifications->countUnread($user),
             static fn (User $user): array => $maintenanceNotice->forUser($user),
             static fn (User $user): int => $kernel->comments?->queueCount($user) ?? 0,
+            static fn (User $user): bool => $user->can(Capability::ManageSite) && $kernel->updateChecker?->status() === UpdateChecker::STATUS_AVAILABLE,
         );
         $kernel->admin = $view;
 
@@ -598,6 +626,7 @@ final class Kernel
 
         $updateStorage = new UpdateStorage($root);
         $backups = new BackupService($updateStorage, $kernel->database, $version);
+        $backupListing = new BackupListing($backups);
         $updates = new UpdateService(
             $updateStorage,
             $backups,
@@ -610,6 +639,7 @@ final class Kernel
             $alerts,
         );
         $updateChecker = new UpdateChecker($kernel->config, $kernel->database, $kernel->audit, new ReleaseFeed(new HttpClient('LumoraFiction-Updater/' . $version)), $updateStorage, $alerts, $version);
+        $kernel->updateChecker = $updateChecker;
 
         $themeSettings = new ThemeSettings($kernel->config, $themeCatalog, $kernel->audit);
 
@@ -636,7 +666,7 @@ final class Kernel
                 $kernel->audit,
                 $kernel->config,
                 $version,
-            ), new ThemeScreenshot()),
+            ), new ThemeScreenshot(), $kernel->themeChoice ?? throw new \LogicException('Built at boot.')),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
             new PluginsController($kernel->auth, $view, $flash, $plugins),
             new SpamSettingsController($kernel->auth, $view, $flash, $spamSettings, $registrationThrottle, $akismet, $kernel->audit),
@@ -650,8 +680,8 @@ final class Kernel
             new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
             new FrontPageSettingsController($kernel->auth, $view, $flash, new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit)),
             new DownloadSettingsController($kernel->auth, $view, $flash, new DownloadSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->storyDownloads),
-            new UpdatesController($kernel->auth, $view, $flash, $updates, $updateChecker, $updateStorage, $kernel->audit),
-            new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit),
+            new UpdatesController($kernel->auth, $view, $flash, $updates, $updateChecker, $updateStorage, $kernel->audit, $backupListing, new ReleaseNotes()),
+            new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit, $backupListing),
             new MaintenanceModeController($kernel->auth, $view, $flash, $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit)),
             new AdminPageController($kernel->auth, $view, $flash, $kernel->pages ?? throw new \LogicException('Pages are built at boot.'), $editor, $kernel->themes, new PagePresenter($renderer)),
             new PrivacySettingsController($kernel->auth, $view, $flash, $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->pages),
@@ -680,6 +710,16 @@ final class Kernel
         }
 
         $this->upgradeDatabase($request, BasePath::stripFrom($uri));
+        $this->checkForUpdates($request, BasePath::stripFrom($uri));
+
+        // After the maintenance check, which always shows the site's own theme, and before anything is drawn.
+        $started = $this->selectTheme($request, BasePath::stripFrom($uri));
+
+        if ($started !== null) {
+            $started->send();
+
+            return;
+        }
 
         $resolution = $this->router->resolve($method, BasePath::stripFrom($uri));
 
@@ -723,6 +763,64 @@ final class Kernel
 
         if ($user !== null && $user->can(Capability::ManageSite)) {
             $this->pendingMigrations->applyFor($user, $request->ip());
+        }
+    }
+
+    /**
+     * Chooses the theme this request is drawn in. A redirect comes back only when an Administrator has just started a
+     * preview from a link, which sends them to the same page without the name in the address.
+     *
+     * @param string $path the request path with the base path already removed
+     */
+    public function selectTheme(Request $request, string $path): ?Response
+    {
+        if ($this->themeChoice === null) {
+            return null;
+        }
+
+        try {
+            return $this->themeChoice->begin($request, (string) strtok($path, '?#'));
+        } catch (Throwable $exception) {
+            // Choosing a theme must never stop a page from being drawn: the site's own theme is the answer.
+            $this->errors->report($exception);
+            $this->themes->useTheme(null);
+
+            return null;
+        }
+    }
+
+    /**
+     * The automatic check for a new release: made at most once per chosen interval, only for an Administrator opening an
+     * admin page, never during an update or on the progress screen's own requests, and it only ever reads the release
+     * list. A failure is remembered and not retried until the next interval.
+     *
+     * @param string $path the request path with the base path already removed
+     */
+    public function checkForUpdates(Request $request, string $path): void
+    {
+        $path = (string) strtok($path, '?#');
+
+        if (
+            $this->updateChecker === null || $request->method !== 'GET'
+            || ($path !== '/admin' && !str_starts_with($path, '/admin/'))
+            || str_starts_with($path, '/admin/maintenance/updates/run')
+            || MaintenanceFlag::read($this->root) !== null
+        ) {
+            return;
+        }
+
+        try {
+            if (!$this->updateChecker->isDue()) {
+                return;
+            }
+
+            $user = $this->auth->user($request->cookies);
+
+            if ($user !== null && $user->can(Capability::ManageSite)) {
+                $this->updateChecker->checkIfDue();
+            }
+        } catch (Throwable $exception) {
+            $this->errors->report($exception);
         }
     }
 

@@ -2,7 +2,7 @@
 
 /**
  * Lavender Mist theme: one story in a list, from a "story" array with title, url, author, author_url, summary,
- * status, words, updated and cover (thumb, full, alt). Any missing key is left out.
+ * status, words, chapters, term_groups, updated and cover (thumb, full, alt). Any missing key is left out.
  *
  * @package LumoraFiction
  * @subpackage Theme
@@ -20,6 +20,7 @@ $story = is_array($story ?? null) ? $story : [];
 $meta = array_filter([
     (string) ($story['status'] ?? ''),
     ($story['words'] ?? '') !== '' ? $story['words'] . ' words' : '',
+    (string) ($story['chapters'] ?? ''),
     ($story['updated'] ?? '') !== '' ? 'Updated ' . $story['updated'] : '',
 ], static fn (string $part): bool => $part !== '');
 
@@ -40,6 +41,19 @@ $meta = array_filter([
         <?php endif; ?>
         <?php if ($meta !== []): ?>
             <p class="lf-story-card__meta"><?= lf_e(implode(' · ', $meta)) ?></p>
+        <?php endif; ?>
+        <?php if (is_array($story['term_groups'] ?? null) && $story['term_groups'] !== []): ?>
+            <dl class="lf-story-card__terms">
+                <?php foreach ($story['term_groups'] as $group): ?>
+                    <div class="lf-story-card__term-group lf-story-card__term-group--<?= lf_e($group['type'] ?? '') ?>">
+                        <dt class="lf-story-card__term-label"><?= lf_e($group['label'] ?? '') ?></dt>
+                        <dd class="lf-story-card__term-list">
+                            <?php foreach (is_array($group['terms'] ?? null) ? $group['terms'] : [] as $index => $term): ?><?= $index > 0 ? ', ' : '' ?><?php if (($term['url'] ?? '') !== ''): ?><a class="lf-story-card__term" href="<?= lf_e($term['url']) ?>"><?= lf_e($term['name'] ?? '') ?></a><?php else: ?><span class="lf-story-card__term"><?= lf_e($term['name'] ?? '') ?></span><?php endif; ?><?php endforeach; ?>
+                            <?php if ((int) ($group['more'] ?? 0) > 0): ?><span class="lf-story-card__term-more">and <?= (int) $group['more'] ?> more</span><?php endif; ?>
+                        </dd>
+                    </div>
+                <?php endforeach; ?>
+            </dl>
         <?php endif; ?>
         <?php if (($story['summary'] ?? '') !== ''): ?>
             <p class="lf-story-card__summary"><?= lf_e($story['summary']) ?></p>

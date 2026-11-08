@@ -112,6 +112,112 @@ final class CommentController
     }
 
     /**
+     * The page with the reply form for one comment. The comment is named in the address, so it is looked up and checked
+     * again here and again when the reply is posted.
+     *
+     * @param array<string, string> $params
+     */
+    public function showReply(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+
+        if ($user === null) {
+            return $this->mustSignIn();
+        }
+
+        $parent = $this->comments->find($this->id($params));
+        $target = $parent === null ? null : $this->comments->target($parent->chapterId);
+
+        if ($parent === null || $target === null || !$this->comments->isReplyable($parent) || $this->comments->isClosed($target['story_id'], $target['chapter_id'])) {
+            return $this->gone($request, 'That comment cannot be replied to.');
+        }
+
+        return $this->replyPage($user, $parent, '', '', 200);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function reply(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+
+        if ($user === null) {
+            return $this->mustSignIn();
+        }
+
+        $parent = $this->comments->find($this->id($params));
+        $target = $parent === null ? null : $this->comments->target($parent->chapterId);
+
+        if ($parent === null || $target === null) {
+            return $this->gone($request, 'That comment cannot be replied to.');
+        }
+
+        $body = $request->input('body') ?? '';
+
+        if (!Csrf::verify(CommentPresenter::REPLY_ACTION, $request->input('csrf_token'), $request->cookies)) {
+            return $this->replyPage($user, $parent, $body, self::EXPIRED, 400);
+        }
+
+        try {
+            $clean = $this->comments->cleanBody($body);
+            $verdict = $this->guard->inspect($request, $user, $clean, CommentPresenter::REPLY_ACTION);
+
+            if ($verdict['outcome'] === CommentGuard::RETRY) {
+                return $this->replyPage($user, $parent, $body, $verdict['error'], 422);
+            }
+
+            // The chapter comes from the comment being answered, never from the request.
+            $result = $this->comments->post($user, $parent->chapterId, $clean, $request->ip(), $verdict['outcome'] === CommentGuard::SPAM, $parent->id);
+        } catch (CommentException $exception) {
+            return $this->replyPage($user, $parent, $body, $exception->getMessage(), 422);
+        }
+
+        $chapter = PublicUrl::chapter($target['story_slug'], $target['number']);
+
+        if ($result['held'] || $result['spam']) {
+            $this->flash->add('info', 'Thank you. Your reply is waiting for approval and will appear once a moderator has seen it.');
+            $anchor = '#comments';
+            $page = 1;
+        } else {
+            $this->flash->add('success', 'Your reply was posted.');
+            $anchor = '#comment-' . $result['comment']->id;
+            // The reply sits with its parent, which may be on an earlier page than the newest comments.
+            $page = $this->comments->threadPage($parent->id, $parent->chapterId, $target['owner_id'], $user);
+        }
+
+        return Response::redirect($chapter . ($page > 1 ? '?comments_page=' . $page : '') . $anchor, 303)->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    /**
+     * Asks before a comment that has replies is deleted, and says how many go with it.
+     *
+     * @param array<string, string> $params
+     */
+    public function showDelete(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+
+        if ($user === null) {
+            return $this->mustSignIn();
+        }
+
+        $comment = $this->comments->find($this->id($params));
+
+        if ($comment === null || !$this->comments->mayDelete($user, $comment)) {
+            return $this->gone($request, 'That comment is not available.');
+        }
+
+        $replies = $this->comments->replyCounts([$comment->id])[$comment->id] ?? 0;
+        $form = $this->presenter->form(CommentPresenter::DELETE_ACTION, PublicUrl::commentAction($comment->id, 'delete'), 'Delete comment', [], 'Delete this comment?');
+        $form['intro'] = $replies > 0
+            ? 'This comment has ' . ($replies === 1 ? '1 reply' : $replies . ' replies') . ', and ' . ($replies === 1 ? 'it' : 'they') . ' will be deleted with it. This cannot be undone.'
+            : 'This cannot be undone.';
+
+        return $this->account('Delete comment', [$form], 200, '', $this->back($comment->id), 'Cancel');
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function showEdit(array $params, Request $request): Response
@@ -261,6 +367,17 @@ final class CommentController
         }
 
         return $this->account('Comment', [$form], $status, '', $back, 'Back to the chapter');
+    }
+
+    private function replyPage(User $user, \LumoraFiction\Models\Comment $parent, string $body, string $error, int $status): Response
+    {
+        $form = $this->presenter->replyForm($user, $parent, $this->comments->displayNameOf($parent), $body, $error);
+
+        if ($form === null) {
+            return $this->account('Reply', [], $status, $error !== '' ? $error : 'That comment cannot be replied to.', $this->back($parent->id), 'Back to the chapter');
+        }
+
+        return $this->account('Reply', [$form], $status, '', $this->back($parent->id), 'Cancel');
     }
 
     private function editPage(User $user, int $id, string $body, string $error, int $status): Response

@@ -113,6 +113,28 @@ final class UpdateService
         }
     }
 
+    /**
+     * How far the database is: the changes applied, the changes this copy of the code carries, and whether any are waiting.
+     *
+     * @return array{applied: int, total: int, waiting: int, up_to_date: bool}
+     */
+    public function schema(): array
+    {
+        $status = $this->migrator->status();
+
+        return ['applied' => $status['applied'], 'total' => $status['total'], 'waiting' => max(0, $status['total'] - $status['applied']), 'up_to_date' => $status['up_to_date']];
+    }
+
+    /**
+     * The checks that do not need a package, for the System status table. Same code as the review's checks.
+     *
+     * @return list<array{label: string, status: string, detail: string}>
+     */
+    public function systemStatus(): array
+    {
+        return $this->compatibility->system($this->backups->estimateBytes());
+    }
+
     public function installedVersion(): string
     {
         $source = (string) file_get_contents($this->storage->root() . '/version.php');

@@ -19,6 +19,7 @@ namespace LumoraFiction\Core\Update;
 
 use FilesystemIterator;
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Core\Requirements;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -56,13 +57,32 @@ final class CompatibilityChecker
     {
         return [
             $this->version($package),
-            $this->php($package),
-            $this->extensions($package),
+            $this->php($package->minimumPhp),
+            $this->extensions($package->extensions),
             $this->databaseServer($package),
             $this->migrations($package),
-            $this->writable($package),
-            $this->space($package, $backupEstimateBytes),
+            $this->writable($this->mirroredRoots($package), $package->packages !== []),
+            $this->space($package->unpackedBytes, $backupEstimateBytes),
             $this->configuration(),
+        ];
+    }
+
+    /**
+     * The checks that do not depend on a package, for the Updates screen to show before any is downloaded. They are the
+     * same checks the review runs, asked about the installed release's own needs and every folder an update replaces,
+     * so a row that fails here is a row that would stop an update there.
+     *
+     * @return list<array{label: string, status: string, detail: string}>
+     */
+    public function system(int $backupEstimateBytes): array
+    {
+        return [
+            $this->php(Requirements::MINIMUM_PHP_VERSION),
+            $this->extensions(Requirements::REQUIRED_EXTENSIONS),
+            $this->downloads(),
+            $this->writable(UpdateLayout::REPLACED_DIRECTORIES, true),
+            $this->space(0, $backupEstimateBytes),
+            $this->storageFolder(),
         ];
     }
 
@@ -97,23 +117,24 @@ final class CompatibilityChecker
     /**
      * @return array{label: string, status: string, detail: string}
      */
-    private function php(UpdatePackage $package): array
+    private function php(string $minimum): array
     {
         $label = 'PHP version';
 
-        if (version_compare($this->phpVersion, $package->minimumPhp, '<')) {
-            return $this->result($label, self::ERROR, 'This release needs PHP ' . $package->minimumPhp . ' or newer, and this server runs ' . $this->phpVersion . '.');
+        if (version_compare($this->phpVersion, $minimum, '<')) {
+            return $this->result($label, self::ERROR, 'This release needs PHP ' . $minimum . ' or newer, and this server runs ' . $this->phpVersion . '.');
         }
 
-        return $this->result($label, self::OK, 'PHP ' . $this->phpVersion . ' meets the ' . $package->minimumPhp . ' this release needs.');
+        return $this->result($label, self::OK, 'PHP ' . $this->phpVersion . ' meets the ' . $minimum . ' this release needs.');
     }
 
     /**
+     * @param list<string> $names
      * @return array{label: string, status: string, detail: string}
      */
-    private function extensions(UpdatePackage $package): array
+    private function extensions(array $names): array
     {
-        $missing = array_values(array_filter($package->extensions, static fn (string $name): bool => !extension_loaded($name)));
+        $missing = array_values(array_filter($names, static fn (string $name): bool => !extension_loaded($name)));
 
         if ($missing !== []) {
             return $this->result('PHP extensions', self::ERROR, 'This release needs PHP extensions this server does not have: ' . implode(', ', $missing) . '.');
@@ -167,12 +188,10 @@ final class CompatibilityChecker
     }
 
     /**
-     * @return array{label: string, status: string, detail: string}
+     * @return list<string> the application and package folders a package would replace
      */
-    private function writable(UpdatePackage $package): array
+    private function mirroredRoots(UpdatePackage $package): array
     {
-        $label = 'File permissions';
-        $root = $this->storage->root();
         $roots = [];
 
         foreach ($package->files as $file) {
@@ -183,10 +202,59 @@ final class CompatibilityChecker
             }
         }
 
+        return array_keys($roots);
+    }
+
+    /**
+     * Whether this server can download a release at all: cURL, or PHP's own streams. Without either, only the manual
+     * upload works.
+     *
+     * @return array{label: string, status: string, detail: string}
+     */
+    private function downloads(): array
+    {
+        $label = 'Downloads from GitHub';
+
+        if (function_exists('curl_init')) {
+            return $this->result($label, self::OK, 'cURL is available, so the server can fetch a release itself.');
+        }
+
+        if (filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+            return $this->result($label, self::OK, 'PHP can open web addresses, so the server can fetch a release itself.');
+        }
+
+        return $this->result($label, self::WARNING, 'This server has neither cURL nor allow_url_fopen, so it cannot reach GitHub. Upload the release ZIP on the Manual Update tab instead.');
+    }
+
+    /**
+     * @return array{label: string, status: string, detail: string}
+     */
+    private function storageFolder(): array
+    {
+        $label = 'Update storage';
+        $directory = $this->storage->updatesDir();
+
+        if (is_dir($directory) ? !is_writable($directory) : !is_writable(dirname($directory))) {
+            return $this->result($label, self::ERROR, 'The web server cannot write to the storage folder where a release is unpacked and backups are kept. Change its permissions (or ask the host to), then check again.');
+        }
+
+        return $this->result($label, self::OK, 'The folder where a release is unpacked and backups are kept can be written to.');
+    }
+
+    /**
+     * @param list<string> $mirroredRoots
+     * @return array{label: string, status: string, detail: string}
+     */
+    private function writable(array $mirroredRoots, bool $addsPackages): array
+    {
+        $label = 'File permissions';
+        $root = $this->storage->root();
+        $roots = array_fill_keys($mirroredRoots, true);
+
         $directories = [$root, $this->storage->updatesDir(), $this->storage->backupsDir(), dirname($this->storage->logPath())];
 
         // A plugin or theme the release adds is created inside these.
-        if ($package->packages !== []) {
+        if ($addsPackages) {
             array_push($directories, ...array_map(static fn (string $parent): string => $root . '/' . $parent, UpdateLayout::PACKAGE_PARENTS));
         }
 
@@ -228,7 +296,7 @@ final class CompatibilityChecker
     /**
      * @return array{label: string, status: string, detail: string}
      */
-    private function space(UpdatePackage $package, int $backupEstimateBytes): array
+    private function space(int $unpackedBytes, int $backupEstimateBytes): array
     {
         $label = 'Disk space';
         $free = $this->freeBytes($this->storage->root());
@@ -238,7 +306,7 @@ final class CompatibilityChecker
         }
 
         // The package is kept, unpacked once, and the backup is a compressed copy of the site.
-        $needed = $package->unpackedBytes * 3 + $backupEstimateBytes + self::MARGIN_BYTES;
+        $needed = $unpackedBytes * 3 + $backupEstimateBytes + self::MARGIN_BYTES;
 
         if ($free < $needed) {
             return $this->result($label, self::ERROR, 'About ' . $this->megabytes($needed) . ' MB of free disk space is needed for the package and the backup, and ' . $this->megabytes((int) $free) . ' MB is free.');

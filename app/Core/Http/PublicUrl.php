@@ -75,6 +75,8 @@ final class PublicUrl
 
     public const COMMENT_REPORT = '/account/comments/{id}/report';
 
+    public const COMMENT_REPLY = '/account/comments/{id}/reply';
+
     public const BOOKMARKS = '/account/bookmarks';
 
     public const BOOKMARK_ADD = '/account/bookmarks/add';

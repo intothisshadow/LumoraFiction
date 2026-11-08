@@ -197,6 +197,9 @@ final class AdminRoutes
         $router->get('/admin/appearance/screenshot/{slug}', $appearance->screenshot(...), 'admin.appearance.screenshot');
         $router->get('/admin/appearance/options', $appearance->showOptions(...), 'admin.appearance.options');
         $router->post('/admin/appearance/options', $appearance->saveOptions(...));
+        $router->post('/admin/appearance/visitor-choice', $appearance->saveVisitorChoice(...), 'admin.appearance.visitor_choice');
+        $router->post('/admin/appearance/preview/activate', $appearance->activatePreview(...), 'admin.appearance.preview.activate');
+        $router->post('/admin/appearance/preview/exit', $appearance->exitPreview(...), 'admin.appearance.preview.exit');
         $router->get('/admin/maintenance/system-information',$systemInformation->show(...), 'admin.system-information');
         $router->get('/admin/maintenance/system-information.json', $systemInformation->download(...), 'admin.system-information.download');
         $router->get('/admin/maintenance/plugins', $plugins->index(...), 'admin.plugins');

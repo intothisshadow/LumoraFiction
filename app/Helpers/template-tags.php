@@ -100,6 +100,28 @@ if (!function_exists('lf_downloads')) {
     }
 }
 
+if (!function_exists('lf_theme_switch')) {
+    /**
+     * Prints the theme switcher through the theme's theme-switch part: a small form that works without a script. It prints
+     * nothing while visitors may not choose a theme or only one is offered, so a theme can call it unconditionally.
+     */
+    function lf_theme_switch(): void
+    {
+        ThemeContext::current()?->themeSwitch();
+    }
+}
+
+if (!function_exists('lf_theme_preview_banner')) {
+    /**
+     * Prints the notice that an Administrator is previewing a theme, with "Make this the active theme" and "Exit preview".
+     * Nothing is printed for anyone else, so a theme can call it unconditionally near the top of every page.
+     */
+    function lf_theme_preview_banner(): void
+    {
+        ThemeContext::current()?->themePreviewBanner();
+    }
+}
+
 if (!function_exists('lf_comments')) {
     /**
      * Prints the comments under a chapter through the theme's comments part: the list, the count, and the form with its

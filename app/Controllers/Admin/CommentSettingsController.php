@@ -70,6 +70,7 @@ final class CommentSettingsController extends AdminController
             'author_toggle' => $request->checked('author_toggle'),
             'edit_minutes' => $request->input('edit_minutes'),
             'report_threshold' => $request->input('report_threshold'),
+            'replies' => $request->checked('replies'),
         ]);
 
         if (!$this->validToken($request, self::TOKEN)) {
@@ -87,7 +88,7 @@ final class CommentSettingsController extends AdminController
     }
 
     /**
-     * @param array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int} $values
+     * @param array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int, replies: bool} $values
      * @param array<string, string> $errors
      */
     private function page(Request $request, User $user, array $values, array $errors, int $status): Response

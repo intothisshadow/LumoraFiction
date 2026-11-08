@@ -50,6 +50,9 @@ final class CommentService
 
     public const ACTIONS = ['approve', 'hide', 'spam', 'restore', 'delete'];
 
+    /** A comment readers can see only while the comment it answers is published too: hiding a parent hides its replies without losing them. */
+    private const LIVE_THREAD = "(c.parent_id IS NULL OR EXISTS (SELECT 1 FROM {prefix}comments live_parent WHERE live_parent.id = c.parent_id AND live_parent.status = 'published'))";
+
     public function __construct(
         private readonly Database $database,
         private readonly CommentSettings $settings,
@@ -205,10 +208,11 @@ final class CommentService
      * Posts a comment. Nothing is stored for a chapter a reader cannot open, whatever the request says.
      *
      * @param bool $suspectedSpam the spam guard's verdict; such a comment is kept, marked as spam, not shown
+     * @param int|null $parentId the comment this one answers; checked again here, never trusted from the form
      * @return array{comment: Comment, held: bool, spam: bool}
      * @throws CommentException with a sentence fit to show
      */
-    public function post(User $user, int $chapterId, string $body, string $ipAddress = '', bool $suspectedSpam = false): array
+    public function post(User $user, int $chapterId, string $body, string $ipAddress = '', bool $suspectedSpam = false, ?int $parentId = null): array
     {
         if (!$this->settings->enabled()) {
             throw new CommentException('Comments are turned off on this site.');
@@ -234,6 +238,10 @@ final class CommentService
             throw new CommentException('Comments are turned off here.');
         }
 
+        if ($parentId !== null) {
+            $this->assertCanReplyTo($parentId, $target['chapter_id']);
+        }
+
         $body = $this->cleanBody($body);
         $filtered = $this->hooks?->applyFilters('comment_body', $body, $user, $target);
 
@@ -248,14 +256,40 @@ final class CommentService
         $now = new DateTimeImmutable();
 
         $id = $this->database->insertGetId(
-            'INSERT INTO {prefix}comments (story_id, chapter_id, user_id, body, status, report_count, created_at) VALUES (:story, :chapter, :user, :body, :status, 0, :created)',
-            ['story' => $target['story_id'], 'chapter' => $target['chapter_id'], 'user' => $user->id, 'body' => $body, 'status' => $status->value, 'created' => $now->format('Y-m-d H:i:s')],
+            'INSERT INTO {prefix}comments (story_id, chapter_id, user_id, parent_id, body, status, report_count, created_at) VALUES (:story, :chapter, :user, :parent, :body, :status, 0, :created)',
+            ['story' => $target['story_id'], 'chapter' => $target['chapter_id'], 'user' => $user->id, 'parent' => $parentId, 'body' => $body, 'status' => $status->value, 'created' => $now->format('Y-m-d H:i:s')],
         );
         $comment = $this->find((int) $id) ?? throw new CommentException('The comment could not be saved.');
 
         $this->hooks?->doAction('comment_created', $comment, $user);
 
         return ['comment' => $comment, 'held' => $status === CommentStatus::Pending, 'spam' => $status === CommentStatus::Spam];
+    }
+
+    /**
+     * Whether a published, top-level comment can be answered right now: the site allows replies, and it is not itself a
+     * reply. Who is asking and whether the chapter is open are checked by the caller or by post().
+     */
+    public function isReplyable(Comment $comment): bool
+    {
+        return $this->settings->repliesAllowed() && $comment->parentId === null && $comment->status === CommentStatus::Published;
+    }
+
+    /**
+     * @throws CommentException with the same plain sentence whatever is wrong, so a hand-made request learns nothing about a hidden comment
+     */
+    private function assertCanReplyTo(int $parentId, int $chapterId): void
+    {
+        if (!$this->settings->repliesAllowed()) {
+            throw new CommentException('Replies are turned off on this site.');
+        }
+
+        $parent = $this->find($parentId);
+
+        // A reply is only ever made to a published top-level comment on this same chapter.
+        if ($parent === null || $parent->chapterId !== $chapterId || !$this->isReplyable($parent)) {
+            throw new CommentException('That comment cannot be replied to.');
+        }
     }
 
     public function mayEdit(User $user, Comment $comment): bool
@@ -291,17 +325,34 @@ final class CommentService
         return $this->find($comment->id) ?? $comment;
     }
 
+    public function mayDelete(User $actor, Comment $comment): bool
+    {
+        if ($actor->id === $comment->userId) {
+            return true;
+        }
+
+        $owner = $this->database->fetchColumn('SELECT owner_id FROM {prefix}stories WHERE id = :id', ['id' => $comment->storyId]);
+
+        return $owner !== null && $this->mayManage($actor, (int) $owner);
+    }
+
+    /** The name printed beside a comment, which is the neutral one once an account has been deleted. */
+    public function displayNameOf(Comment $comment): string
+    {
+        return (string) ($this->database->fetchColumn('SELECT display_name FROM {prefix}users WHERE id = :id', ['id' => $comment->userId]) ?? '');
+    }
+
     /**
-     * A commenter may delete their own comment at any time; the writer of the story and staff may delete any under it.
+     * A commenter may delete their own comment at any time; the writer of the story and staff may delete any under it. A
+     * comment's replies are deleted with it.
      *
      * @throws CommentException
      */
     public function deleteOne(User $actor, int $commentId, string $ipAddress = ''): void
     {
         $comment = $this->find($commentId);
-        $owner = $comment === null ? null : $this->database->fetchColumn('SELECT owner_id FROM {prefix}stories WHERE id = :id', ['id' => $comment->storyId]);
 
-        if ($comment === null || !($actor->id === $comment->userId || ($owner !== null && $this->mayManage($actor, (int) $owner)))) {
+        if ($comment === null || !$this->mayDelete($actor, $comment)) {
             throw new CommentException('That comment is not available.');
         }
 
@@ -480,10 +531,10 @@ final class CommentService
         return $row === null ? null : $this->hydrate($row);
     }
 
-    /** Published comments on a chapter that a reader can open. */
+    /** Published comments on a chapter that a reader can open; a reply under a hidden comment is not counted, as it is not shown. */
     public function countForChapter(int $chapterId): int
     {
-        return (int) $this->database->fetchColumn("SELECT COUNT(*) FROM {prefix}comments WHERE chapter_id = :chapter AND status = 'published'", ['chapter' => $chapterId]);
+        return (int) $this->database->fetchColumn("SELECT COUNT(*) FROM {prefix}comments c WHERE c.chapter_id = :chapter AND c.status = 'published' AND " . self::LIVE_THREAD, ['chapter' => $chapterId]);
     }
 
     /**
@@ -499,7 +550,7 @@ final class CommentService
         [$marks, $params] = $this->marks($storyIds, 'story_');
         $counts = [];
 
-        foreach ($this->database->fetchAll("SELECT story_id, COUNT(*) AS total FROM {prefix}comments WHERE status = 'published' AND story_id IN (" . $marks . ') GROUP BY story_id', $params) as $row) {
+        foreach ($this->database->fetchAll("SELECT c.story_id, COUNT(*) AS total FROM {prefix}comments c WHERE c.status = 'published' AND " . self::LIVE_THREAD . ' AND c.story_id IN (' . $marks . ') GROUP BY c.story_id', $params) as $row) {
             $counts[(int) $row['story_id']] = (int) $row['total'];
         }
 
@@ -538,11 +589,135 @@ final class CommentService
         return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}comments c WHERE ' . $where, $params);
     }
 
+    /** Top-level comments a viewer sees, which is what a page of threads is counted in. */
+    public function countThreads(int $chapterId, int $storyOwnerId, ?User $viewer): int
+    {
+        [$where, $params] = $this->publicWhere($chapterId, $storyOwnerId, $viewer);
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}comments c WHERE c.parent_id IS NULL AND ' . $where, $params);
+    }
+
+    /**
+     * One page of conversations, oldest first. A page holds a fixed number of top-level comments and every reply a viewer
+     * may see under each, so a thread is never split across pages and a page's length stays predictable.
+     *
+     * @return list<array{comment: Comment, name: string, is_author: bool, pending: bool, replies: list<array{comment: Comment, name: string, is_author: bool, pending: bool}>}>
+     */
+    public function threadsForChapter(int $chapterId, int $storyOwnerId, ?User $viewer, int $limit, int $offset): array
+    {
+        [$where, $params] = $this->publicWhere($chapterId, $storyOwnerId, $viewer);
+        $rows = $this->database->fetchAll(
+            'SELECT c.*, u.display_name FROM {prefix}comments c LEFT JOIN {prefix}users u ON u.id = c.user_id WHERE c.parent_id IS NULL AND ' . $where
+            . ' ORDER BY c.created_at, c.id LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
+            $params,
+        );
+        $threads = [];
+
+        foreach ($rows as $row) {
+            $comment = $this->hydrate($row);
+            $threads[$comment->id] = $this->listEntry($comment, $row, $storyOwnerId) + ['replies' => []];
+        }
+
+        if ($threads === []) {
+            return [];
+        }
+
+        [$marks, $parents] = $this->marks(array_keys($threads), 'par_');
+        $replies = $this->database->fetchAll(
+            'SELECT c.*, u.display_name FROM {prefix}comments c LEFT JOIN {prefix}users u ON u.id = c.user_id WHERE c.parent_id IN (' . $marks . ') AND ' . $where . ' ORDER BY c.created_at, c.id',
+            $params + $parents,
+        );
+
+        foreach ($replies as $row) {
+            $reply = $this->hydrate($row);
+
+            if ($reply->parentId !== null && isset($threads[$reply->parentId])) {
+                $threads[$reply->parentId]['replies'][] = $this->listEntry($reply, $row, $storyOwnerId);
+            }
+        }
+
+        return array_values($threads);
+    }
+
+    /**
+     * Which page of threads holds a top-level comment, so a link to a reply lands on the right page.
+     */
+    public function threadPage(int $parentId, int $chapterId, int $storyOwnerId, ?User $viewer): int
+    {
+        $parent = $this->find($parentId);
+
+        if ($parent === null) {
+            return 1;
+        }
+
+        [$where, $params] = $this->publicWhere($chapterId, $storyOwnerId, $viewer);
+        $params['before_created'] = $parent->createdAt->format('Y-m-d H:i:s');
+        $params['before_id'] = $parent->id;
+        $before = (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM {prefix}comments c WHERE c.parent_id IS NULL AND ' . $where . ' AND (c.created_at < :before_created OR (c.created_at = :before_created2 AND c.id < :before_id))',
+            $params + ['before_created2' => $params['before_created']],
+        );
+
+        return intdiv($before, self::PER_PAGE) + 1;
+    }
+
+    /**
+     * How many replies each comment has, whatever their state, for the question "this will also delete N replies".
+     *
+     * @param list<int> $ids
+     * @return array<int, int> reply count by comment id, only for comments that have any
+     */
+    public function replyCounts(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        [$marks, $params] = $this->marks($ids, 'rc_');
+        $counts = [];
+
+        foreach ($this->database->fetchAll('SELECT parent_id, COUNT(*) AS total FROM {prefix}comments WHERE parent_id IN (' . $marks . ') GROUP BY parent_id', $params) as $row) {
+            $counts[(int) $row['parent_id']] = (int) $row['total'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Replies that would go with these comments when they are deleted, not counting the ones already in the list.
+     *
+     * @param list<int> $ids
+     */
+    public function repliesGoingWith(array $ids): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        [$marks, $params] = $this->marks($ids, 'gw_');
+        [$other, $otherParams] = $this->marks($ids, 'gx_');
+
+        return (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM {prefix}comments WHERE parent_id IN (' . $marks . ') AND id NOT IN (' . $other . ')',
+            $params + $otherParams,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{comment: Comment, name: string, is_author: bool, pending: bool}
+     */
+    private function listEntry(Comment $comment, array $row, int $storyOwnerId): array
+    {
+        // Worked out each time from the story's owner, never stored, so a changed owner or a deleted account stays right.
+        return ['comment' => $comment, 'name' => (string) ($row['display_name'] ?? ''), 'is_author' => $comment->userId === $storyOwnerId, 'pending' => $comment->status === CommentStatus::Pending];
+    }
+
     /**
      * Comments a person may see in the moderation list, with the story, chapter and commenter beside each.
      *
      * @param array{status?: string, story?: int, chapter?: int, user?: int, from?: string, to?: string, q?: string} $filters
-     * @return list<array{comment: Comment, story_title: string, story_slug: string, owner_id: int, chapter_number: int, chapter_title: string, commenter: string, commenter_status: string, published: bool}>
+     * @return list<array{comment: Comment, story_title: string, story_slug: string, owner_id: int, chapter_number: int, chapter_title: string, commenter: string, commenter_status: string, published: bool, parent_commenter: string}>
      */
     public function search(User $actor, array $filters, int $limit, int $offset): array
     {
@@ -550,10 +725,11 @@ final class CommentService
 
         $rows = $this->database->fetchAll(
             'SELECT c.*, s.title AS story_title, s.slug AS story_slug, s.owner_id, ch.number AS chapter_number, ch.title AS chapter_title,
-                    u.display_name AS commenter, u.status AS commenter_status,
+                    u.display_name AS commenter, u.status AS commenter_status, pu.display_name AS parent_commenter,
                     (s.publication_state = \'published\' AND ch.publication_state = \'published\') AS is_public
              FROM {prefix}comments c JOIN {prefix}stories s ON s.id = c.story_id
              LEFT JOIN {prefix}chapters ch ON ch.id = c.chapter_id LEFT JOIN {prefix}users u ON u.id = c.user_id
+             LEFT JOIN {prefix}comments pc ON pc.id = c.parent_id LEFT JOIN {prefix}users pu ON pu.id = pc.user_id
              WHERE ' . $where . ' ORDER BY c.created_at DESC, c.id DESC LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
             $params,
         );
@@ -570,6 +746,7 @@ final class CommentService
                 'commenter' => (string) ($row['commenter'] ?? ''),
                 'commenter_status' => (string) ($row['commenter_status'] ?? ''),
                 'published' => (int) ($row['is_public'] ?? 0) === 1,
+                'parent_commenter' => (string) ($row['parent_commenter'] ?? ''),
             ];
         }
 
@@ -868,7 +1045,7 @@ final class CommentService
             }
         }
 
-        return ['c.chapter_id = :chapter AND ' . $visible, $params];
+        return ['c.chapter_id = :chapter AND ' . $visible . ' AND ' . self::LIVE_THREAD, $params];
     }
 
     /**
@@ -884,6 +1061,11 @@ final class CommentService
         if (!$this->isModerator($actor)) {
             $where[] = 's.owner_id = :scope_owner';
             $params['scope_owner'] = $actor->id;
+        }
+
+        // "replies" narrows any tab to the comments that answer another comment.
+        if (($filters['kind'] ?? '') === 'replies') {
+            $where[] = 'c.parent_id IS NOT NULL';
         }
 
         $status = (string) ($filters['status'] ?? '');
@@ -930,7 +1112,14 @@ final class CommentService
             return;
         }
 
-        [$marks, $params] = $this->marks($ids, 'del_');
+        // A comment's replies go with it: they answer nothing once it is gone.
+        [$parentMarks, $parentParams] = $this->marks($ids, 'rep_');
+
+        foreach ($this->database->fetchAll('SELECT id FROM {prefix}comments WHERE parent_id IN (' . $parentMarks . ')', $parentParams) as $row) {
+            $ids[] = (int) $row['id'];
+        }
+
+        [$marks, $params] = $this->marks(array_values(array_unique($ids)), 'del_');
         $this->database->execute('DELETE FROM {prefix}comment_reports WHERE comment_id IN (' . $marks . ')', $params);
         $this->database->execute('DELETE FROM {prefix}comments WHERE id IN (' . $marks . ')', $params);
     }
@@ -965,6 +1154,7 @@ final class CommentService
             reportCount: (int) $row['report_count'],
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             editedAt: $row['edited_at'] === null ? null : new DateTimeImmutable((string) $row['edited_at']),
+            parentId: ($row['parent_id'] ?? null) === null ? null : (int) $row['parent_id'],
         );
     }
 }

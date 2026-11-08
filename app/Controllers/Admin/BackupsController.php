@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BackupListing;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -45,6 +46,7 @@ final class BackupsController extends AdminController
         private readonly BackupService $backups,
         private readonly UpdateService $updates,
         private readonly AuditLogService $audit,
+        private readonly BackupListing $listing,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -60,22 +62,8 @@ final class BackupsController extends AdminController
             return $user;
         }
 
-        $records = $this->backups->all();
-        $rows = [];
-
-        foreach ($records as $record) {
-            $id = (string) $record['id'];
-            $rows[] = $record + [
-                'complete' => ($record['status'] ?? '') === 'complete',
-                'files_url' => AdminUrl::to(self::PATH . '/' . $id . '/download/files'),
-                'database_url' => AdminUrl::to(self::PATH . '/' . $id . '/download/database'),
-                'restore_url' => AdminUrl::to(self::PATH . '/' . $id . '/restore'),
-                'delete_url' => AdminUrl::to(self::PATH . '/' . $id . '/delete'),
-            ];
-        }
-
         return $this->view->render('backups', [
-            'backups' => $rows,
+            'backups' => $this->listing->rows(),
             'running' => $this->updates->current(),
             'csrfToken' => Csrf::token(self::TOKEN),
             'createAction' => AdminUrl::to(self::PATH . '/create'),

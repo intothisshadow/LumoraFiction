@@ -58,6 +58,7 @@ final class ThemeContext
         private readonly Closure $includePart,
         private readonly array $footerLinks = [],
         private readonly ?Closure $privacyLink = null,
+        private readonly ?Closure $themeTools = null,
     ) {
     }
 
@@ -315,6 +316,31 @@ final class ThemeContext
         }
 
         echo '</ul></nav>', "\n";
+    }
+
+    /**
+     * The theme switcher, through the theme's own part, or nothing at all while visitors may not choose a theme or only
+     * one is offered. The form, its token and the list of themes come from core, so a theme only places it.
+     */
+    public function themeSwitch(): void
+    {
+        $data = $this->themeTools === null ? null : ($this->themeTools)('switch');
+
+        if (is_array($data) && $data !== []) {
+            $this->part('theme-switch', ['switch' => $data]);
+        }
+    }
+
+    /**
+     * The notice shown while an Administrator is previewing a theme, with its two buttons, or nothing otherwise.
+     */
+    public function themePreviewBanner(): void
+    {
+        $data = $this->themeTools === null ? null : ($this->themeTools)('banner');
+
+        if (is_array($data) && $data !== []) {
+            $this->part('theme-preview-banner', ['banner' => $data]);
+        }
     }
 
     /**

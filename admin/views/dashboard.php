@@ -15,7 +15,6 @@
 
 declare(strict_types=1);
 
-use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
@@ -162,13 +161,5 @@ use LumoraFiction\Models\User;
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
-    </section>
-
-    <section aria-labelledby="lf-links-heading" class="lf-card">
-        <h2 id="lf-links-heading">Quick links</h2>
-        <ul>
-            <li><a href="<?= Html::e(AdminUrl::to('settings/archive')) ?>">Archive settings</a></li>
-            <li><a href="<?= Html::e(AdminUrl::to('maintenance/system-information')) ?>">System information</a></li>
-        </ul>
     </section>
 <?php endif; ?>

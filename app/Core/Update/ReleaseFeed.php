@@ -30,7 +30,8 @@ final class ReleaseFeed
 
     private const CHECKSUM_LIMIT_BYTES = 4096;
 
-    private const NOTES_LIMIT = 4000;
+    // Long enough for a release with many headed sections; the screen scrolls it, so length only costs file space.
+    private const NOTES_LIMIT = 20000;
 
     public function __construct(private readonly HttpTransport $http)
     {
@@ -58,13 +59,15 @@ final class ReleaseFeed
      *         null when the repository has no suitable release
      * @throws UpdateException when GitHub cannot be reached or answers with something unusable
      */
-    public function latest(string $repository, bool $includePrereleases): ?array
+    public function latest(string $repository, bool $includePrereleases, string $token = ''): ?array
     {
         if (!self::isValidRepository($repository)) {
             throw new UpdateException('The repository name is not valid. Use the form owner/name.');
         }
 
-        $raw = $this->http->fetch('https://api.github.com/repos/' . $repository . '/releases?per_page=15', self::API_LIMIT_BYTES);
+        // A token only lifts GitHub's limit on anonymous requests; a transport that cannot carry one asks anonymously.
+        $http = $token !== '' && $this->http instanceof TokenAwareTransport ? $this->http->withToken($token) : $this->http;
+        $raw = $http->fetch('https://api.github.com/repos/' . $repository . '/releases?per_page=15', self::API_LIMIT_BYTES);
         $releases = json_decode($raw, true);
 
         if (!is_array($releases)) {

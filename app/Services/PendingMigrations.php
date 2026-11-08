@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use LumoraFiction\Core\Database\Migrator;
+use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Models\AlertSeverity;
 use LumoraFiction\Models\User;
 use Throwable;
@@ -36,7 +37,14 @@ final class PendingMigrations
         private readonly Migrator $migrator,
         private readonly AuditLogService $audit,
         private readonly ?SiteAlerts $alerts = null,
+        private readonly ?FlashMessages $flash = null,
     ) {
+    }
+
+    /** One sentence for the screen and the activity list, so both say the same; only the count is named. */
+    public static function summary(int $count): string
+    {
+        return 'Applied ' . $count . ($count === 1 ? ' database change' : ' database changes') . ' after the new files were uploaded.';
     }
 
     /**
@@ -67,6 +75,9 @@ final class PendingMigrations
         if ($applied !== []) {
             $this->alerts?->clear(self::ALERT_KEY);
             $this->audit->record($actor->id, 'database.migrated', 'database', null, ['migrations' => $applied], $ipAddress);
+
+            // Queued in the Administrator's own session, so it shows once on the screen they are opening.
+            $this->flash?->add('success', self::summary(count($applied)));
         }
 
         return $applied;

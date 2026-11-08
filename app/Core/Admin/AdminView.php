@@ -39,6 +39,7 @@ final class AdminView
         private readonly ?Closure $notificationCount = null,
         private readonly ?Closure $maintenanceNotices = null,
         private readonly ?Closure $commentCount = null,
+        private readonly ?Closure $updateAvailable = null,
     ) {
     }
 
@@ -49,7 +50,14 @@ final class AdminView
      */
     private function menuCountsFor(User $user): array
     {
-        return $this->commentCount !== null && $user->can(Capability::WriteStories) ? ['comments' => ($this->commentCount)($user)] : [];
+        $counts = $this->commentCount !== null && $user->can(Capability::WriteStories) ? ['comments' => ($this->commentCount)($user)] : [];
+
+        // One, because the entry only needs to say that something is waiting there.
+        if ($this->updateAvailable !== null && ($this->updateAvailable)($user)) {
+            $counts['maintenance-updates'] = 1;
+        }
+
+        return $counts;
     }
 
     /**

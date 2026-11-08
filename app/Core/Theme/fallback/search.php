@@ -66,7 +66,10 @@ lf_get_header();
             <?php foreach (lf_items('stories') as $card): ?>
                 <li class="lf-story-list__item">
                     <a class="lf-story-list__link" href="<?= lf_e($card['url'] ?? '') ?>"><?= lf_e($card['title'] ?? '') ?></a>
-                    <span class="lf-story-list__meta">by <?= lf_e($card['author'] ?? '') ?> &middot; <?= lf_e($card['words'] ?? '') ?> words</span>
+                    <span class="lf-story-list__meta">by <?= lf_e($card['author'] ?? '') ?> &middot; <?= lf_e($card['words'] ?? '') ?> words<?= ($card['chapters'] ?? '') !== '' ? ' &middot; ' . lf_e($card['chapters']) : '' ?></span>
+                    <?php if (is_array($card['term_groups'] ?? null) && $card['term_groups'] !== []): ?>
+                        <span class="lf-story-list__terms"><?php foreach ($card['term_groups'] as $group): ?><?= lf_e($group['label'] ?? '') ?>: <?= lf_e(implode(', ', array_column(is_array($group['terms'] ?? null) ? $group['terms'] : [], 'name'))) ?><?= (int) ($group['more'] ?? 0) > 0 ? ' and ' . (int) $group['more'] . ' more' : '' ?>. <?php endforeach; ?></span>
+                    <?php endif; ?>
                 </li>
             <?php endforeach; ?>
         </ol>

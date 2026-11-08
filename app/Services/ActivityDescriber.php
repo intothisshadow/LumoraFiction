@@ -155,6 +155,10 @@ final class ActivityDescriber
             return self::RUN_RESULTS[$found[2]][$found[1]] ?? 'ran ' . $found[1];
         }
 
+        if ($action === 'database.migrated' && is_array($details['migrations'] ?? null) && $details['migrations'] !== []) {
+            return lcfirst(rtrim(PendingMigrations::summary(count($details['migrations'])), '.'));
+        }
+
         if ($action === 'plugin.activate' || $action === 'plugin.deactivate') {
             $name = $this->name($entry['target_id'] ?? '');
 

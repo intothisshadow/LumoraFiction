@@ -168,6 +168,8 @@ final class CommentsController extends AdminController
                 'count' => count($ids),
                 'ids' => $everything ? [] : $ids,
                 'everything' => $everything,
+                // Deleting a comment takes its replies with it, so the question says how many.
+                'replies' => $action === 'delete' ? $this->comments->repliesGoingWith($ids) : 0,
                 'filters' => $filters,
                 'page' => $page,
                 'csrfToken' => Csrf::token(self::TOKEN),
@@ -175,6 +177,8 @@ final class CommentsController extends AdminController
                 'backUrl' => AdminUrl::to(self::PATH) . $this->query($filters, $page),
             ], $user, 'Confirm', self::PATH, $this->flash->pull($request->cookies));
         }
+
+        $goingWith = $action === 'delete' ? $this->comments->repliesGoingWith($ids) : 0;
 
         try {
             $result = $this->comments->moderate($user, $action, $ids, $request->ip());
@@ -187,6 +191,10 @@ final class CommentsController extends AdminController
         $verb = ['approve' => 'approved', 'hide' => 'hidden', 'spam' => 'marked as spam', 'restore' => 'restored', 'delete' => 'deleted'][$action];
         $noun = static fn (int $count): string => $count . ($count === 1 ? ' comment' : ' comments');
         $message = $result['changed'] > 0 ? $noun($result['changed']) . ($result['changed'] === 1 ? ' was ' : ' were ') . $verb . '.' : 'No comment was ' . $verb . '.';
+
+        if ($action === 'delete' && $result['changed'] > 0 && $goingWith > 0) {
+            $message .= ' ' . ($goingWith === 1 ? '1 reply' : $goingWith . ' replies') . ' went with ' . ($result['changed'] === 1 ? 'it' : 'them') . '.';
+        }
 
         if ($result['skipped'] > 0) {
             $message .= ' ' . $noun($result['skipped']) . ' left alone (already in that state, or not yours to change).';
@@ -276,7 +284,7 @@ final class CommentsController extends AdminController
 
     /**
      * @param array<string, mixed> $source the query string or the posted form
-     * @return array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string}
+     * @return array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string, kind: string}
      */
     private function filters(array $source): array
     {
@@ -292,11 +300,12 @@ final class CommentsController extends AdminController
             'from' => preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}\z/', $text('from')) === 1 ? $text('from') : '',
             'to' => preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}\z/', $text('to')) === 1 ? $text('to') : '',
             'q' => mb_substr($text('q'), 0, 100),
+            'kind' => $text('kind') === 'replies' ? 'replies' : '',
         ];
     }
 
     /**
-     * @param array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string} $filters
+     * @param array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string, kind: string} $filters
      */
     private function query(array $filters, int $page): string
     {

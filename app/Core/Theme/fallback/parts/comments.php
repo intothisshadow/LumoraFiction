@@ -35,36 +35,7 @@ $pageUrl = lf_value('comments.pagination.url');
     <?php else: ?>
         <ol class="lf-comments__list">
             <?php foreach ($items as $comment): ?>
-                <li class="lf-comment<?= ($comment['is_author'] ?? false) === true ? ' lf-comment--author' : '' ?><?= ($comment['pending'] ?? false) === true ? ' lf-comment--pending' : '' ?>" id="<?= lf_e($comment['anchor'] ?? '') ?>">
-                    <article>
-                        <header class="lf-comment__header">
-                            <span class="lf-comment__name"><?= lf_e($comment['name'] ?? '') ?></span>
-                            <?php if (($comment['is_author'] ?? false) === true): ?>
-                                <span class="lf-comment__badge"><?= lf_e($comment['author_label'] ?? 'Author') ?></span>
-                            <?php endif; ?>
-                            <time class="lf-comment__date" datetime="<?= lf_e($comment['datetime'] ?? '') ?>"><?= lf_e($comment['posted'] ?? '') ?></time>
-                            <?php if (($comment['edited'] ?? false) === true): ?>
-                                <span class="lf-comment__edited">(<?= lf_e($comment['edited_label'] ?? 'edited') ?>)</span>
-                            <?php endif; ?>
-                        </header>
-                        <?php if (($comment['pending'] ?? false) === true): ?>
-                            <p class="lf-comment__status" role="status"><?= lf_e($comment['pending_label'] ?? '') ?></p>
-                        <?php endif; ?>
-                        <div class="lf-comment__body"><?= lf_e($comment['body_html'] ?? '') ?></div>
-                        <?php if (($comment['edit_url'] ?? '') !== '' || ($comment['report_url'] ?? '') !== '' || is_array($comment['delete'] ?? null)): ?>
-                            <footer class="lf-comment__actions">
-                                <?php if (($comment['edit_url'] ?? '') !== ''): ?><a class="lf-comment__action" href="<?= lf_e($comment['edit_url']) ?>">Edit</a><?php endif; ?>
-                                <?php if (($comment['report_url'] ?? '') !== ''): ?><a class="lf-comment__action" href="<?= lf_e($comment['report_url']) ?>">Report</a><?php endif; ?>
-                                <?php if (is_array($comment['delete'] ?? null)): ?>
-                                    <form class="lf-comment__delete" method="post" action="<?= lf_e($comment['delete']['action'] ?? '') ?>">
-                                        <input type="hidden" name="csrf_token" value="<?= lf_e($comment['delete']['csrf_token'] ?? '') ?>">
-                                        <button class="lf-comment__action lf-comment__action--button" type="submit"><?= lf_e($comment['delete']['label'] ?? 'Delete') ?><span class="lf-screen-reader-text"> comment by <?= lf_e($comment['name'] ?? '') ?></span></button>
-                                    </form>
-                                <?php endif; ?>
-                            </footer>
-                        <?php endif; ?>
-                    </article>
-                </li>
+                <?php lf_part('comment', ['comment' => $comment]); ?>
             <?php endforeach; ?>
         </ol>
 

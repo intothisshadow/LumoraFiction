@@ -1228,6 +1228,134 @@ fieldset.lf-card legend {
     white-space: pre-wrap;
 }
 
+/* The at-a-glance strip at the top of the Updates screen: three groups side by side, stacked on a phone. */
+.lf-update-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1.5rem 2rem;
+}
+
+.lf-update-overview__title {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted, var(--text));
+}
+
+/* Each group is a small table of label and value pairs, so the three line up and long values wrap inside their own column. */
+.lf-update-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.35rem 1rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.lf-update-facts dt {
+    color: var(--text-muted, var(--text));
+}
+
+.lf-update-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.lf-update-facts__strong {
+    font-weight: 600;
+}
+
+.lf-update-status {
+    background: var(--surface-alt);
+    color: var(--text);
+}
+
+.lf-update-status--up-to-date {
+    background: var(--ok-bg);
+    color: var(--ok);
+}
+
+.lf-update-status--available {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.lf-update-status--failed {
+    background: var(--error-bg);
+    color: var(--error);
+}
+
+.lf-update-release__name {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: baseline;
+}
+
+/* Release notes are rendered text in a box that scrolls once it is long. */
+.lf-update-notes__heading {
+    margin: 1.25rem 0 0.25rem;
+    font-size: 1rem;
+}
+
+.lf-update-notes__body {
+    max-height: 22rem;
+    padding: 0.75rem 1rem;
+    overflow: auto;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+}
+
+.lf-update-notes__body :is(h1, h2, h3, h4) {
+    margin: 1rem 0 0.4rem;
+    font-size: 1.05rem;
+}
+
+.lf-update-notes__body :is(h1, h2, h3, h4):first-child {
+    margin-top: 0;
+}
+
+.lf-update-notes__body :is(p, ul, ol) {
+    margin: 0 0 0.6rem;
+}
+
+.lf-update-notes__body code {
+    padding: 0.1rem 0.3rem;
+    background: var(--surface);
+    border-radius: 0.2rem;
+    font-size: 0.9em;
+}
+
+.lf-update-notes__body:focus-visible,
+.lf-update-notes__text:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.lf-update-about ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+/* The list of themes a visitor may pick from: a plain group inside the card, not a second box. */
+.lf-theme-visitors__themes {
+    margin: 1rem 0;
+    padding: 0;
+    border: 0;
+}
+
+.lf-theme-visitors__themes legend {
+    padding: 0;
+    font-weight: 600;
+}
+
+/* The line above a reply on the Comments screen: which comment it answers. */
+.lf-comment-cell__reply-to {
+    margin: 0 0 0.35rem;
+    font-size: 0.85rem;
+}
+
 .lf-update-check--ok {
     background: var(--ok-bg);
     color: var(--ok);
@@ -1389,6 +1517,7 @@ fieldset.lf-card legend {
     .lf-chapter-table,
     .lf-backups,
     .lf-update-history,
+    .lf-update-system__table,
     .lf-update-checks {
         display: block;
         overflow-x: auto;

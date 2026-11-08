@@ -24,10 +24,12 @@ declare(strict_types=1);
 <body class="<?php lf_body_class(); ?>">
 <?php lf_body_open(); ?>
 <a class="lf-skip-link" href="#lf-main">Skip to content</a>
+<?php lf_theme_preview_banner(); ?>
 
 <header class="lf-site-header">
     <p class="lf-site-title"><a href="<?php lf_site_url(); ?>"><?php lf_site_name(); ?></a></p>
     <?php lf_navigation(); ?>
+    <?php lf_theme_switch(); ?>
 </header>
 
 <main id="lf-main" class="lf-main">

@@ -684,7 +684,7 @@ final class AccountController
                 $fields[] = $this->field('comment_notice', 'Tell me about new comments on my stories', 'select', '', '', 'Only comments that appear on the page are announced, never ones held for approval.', '', $options);
             }
 
-            $fields[] = $this->field('email_replies', 'Email me when the writer answers a chapter I commented on', 'select', '', '', '', '', $yesNo($prefs['email_replies']));
+            $fields[] = $this->field('email_replies', 'Email me when someone replies to my comment, or the writer answers a chapter I commented on', 'select', '', '', '', '', $yesNo($prefs['email_replies']));
             $forms[] = $this->form('comment_preferences', PublicUrl::account('profile/comments'), 'Save comment preferences', $fields, 'Comments', $summary('comments'));
         }
 

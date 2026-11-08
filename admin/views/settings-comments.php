@@ -18,7 +18,7 @@ declare(strict_types=1);
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Services\CommentSettings;
 
-/** @var array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int} $values */
+/** @var array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int, replies: bool} $values */
 /** @var array<string, string> $errors */
 /** @var int $maxMinutes */
 /** @var int $maxThreshold */
@@ -51,6 +51,11 @@ use LumoraFiction\Services\CommentSettings;
             <input type="checkbox" id="author_toggle" name="author_toggle" value="1"<?= $values['author_toggle'] ? ' checked' : '' ?>>
             <label for="author_toggle">Writers may turn comments off for their own stories and chapters</label>
         </div>
+        <div class="lf-choice">
+            <input type="checkbox" id="replies" name="replies" value="1"<?= $values['replies'] ? ' checked' : '' ?> aria-describedby="replies_hint">
+            <label for="replies">Allow replies to comments</label>
+        </div>
+        <p class="lf-hint" id="replies_hint">A signed-in person can answer a comment directly, one level deep: there is no reply to a reply. Turning this off removes the reply links; replies already made stay and are shown in the ordinary list, and nothing is deleted.</p>
     </fieldset>
 
     <fieldset class="lf-card">

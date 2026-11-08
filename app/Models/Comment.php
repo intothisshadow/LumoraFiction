@@ -31,7 +31,13 @@ final readonly class Comment
         public int $reportCount,
         public DateTimeImmutable $createdAt,
         public ?DateTimeImmutable $editedAt = null,
+        public ?int $parentId = null,
     ) {
+    }
+
+    public function isReply(): bool
+    {
+        return $this->parentId !== null;
     }
 
     public function wasEdited(): bool

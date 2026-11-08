@@ -20,6 +20,7 @@ namespace LumoraFiction\Services;
 use Closure;
 use LumoraFiction\Core\Media\CoverImageStore;
 use LumoraFiction\Core\Theme\SafeHtml;
+use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Story;
@@ -141,9 +142,11 @@ final class StoryPresenter
     /**
      * One entry of a list of stories. These are the only keys a list template may rely on.
      *
-     * @return array{title: string, url: string, author: string, author_url: string, summary: string, status: string, words: string, updated: string, cover: array{thumb: string, full: string, alt: string}}
+     * @param int $chapters the story's published chapters; 0 leaves the count out
+     * @param array<string, list<Term>> $terms the story's terms by kind; only the ones a card shows are used
+     * @return array{title: string, url: string, author: string, author_url: string, summary: string, status: string, words: string, chapters: string, term_groups: list<array<string, mixed>>, updated: string, cover: array{thumb: string, full: string, alt: string}}
      */
-    public function card(Story $story, string $author, string $authorUrl, string $storyUrl): array
+    public function card(Story $story, string $author, string $authorUrl, string $storyUrl, int $chapters = 0, array $terms = []): array
     {
         return [
             'title' => $story->title,
@@ -153,9 +156,44 @@ final class StoryPresenter
             'summary' => $story->summary,
             'status' => $story->workStatus->label(),
             'words' => number_format($story->wordCount),
+            // Printed text such as "12 chapters", or empty so a theme can leave it out with a plain test.
+            'chapters' => $chapters > 0 ? number_format($chapters) . ($chapters === 1 ? ' chapter' : ' chapters') : '',
+            'term_groups' => $this->cardTerms($terms),
             'updated' => $story->updatedAt->format('j F Y'),
             'cover' => $this->cover($story),
         ];
+    }
+
+    /** The kinds a card shows, in this order, and how many of each before it says "and N more". */
+    private const CARD_TERMS = ['rating' => 3, 'warning' => 4, 'fandom' => 4, 'character' => 6, 'relationship' => 4, 'tag' => 8];
+
+    /**
+     * A short, linked summary of a story's classification for a list: rating, archive warnings, fandoms, characters, relationships and tags.
+     *
+     * @param array<string, list<Term>> $terms
+     * @return list<array{label: string, type: string, terms: list<array{name: string, url: string}>, more: int}>
+     */
+    private function cardTerms(array $terms): array
+    {
+        $groups = [];
+
+        foreach (self::CARD_TERMS as $kind => $limit) {
+            $type = TermType::from($kind);
+            $all = $terms[$kind] ?? [];
+
+            if ($all === []) {
+                continue;
+            }
+
+            $groups[] = [
+                'label' => count($all) === 1 ? $type->label() : $type->pluralLabel(),
+                'type' => $kind,
+                'terms' => array_map(static fn (Term $term): array => ['name' => $term->name, 'url' => PublicUrl::term($term->type, $term->slug)], array_slice($all, 0, $limit)),
+                'more' => max(0, count($all) - $limit),
+            ];
+        }
+
+        return $groups;
     }
 
     /**

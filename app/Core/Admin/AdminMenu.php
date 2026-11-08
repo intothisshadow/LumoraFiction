@@ -201,6 +201,7 @@ final class AdminMenu
                     'label' => $child['label'],
                     'url' => AdminUrl::to($child['path']),
                     'current' => trim($child['path'], '/') === $currentPath,
+                    'count' => ($counts[$child['slug']] ?? 0) > 0 ? $counts[$child['slug']] : null,
                 ];
             }
 
@@ -213,12 +214,24 @@ final class AdminMenu
                 // Only one link per page is marked current: a parent with children leaves that to the child.
                 'current' => $isCurrent && !$childIsCurrent,
                 'open' => $isCurrent || $childIsCurrent,
-                'count' => $item['slug'] === 'alerts' ? ($alertCount !== null && $alertCount > 0 ? $alertCount : null) : (($counts[$item['slug']] ?? 0) > 0 ? $counts[$item['slug']] : null),
+                'count' => $item['slug'] === 'alerts' ? ($alertCount !== null && $alertCount > 0 ? $alertCount : null) : (($counts[$item['slug']] ?? 0) > 0 ? $counts[$item['slug']] : $this->childTotal($children)),
                 'children' => $children,
             ];
         }
 
         return $visible;
+    }
+
+    /**
+     * A group that is folded still tells the person that something inside it is waiting.
+     *
+     * @param list<array{count?: int|null}> $children
+     */
+    private function childTotal(array $children): ?int
+    {
+        $total = array_sum(array_map(static fn (array $child): int => (int) ($child['count'] ?? 0), $children));
+
+        return $total > 0 ? $total : null;
     }
 
     /**

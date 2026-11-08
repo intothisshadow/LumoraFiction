@@ -19,7 +19,11 @@ use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Theme\ThemeInfo;
 use LumoraFiction\Helpers\Html;
 
-/** @var list<array{theme: ThemeInfo, active: bool, screenshot: string, problems: list<string>, selectable: bool}> $cards */
+/** @var list<array{theme: ThemeInfo, active: bool, screenshot: string, problems: list<string>, selectable: bool, previewUrl: string}> $cards */
+/** @var string|null $previewing the theme this Administrator is previewing on the site right now */
+/** @var array{enabled: bool, ticked: list<string>} $visitorChoice */
+/** @var string $visitorToken */
+/** @var string $visitorAction */
 /** @var string $chosenMissing */
 /** @var string $activateToken */
 /** @var string $installToken */
@@ -44,7 +48,13 @@ $canUpload = $uploadsAllowed && $canWrite;
     </div>
 <?php endif; ?>
 
-<p class="lf-lead">Themes control how the public side of the site looks. Add one from a ZIP file below, or copy its folder into the themes folder of the site.</p>
+<p class="lf-lead">Themes control how the public side of the site looks. Add one from a ZIP file below, or copy its folder into the themes folder of the site. <strong>Preview</strong> shows a theme on the real site, on every page, to you alone, before you make it the active one.</p>
+
+<?php if ($previewing !== null): ?>
+    <div class="lf-notice lf-notice--info" role="status">
+        <p>You are previewing a theme on the public site (<?= Html::e($previewing) ?>). A banner on every page there lets you make it the active theme or leave the preview. Nobody else sees it.</p>
+    </div>
+<?php endif; ?>
 
 <?php if ($anySelectable): ?>
     <form id="lf-themes-bulk" method="post" action="<?= Html::e($bulkAction) ?>" class="lf-bulk">
@@ -93,6 +103,9 @@ $canUpload = $uploadsAllowed && $canWrite;
 
             <div class="lf-theme-card__actions">
                 <a class="lf-button lf-button--quiet" href="#<?= Html::e($detailsId) ?>" data-lf-theme-details="<?= Html::e($detailsId) ?>">Details<span class="lf-visually-hidden"> of <?= Html::e($theme->name) ?></span></a>
+                <?php if (($card['previewUrl'] ?? '') !== ''): ?>
+                    <a class="lf-button lf-button--quiet" href="<?= Html::e($card['previewUrl']) ?>">Preview<span class="lf-visually-hidden"> the <?= Html::e($theme->name) ?> theme on the site</span></a>
+                <?php endif; ?>
                 <?php if ($card['active']): ?>
                     <a class="lf-button lf-button--quiet" href="<?= Html::e($optionsUrl) ?>">Theme options</a>
                 <?php elseif ($card['problems'] === []): ?>
@@ -106,6 +119,38 @@ $canUpload = $uploadsAllowed && $canWrite;
         </li>
     <?php endforeach; ?>
 </ul>
+
+<section class="lf-card lf-theme-visitors" aria-labelledby="lf-theme-visitors-title">
+    <h2 id="lf-theme-visitors-title">Let visitors choose their own theme</h2>
+    <form method="post" action="<?= Html::e($visitorAction) ?>" class="lf-form">
+        <input type="hidden" name="csrf_token" value="<?= Html::e($visitorToken) ?>">
+        <div class="lf-choice">
+            <input type="checkbox" id="visitor_choice" name="visitor_choice" value="1"<?= $visitorChoice['enabled'] ? ' checked' : '' ?> aria-describedby="visitor_choice_hint">
+            <label for="visitor_choice">Let visitors choose their own theme</label>
+        </div>
+        <p class="lf-hint" id="visitor_choice_hint">Off by default. When on, a small form on every page lets a visitor pick one of the themes below. A signed-in reader&rsquo;s choice follows them to any device; anyone else gets a small cookie that holds only the theme&rsquo;s folder name. The admin area, downloads and feeds always use the site&rsquo;s theme.</p>
+        <fieldset class="lf-theme-visitors__themes">
+            <legend>Themes visitors may pick from</legend>
+            <p class="lf-hint">The active theme is always on the list and is the default for anyone who has not chosen. Tick the others to offer. Nothing is shown to visitors unless two or more themes are offered.</p>
+            <?php foreach ($cards as $card): ?>
+                <?php $theme = $card['theme']; ?>
+                <?php if ($theme->builtIn): ?>
+                    <?php continue; ?>
+                <?php endif; ?>
+                <div class="lf-choice">
+                    <?php if ($card['active']): ?>
+                        <input type="checkbox" id="visitor_theme_<?= Html::e($theme->slug) ?>" checked disabled>
+                        <label for="visitor_theme_<?= Html::e($theme->slug) ?>"><?= Html::e($theme->name) ?> (the active theme, always offered)</label>
+                    <?php else: ?>
+                        <input type="checkbox" id="visitor_theme_<?= Html::e($theme->slug) ?>" name="visitor_themes[]" value="<?= Html::e($theme->slug) ?>"<?= in_array($theme->slug, $visitorChoice['ticked'], true) ? ' checked' : '' ?><?= $card['problems'] !== [] ? ' disabled' : '' ?>>
+                        <label for="visitor_theme_<?= Html::e($theme->slug) ?>"><?= Html::e($theme->name) ?><?= $card['problems'] !== [] ? ' (cannot be used on this site)' : '' ?></label>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </fieldset>
+        <p><button type="submit" class="lf-button lf-button--secondary">Save</button></p>
+    </form>
+</section>
 
 <section class="lf-card lf-theme-install" aria-labelledby="lf-theme-install-title">
     <h2 id="lf-theme-install-title">Add a theme</h2>
@@ -168,6 +213,9 @@ $canUpload = $uploadsAllowed && $canWrite;
             </dl>
 
             <div class="lf-theme-details__actions">
+                <?php if (($card['previewUrl'] ?? '') !== ''): ?>
+                    <a class="lf-button lf-button--quiet" href="<?= Html::e($card['previewUrl']) ?>">Preview<span class="lf-visually-hidden"> the <?= Html::e($theme->name) ?> theme on the site</span></a>
+                <?php endif; ?>
                 <?php if ($card['active']): ?>
                     <a class="lf-button lf-button--quiet" href="<?= Html::e($optionsUrl) ?>">Theme options</a>
                 <?php elseif ($card['problems'] === []): ?>

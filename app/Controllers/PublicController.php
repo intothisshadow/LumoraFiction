@@ -32,14 +32,17 @@ final class PublicController
     }
 
     /**
-     * The stylesheet made from the active theme's options. It is a file of its own rather than a style element
+     * The stylesheet made from a theme's options, the site's theme unless the address names another installed one. It is a file of its own rather than a style element
      * because the Content-Security-Policy allows no inline styles. It is empty until an option is changed.
      *
      * @param array<string, string> $params
      */
     public function themeOptionsStylesheet(array $params, Request $request): Response
     {
-        $theme = $this->themes->activeTheme();
+        // A theme is named in the address, so a previewed or chosen theme gets its own options and no other theme's. A name
+        // that is not an installed theme gets the site's theme, as everywhere else.
+        $named = $request->queryValue('theme');
+        $theme = ($named === null ? null : $this->themes->catalog()->find($named)) ?? $this->themes->activeTheme();
 
         // The options a theme offers are declared in its functions file, so that has to run first.
         $this->themes->bootTheme($theme);

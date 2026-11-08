@@ -16,13 +16,14 @@
 declare(strict_types=1);
 
 use LumoraFiction\Core\Admin\AdminUrl;
+use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Comment;
 use LumoraFiction\Models\CommentStatus;
 
-/** @var list<array{comment: Comment, story_title: string, story_slug: string, owner_id: int, chapter_number: int, chapter_title: string, commenter: string, commenter_status: string, published: bool}> $rows */
+/** @var list<array{comment: Comment, story_title: string, story_slug: string, owner_id: int, chapter_number: int, chapter_title: string, commenter: string, commenter_status: string, published: bool, parent_commenter: string}> $rows */
 /** @var array<int, list<array{name: string, reason: string, at: string}>> $reports */
-/** @var array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string} $filters */
+/** @var array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string, kind: string} $filters */
 /** @var array<string, string> $tabs */
 /** @var array{all: int, published: int, pending: int, hidden: int, spam: int, reported: int} $counts */
 /** @var int $total */
@@ -50,7 +51,7 @@ $statusClass = static fn (CommentStatus $status): string => match ($status) {
     default => '',
 };
 $bulkForm = 'lf-bulk-form';
-$filtered = $filters['status'] !== '' || $filters['story'] > 0 || $filters['chapter'] > 0 || $filters['user'] > 0 || $filters['from'] !== '' || $filters['to'] !== '' || $filters['q'] !== '';
+$filtered = $filters['status'] !== '' || $filters['story'] > 0 || $filters['chapter'] > 0 || $filters['user'] > 0 || $filters['from'] !== '' || $filters['to'] !== '' || $filters['q'] !== '' || $filters['kind'] !== '';
 $active = array_filter(['story' => 'Story ' . $filters['story'], 'chapter' => 'Chapter ' . $filters['chapter'], 'user' => 'Commenter ' . $filters['user']], static fn (string $label, string $key): bool => $filters[$key] > 0, ARRAY_FILTER_USE_BOTH);
 ?>
 <p class="lf-lead"><?= $isModerator ? 'Every comment on the site, whatever its state.' : 'The comments under your own stories.' ?> Pending and reported comments are the ones waiting for a decision.</p>
@@ -63,6 +64,9 @@ $active = array_filter(['story' => 'Story ' . $filters['story'], 'chapter' => 'C
                 <a href="<?= Html::e($listUrl . $query(['status' => $value])) ?>" class="lf-status-filter__link<?= $filters['status'] === $value ? ' lf-status-filter__link--current' : '' ?>"<?= $filters['status'] === $value ? ' aria-current="true"' : '' ?>><?= Html::e($label) ?> <span class="lf-status-filter__count">(<?= (int) $counts[$key] ?>)</span></a>
             </li>
         <?php endforeach; ?>
+        <li>
+            <a href="<?= Html::e($listUrl . $query(['kind' => $filters['kind'] === 'replies' ? '' : 'replies'])) ?>" class="lf-status-filter__link<?= $filters['kind'] === 'replies' ? ' lf-status-filter__link--current' : '' ?>"<?= $filters['kind'] === 'replies' ? ' aria-current="true"' : '' ?>>Replies only</a>
+        </li>
     </ul>
 </nav>
 
@@ -79,7 +83,7 @@ $active = array_filter(['story' => 'Story ' . $filters['story'], 'chapter' => 'C
         <label for="to">To</label>
         <input type="date" id="to" name="to" value="<?= Html::e($filters['to']) ?>">
     </div>
-    <?php foreach (['status' => $filters['status'], 'story' => $filters['story'], 'chapter' => $filters['chapter'], 'user' => $filters['user']] as $name => $value): ?>
+    <?php foreach (['status' => $filters['status'], 'story' => $filters['story'], 'chapter' => $filters['chapter'], 'user' => $filters['user'], 'kind' => $filters['kind']] as $name => $value): ?>
         <?php if ($value !== '' && $value !== 0): ?><input type="hidden" name="<?= Html::e($name) ?>" value="<?= Html::e((string) $value) ?>"><?php endif; ?>
     <?php endforeach; ?>
     <p><button type="submit" class="lf-button lf-button--secondary">Filter</button></p>
@@ -164,6 +168,9 @@ $active = array_filter(['story' => 'Story ' . $filters['story'], 'chapter' => 'C
                 <tr id="comment-<?= (int) $comment->id ?>">
                     <td><input type="checkbox" name="ids[]" value="<?= (int) $comment->id ?>" data-lf-select-item="comment_ids" form="<?= Html::e($bulkForm) ?>" aria-label="Select the comment by <?= Html::e($row['commenter']) ?> on <?= Html::e($row['story_title']) ?>"></td>
                     <td class="lf-comment-cell">
+                        <?php if ($comment->isReply()): ?>
+                            <p class="lf-comment-cell__reply-to"><span class="lf-badge">Reply</span> to <?= Html::e($row['parent_commenter'] === '' ? 'a comment' : $row['parent_commenter']) ?><?= $row['published'] && $row['chapter_number'] > 0 && $comment->parentId !== null ? ' &middot; <a href="' . Html::e(PublicUrl::chapter($row['story_slug'], $row['chapter_number']) . '#comment-' . $comment->parentId) . '">the comment it answers</a>' : '' ?></p>
+                        <?php endif; ?>
                         <?php if ($short !== $comment->body): ?>
                             <details><summary><?= Html::e($short) ?></summary><p class="lf-comment-cell__full"><?= nl2br(Html::e($comment->body), false) ?></p></details>
                         <?php else: ?>

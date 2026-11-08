@@ -53,6 +53,7 @@ use LumoraFiction\Services\SearchQueryParser;
 use LumoraFiction\Services\StoryFollowService;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
+use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
@@ -746,7 +747,10 @@ final class ArchiveController
      */
     private function cards(array $stories, array $profiles): array
     {
-        return array_map(function (Story $story) use ($profiles): array {
+        // Two queries for the whole page, however many cards it draws.
+        $facts = (new StoryCardFacts($this->chapters, $this->taxonomy))->for(array_map(static fn (Story $story): int => $story->id, $stories));
+
+        return array_map(function (Story $story) use ($profiles, $facts): array {
             $profile = $profiles[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
 
             return $this->presenter->card(
@@ -754,6 +758,8 @@ final class ArchiveController
                 $profile['display_name'],
                 $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']),
                 PublicUrl::story($story->slug),
+                $facts[$story->id]['chapters'] ?? 0,
+                $facts[$story->id]['terms'] ?? [],
             );
         }, $stories);
     }

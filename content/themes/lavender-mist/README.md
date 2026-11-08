@@ -8,7 +8,7 @@ Open **Appearance > Themes**, find Lavender Mist and press **Use this theme**. S
 
 ## What readers get
 
-- Light and dark colours. Readers choose between matching their device, light or dark from the colour menu in the header, or from their account page.
+- Light and dark colours. Readers press the colour button in the header to step through Auto (match their device), Dark and Light, or set it on their account page.
 - Text size and reading width controls above every chapter, remembered in the browser and saved to the account of a signed-in reader.
 - Styled dropdown menus. In browsers that cannot style their own list, a small script in the theme draws a matching one that works with the keyboard and screen readers. With scripts off, the ordinary menu shows.
 

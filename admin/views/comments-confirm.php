@@ -21,7 +21,8 @@ use LumoraFiction\Helpers\Html;
 /** @var int $count */
 /** @var list<int> $ids the ticked comments; empty when the action covers every match */
 /** @var bool $everything */
-/** @var array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string} $filters */
+/** @var int $replies replies that go with the comments being deleted, beyond the ones ticked */
+/** @var array{status: string, story: int, chapter: int, user: int, from: string, to: string, q: string, kind: string} $filters */
 /** @var int $page */
 /** @var string $csrfToken */
 /** @var string $formAction */
@@ -55,6 +56,9 @@ $label = $verbs[$action] ?? 'Apply';
         <?php endif; ?>
         <?php if ($action === 'delete'): ?>
             <p>Deleted comments, and any reports against them, are removed for good. This cannot be undone. A comment you only want out of sight can be hidden instead.</p>
+            <?php if ($replies > 0): ?>
+                <p><strong><?= (int) $replies ?> <?= $replies === 1 ? 'reply goes' : 'replies go' ?> with <?= $count === 1 ? 'it' : 'them' ?>.</strong> A reply answers a comment, so it is deleted with the comment it answers.</p>
+            <?php endif; ?>
         <?php elseif ($action === 'approve' || $action === 'restore'): ?>
             <p>They will be shown to readers, and any reports against them are cleared. A writer is told about a comment when it is approved.</p>
         <?php else: ?>

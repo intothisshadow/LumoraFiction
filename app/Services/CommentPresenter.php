@@ -39,6 +39,8 @@ final class CommentPresenter
 
     public const REPORT_ACTION = 'comment_report';
 
+    public const REPLY_ACTION = 'comment_reply';
+
     public function __construct(private readonly CommentService $comments)
     {
     }
@@ -55,15 +57,23 @@ final class CommentPresenter
             return [];
         }
 
-        $total = $this->comments->countVisible($target['chapter_id'], $target['owner_id'], $viewer);
+        // With replies on, a page is counted in conversations and each carries its replies; with them off, every visible
+        // comment, replies already made included, is one flat list.
+        $nested = $settings->repliesAllowed();
+        $total = $nested ? $this->comments->countThreads($target['chapter_id'], $target['owner_id'], $viewer) : $this->comments->countVisible($target['chapter_id'], $target['owner_id'], $viewer);
         $pages = max(1, (int) ceil($total / CommentService::PER_PAGE));
         $page = min($pages, max(1, $page));
         $closed = $this->comments->isClosed($target['story_id'], $target['chapter_id']);
         $published = $this->comments->countForChapter($target['chapter_id']);
+        $offset = ($page - 1) * CommentService::PER_PAGE;
+        $entries = $nested
+            ? $this->comments->threadsForChapter($target['chapter_id'], $target['owner_id'], $viewer, CommentService::PER_PAGE, $offset)
+            : $this->comments->forChapter($target['chapter_id'], $target['owner_id'], $viewer, CommentService::PER_PAGE, $offset);
+        $replyCounts = $this->comments->replyCounts(array_map(static fn (array $entry): int => $entry['comment']->id, $entries));
         $items = [];
 
-        foreach ($this->comments->forChapter($target['chapter_id'], $target['owner_id'], $viewer, CommentService::PER_PAGE, ($page - 1) * CommentService::PER_PAGE) as $entry) {
-            $items[] = $this->item($entry, $viewer, $target);
+        foreach ($entries as $entry) {
+            $items[] = $this->item($entry, $viewer, $target, $closed, $nested, $replyCounts);
         }
 
         return [
@@ -183,15 +193,34 @@ final class CommentPresenter
     }
 
     /**
-     * @param array{comment: Comment, name: string, is_author: bool, pending: bool} $entry
+     * @param array{comment: Comment, name: string, is_author: bool, pending: bool, replies?: list<array{comment: Comment, name: string, is_author: bool, pending: bool}>} $entry
      * @param array{story_id: int, chapter_id: int, owner_id: int, number: int, title: string, story_title: string, story_slug: string} $target
+     * @param array<int, int> $replyCounts replies each comment has, whatever their state
      * @return array<string, mixed>
      */
-    private function item(array $entry, ?User $viewer, array $target): array
+    private function item(array $entry, ?User $viewer, array $target, bool $closed, bool $nested, array $replyCounts, string $answers = ''): array
     {
         $comment = $entry['comment'];
         $own = $viewer !== null && $viewer->id === $comment->userId;
         $mayDelete = $viewer !== null && ($own || $this->comments->mayManage($viewer, $target['owner_id']));
+        $replyTotal = $replyCounts[$comment->id] ?? 0;
+        $replies = [];
+
+        foreach ($entry['replies'] ?? [] as $replyEntry) {
+            $replies[] = $this->item($replyEntry, $viewer, $target, $closed, $nested, $replyCounts, $entry['name']);
+        }
+
+        $delete = null;
+
+        if ($mayDelete) {
+            $delete = [
+                'action' => PublicUrl::commentAction($comment->id, 'delete'),
+                'csrf_token' => Csrf::token(self::DELETE_ACTION),
+                'label' => 'Delete',
+                // A comment with replies asks first, on a page that says how many go with it.
+                'confirm_url' => $replyTotal > 0 ? PublicUrl::commentAction($comment->id, 'delete') : '',
+            ];
+        }
 
         return [
             'id' => $comment->id,
@@ -209,11 +238,49 @@ final class CommentPresenter
             'pending_label' => $own ? 'Awaiting approval. Only you and the moderators can see this yet.' : 'Awaiting approval',
             'edit_url' => $viewer !== null && $this->comments->mayEdit($viewer, $comment) ? PublicUrl::commentAction($comment->id, 'edit') : '',
             'report_url' => $viewer !== null && !$own && $viewer->can(\LumoraFiction\Models\Capability::Comment) && !$entry['pending'] ? PublicUrl::commentAction($comment->id, 'report') : '',
-            'delete' => $mayDelete ? [
-                'action' => PublicUrl::commentAction($comment->id, 'delete'),
-                'csrf_token' => Csrf::token(self::DELETE_ACTION),
-                'label' => 'Delete',
-            ] : null,
+            // Only a published top-level comment can be answered, and only while the chapter takes comments.
+            'reply_url' => $nested && !$closed && $viewer !== null && $this->comments->mayComment($viewer) && $this->comments->isReplyable($comment) ? PublicUrl::commentAction($comment->id, 'reply') : '',
+            'reply_label' => 'Reply',
+            'is_reply' => $comment->isReply(),
+            // Printed by assistive technology in front of a reply, so it is clear what the indented comment answers.
+            'reply_to_label' => $answers === '' ? '' : 'Reply to ' . $answers,
+            'reply_count' => count($replies),
+            'replies' => $replies,
+            'delete' => $delete,
         ];
+    }
+
+    /**
+     * The form that answers one comment, or null when this person cannot.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function replyForm(?User $viewer, Comment $parent, string $parentName, string $body = '', string $error = ''): ?array
+    {
+        if ($viewer === null || !$this->comments->mayComment($viewer) || !$this->comments->isReplyable($parent)) {
+            return null;
+        }
+
+        $name = $parentName === '' ? 'this comment' : $parentName;
+        $form = $this->form(
+            self::REPLY_ACTION,
+            PublicUrl::commentAction($parent->id, 'reply'),
+            'Post reply',
+            [$this->bodyField($body, $error)],
+            'Reply to ' . $name,
+            $error,
+        );
+        $form['fields'][0]['label'] = 'Your reply';
+        $form['intro'] = 'You are answering this comment: “' . self::excerpt($parent->body) . '”';
+
+        return $form;
+    }
+
+    /** The start of a comment on one line, for saying which comment a form answers. */
+    public static function excerpt(string $body, int $length = 160): string
+    {
+        $line = trim((string) preg_replace('/\s+/u', ' ', $body));
+
+        return mb_strlen($line, 'UTF-8') > $length ? rtrim(mb_substr($line, 0, $length, 'UTF-8')) . '…' : $line;
     }
 }

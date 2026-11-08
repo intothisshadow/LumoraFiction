@@ -24,6 +24,7 @@ use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\FollowOutcome;
+use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\FollowPresenter;
 use LumoraFiction\Services\PublicArchive;
@@ -50,6 +51,7 @@ final class FollowController
         private readonly StoryPresenter $storyPresenter,
         private readonly UserService $users,
         private readonly FlashMessages $flash,
+        private readonly ?StoryCardFacts $facts = null,
     ) {
     }
 
@@ -76,11 +78,12 @@ final class FollowController
         $entries = $this->follows->updatesFor($user, PublicArchive::PAGE_SIZE, ($page - 1) * PublicArchive::PAGE_SIZE);
         $profiles = $this->users->publicProfiles(array_map(static fn (array $entry): int => $entry['story']->ownerId, $entries));
         $cards = [];
+        $facts = $this->facts?->for(array_map(static fn (array $entry): int => $entry['story']->id, $entries)) ?? [];
 
         foreach ($entries as $entry) {
             $story = $entry['story'];
             $profile = $profiles[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
-            $card = $this->storyPresenter->card($story, $profile['display_name'], $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']), PublicUrl::story($story->slug));
+            $card = $this->storyPresenter->card($story, $profile['display_name'], $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']), PublicUrl::story($story->slug), $facts[$story->id]['chapters'] ?? 0, $facts[$story->id]['terms'] ?? []);
 
             $cards[] = $card + [
                 'whats_new' => self::describe($entry['new'], $entry['revised']),

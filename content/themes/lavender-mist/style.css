@@ -364,6 +364,141 @@ img {
     font: inherit;
 }
 
+/* The wrapper that holds the colour button; it only needs the script, which lf-js-only already says. */
+.lf-scheme-switch {
+    margin: 0;
+}
+
+/* The colour button: one control that steps through Auto, Dark and Light. The icon shows the mode it is in, drawn in the
+   text colour so every colour scheme and forced-colours mode colours it. */
+.lf-scheme-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 2.75rem;
+    min-height: 2.5rem;
+    padding: 0.3rem 0.75rem;
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font: inherit;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.lf-scheme-button:hover {
+    border-color: var(--lf-link);
+    color: var(--lf-link);
+}
+
+.lf-scheme-button:focus-visible {
+    outline: 2px solid var(--lf-link);
+    outline-offset: 2px;
+}
+
+.lf-scheme-button__icon {
+    display: none;
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.lf-scheme-button__label {
+    white-space: nowrap;
+}
+
+.lf-scheme-button[data-lf-mode="system"] .lf-scheme-button__icon--system,
+.lf-scheme-button[data-lf-mode="dark"] .lf-scheme-button__icon--dark,
+.lf-scheme-button[data-lf-mode="light"] .lf-scheme-button__icon--light {
+    display: block;
+}
+
+/* The theme switcher: a list of themes and a button, in a form that works without a script. */
+.lf-theme-switch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
+    margin: 0;
+    font-family: var(--lf-font-ui);
+    font-size: 0.9rem;
+}
+
+.lf-theme-switch__select {
+    min-width: 8rem;
+}
+
+.lf-theme-switch__label {
+    color: var(--lf-muted);
+}
+
+.lf-theme-switch__button,
+.lf-theme-preview__button {
+    min-height: 2.25rem;
+    padding: 0.3rem 0.85rem;
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font: inherit;
+    cursor: pointer;
+}
+
+.lf-theme-switch__button:hover,
+.lf-theme-preview__button:hover {
+    border-color: var(--lf-link);
+    color: var(--lf-link);
+}
+
+.lf-theme-switch__button:focus-visible,
+.lf-theme-preview__button:focus-visible {
+    outline: 2px solid var(--lf-link);
+    outline-offset: 2px;
+}
+
+/* The notice above every page while an Administrator previews a theme. */
+.lf-theme-preview {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.6rem 1rem;
+    background: var(--lf-surface);
+    color: var(--lf-text);
+    border-bottom: 3px solid var(--lf-link);
+    font-family: var(--lf-font-ui);
+    font-size: 0.95rem;
+}
+
+.lf-theme-preview__text {
+    flex: 1 1 18rem;
+    margin: 0;
+}
+
+.lf-theme-preview__form {
+    margin: 0;
+}
+
+.lf-theme-preview__button--primary {
+    background: var(--lf-link);
+    color: var(--lf-on-accent);
+    border-color: var(--lf-link);
+    font-weight: 600;
+}
+
+.lf-theme-preview__button--primary:hover {
+    color: var(--lf-on-accent);
+}
+
+@media print {
+    .lf-theme-switch,
+    .lf-theme-preview {
+        display: none !important;
+    }
+}
+
 .lf-button {
     display: inline-block;
     padding: 0.55rem 1.25rem;
@@ -962,6 +1097,40 @@ img {
     font-size: 0.9rem;
 }
 
+/* The classification line of a card: rating, fandoms, characters, relationships and tags, each as a small label and its links. */
+.lf-story-card__terms {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+}
+
+.lf-story-card__term-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.5rem;
+    margin: 0 0 0.15rem;
+}
+
+.lf-story-card__term-label {
+    flex: none;
+    color: var(--lf-muted);
+    font-weight: 600;
+}
+
+.lf-story-card__term-label::after {
+    content: ":";
+}
+
+.lf-story-card__term-list {
+    flex: 1 1 12rem;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.lf-story-card__term-more {
+    color: var(--lf-muted);
+}
+
 .lf-story-card__summary {
     margin: 0;
 }
@@ -1484,6 +1653,30 @@ a.lf-term-link:hover {
     cursor: pointer;
 }
 
+/* Replies: one step in, inside the comment they answer and joined to it by a rule down the left edge. */
+.lf-comment__replies {
+    margin: 0.75rem 0 0 1rem;
+    padding: 0 0 0 0.75rem;
+    list-style: none;
+    border-left: 2px solid var(--lf-border);
+}
+
+.lf-comment__replies > .lf-comment {
+    margin: 0.5rem 0 0;
+    background: var(--lf-bg);
+}
+
+.lf-comment__action--reply {
+    font-weight: 600;
+}
+
+@media (max-width: 40rem) {
+    .lf-comment__replies {
+        margin-left: 0.25rem;
+        padding-left: 0.5rem;
+    }
+}
+
 .lf-comments__pagination {
     display: flex;
     flex-wrap: wrap;
@@ -1911,7 +2104,8 @@ body {
 
 .lf-site-title a,
 .lf-nav__link,
-.lf-site-header-wrap .lf-field__label {
+.lf-site-header-wrap .lf-field__label,
+.lf-site-header-wrap .lf-theme-switch__label {
     color: var(--lf-header-text);
 }
 

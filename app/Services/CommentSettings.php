@@ -42,6 +42,7 @@ final class CommentSettings
         'comments.author_toggle' => true,
         'comments.edit_minutes' => 15,
         'comments.report_threshold' => 3,
+        'comments.replies' => true,
     ];
 
     public function __construct(
@@ -60,6 +61,12 @@ final class CommentSettings
         $value = $this->config->setting('comments.trust', self::TRUST_FIRST_HELD);
 
         return $value === self::TRUST_OPEN ? self::TRUST_OPEN : self::TRUST_FIRST_HELD;
+    }
+
+    /** Whether a person may answer a comment directly. Off keeps replies already made, shown in the flat list. */
+    public function repliesAllowed(): bool
+    {
+        return $this->config->setting('comments.replies', true) === true;
     }
 
     public function authorMayToggle(): bool
@@ -84,7 +91,7 @@ final class CommentSettings
     }
 
     /**
-     * @return array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int}
+     * @return array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int, replies: bool}
      */
     public function current(): array
     {
@@ -94,12 +101,13 @@ final class CommentSettings
             'author_toggle' => $this->authorMayToggle(),
             'edit_minutes' => $this->editMinutes(),
             'report_threshold' => $this->reportThreshold(),
+            'replies' => $this->repliesAllowed(),
         ];
     }
 
     /**
-     * @param array{enabled: bool, trust: ?string, author_toggle: bool, edit_minutes: ?string, report_threshold: ?string} $input
-     * @return array{errors: array<string, string>, values: array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int}}
+     * @param array{enabled: bool, trust: ?string, author_toggle: bool, edit_minutes: ?string, report_threshold: ?string, replies?: bool} $input
+     * @return array{errors: array<string, string>, values: array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int, replies: bool}}
      */
     public function validate(array $input): array
     {
@@ -126,11 +134,13 @@ final class CommentSettings
             'author_toggle' => $input['author_toggle'],
             'edit_minutes' => (int) $minutes,
             'report_threshold' => (int) $threshold,
+            // Left out of an older form means unchanged, never switched off by accident.
+            'replies' => $input['replies'] ?? $this->repliesAllowed(),
         ]];
     }
 
     /**
-     * @param array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int} $values already validated
+     * @param array{enabled: bool, trust: string, author_toggle: bool, edit_minutes: int, report_threshold: int, replies?: bool} $values already validated
      * @return list<string> the names of the settings that changed
      */
     public function save(array $values, User $actor, string $ipAddress = ''): array
@@ -141,12 +151,13 @@ final class CommentSettings
             'author_toggle' => 'comments.author_toggle',
             'edit_minutes' => 'comments.edit_minutes',
             'report_threshold' => 'comments.report_threshold',
+            'replies' => 'comments.replies',
         ];
         $current = $this->current();
         $changed = [];
 
         foreach ($map as $key => $setting) {
-            if ($current[$key] !== $values[$key]) {
+            if (array_key_exists($key, $values) && $current[$key] !== $values[$key]) {
                 $this->config->setSetting($setting, $values[$key]);
                 $changed[] = $setting;
             }

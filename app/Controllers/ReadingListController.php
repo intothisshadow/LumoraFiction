@@ -24,6 +24,7 @@ use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ReadingPositionScript;
 use LumoraFiction\Core\Theme\ThemeRenderer;
+use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\PublicArchive;
 use LumoraFiction\Services\ReaderPreferences;
@@ -53,6 +54,7 @@ final class ReadingListController
         private readonly FlashMessages $flash,
         private readonly StoryFollowService $follows,
         private readonly ReaderPreferences $preferences,
+        private readonly ?StoryCardFacts $facts = null,
     ) {
     }
 
@@ -79,6 +81,7 @@ final class ReadingListController
         $entries = $this->progress->listFor($user, PublicArchive::PAGE_SIZE, ($page - 1) * PublicArchive::PAGE_SIZE);
         $profiles = $this->users->publicProfiles(array_map(static fn (array $entry): int => $entry['story']->ownerId, $entries));
         $cards = [];
+        $facts = $this->facts?->for(array_map(static fn (array $entry): int => $entry['story']->id, $entries)) ?? [];
 
         // Only followed stories can have something new, and only for a reader who asked to be told.
         $changes = $this->preferences->wantsUpdates($user->id)
@@ -88,7 +91,7 @@ final class ReadingListController
         foreach ($entries as $entry) {
             $story = $entry['story'];
             $profile = $profiles[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
-            $card = $this->presenter->card($story, $profile['display_name'], $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']), PublicUrl::story($story->slug));
+            $card = $this->presenter->card($story, $profile['display_name'], $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']), PublicUrl::story($story->slug), $facts[$story->id]['chapters'] ?? 0, $facts[$story->id]['terms'] ?? []);
             $change = $changes[$story->id] ?? null;
 
             $cards[] = $card + [

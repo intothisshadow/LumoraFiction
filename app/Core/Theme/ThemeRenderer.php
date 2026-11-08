@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Core\Theme;
 
+use Closure;
 use InvalidArgumentException;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Errors\ErrorHandler;
@@ -70,6 +71,15 @@ final class ThemeRenderer
 
     private ?ThemeInfo $rendering = null;
 
+    /** The theme chosen for this request by whoever decides that (a preview, a visitor's choice); null means the site's own. */
+    private ?string $requested = null;
+
+    /** @var array<string, string> headers every page of this request carries, such as Vary when pages depend on the visitor */
+    private array $extraHeaders = [];
+
+    /** @var (Closure(string): ?array<string, mixed>)|null */
+    private ?Closure $themeTools = null;
+
     public function __construct(
         private readonly ThemeCatalog $catalog,
         private readonly Configuration $config,
@@ -95,6 +105,45 @@ final class ThemeRenderer
         $slug = is_string($slug) && $slug !== '' ? $slug : self::DEFAULT_THEME;
 
         return $this->catalog->find($slug) ?? $this->catalog->fallback();
+    }
+
+    /**
+     * Asks for a theme other than the site's for the rest of this request. Only one place decides which, and the renderer
+     * still checks the answer: a name that is missing, not valid or no longer compatible falls back to the site's theme.
+     *
+     * @param array<string, string> $headers added to every page of this request
+     */
+    public function useTheme(?string $slug, array $headers = []): void
+    {
+        $this->requested = $slug;
+        $this->extraHeaders = $headers;
+    }
+
+    /**
+     * What public pages are drawn in for this request: the theme asked for through useTheme() when it is still a good
+     * choice, otherwise the site's own. Admin screens never come through here, and they never use this.
+     */
+    public function currentTheme(): ThemeInfo
+    {
+        if ($this->requested !== null) {
+            $theme = $this->catalog->find($this->requested);
+
+            if ($theme !== null && !$theme->builtIn && $theme->unmetRequirements(PHP_VERSION, $this->version) === []) {
+                return $theme;
+            }
+        }
+
+        return $this->activeTheme();
+    }
+
+    /**
+     * Lets themes print the theme switcher and the preview banner without knowing where their data comes from.
+     *
+     * @param (Closure(string): ?array<string, mixed>)|null $tools given "switch" or "banner", returns the part's data or null
+     */
+    public function setThemeTools(?Closure $tools): void
+    {
+        $this->themeTools = $tools;
     }
 
     /**
@@ -170,7 +219,7 @@ final class ThemeRenderer
      */
     public function render(string $view, array $data = [], int $status = 200, array $page = []): Response
     {
-        $theme = $this->activeTheme();
+        $theme = $this->currentTheme();
 
         try {
             $html = $this->renderWith($theme, $view, $data, $page);
@@ -184,7 +233,7 @@ final class ThemeRenderer
             $html = $this->renderWith($this->catalog->fallback(), $view, $data, $page);
         }
 
-        $headers = ($page['noindex'] ?? false) ? ['X-Robots-Tag' => 'noindex, nofollow'] : [];
+        $headers = (($page['noindex'] ?? false) ? ['X-Robots-Tag' => 'noindex, nofollow'] : []) + $this->extraHeaders;
 
         return Response::html($html, $status, $headers);
     }
@@ -248,12 +297,14 @@ final class ThemeRenderer
             (string) $this->config->setting('site.name', 'Lumora Fiction'),
             $this->version,
             $this->options->values($theme->slug),
-            $css === '' ? '' : BasePath::get() . '/theme-options.css?v=' . substr(md5($css), 0, 10),
+            // Named by theme as well as by content, so one theme's options are never served under another's address.
+            $css === '' ? '' : BasePath::get() . '/theme-options.css?theme=' . rawurlencode($theme->slug) . '&v=' . substr(md5($css), 0, 10),
             $this->navigation($view),
             $this->hooks,
             $this->includePart(...),
             $this->footerLinks(),
             fn (): ?array => $this->privacyLink(),
+            $this->themeTools,
         );
 
         $level = ob_get_level();

@@ -24,6 +24,7 @@ declare(strict_types=1);
 <body class="<?php lf_body_class(); ?>">
 <?php lf_body_open(); ?>
 <a class="lf-skip-link" href="#lf-main">Skip to content</a>
+<?php lf_theme_preview_banner(); ?>
 
 <div class="lf-site-header-wrap">
     <header class="lf-site-header">
@@ -31,6 +32,7 @@ declare(strict_types=1);
         <div class="lf-site-header__tools">
             <?php lf_navigation(); ?>
             <?php lf_part('scheme-switch'); ?>
+            <?php lf_theme_switch(); ?>
         </div>
     </header>
 </div>
