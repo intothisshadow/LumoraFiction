@@ -30,6 +30,13 @@ The installer checks your server and database first, tells you plainly if someth
 
 Open `/admin/` on your site and sign in with the login name (or email address) and password you chose during installation. Administrators, Editors, and Authors can use the admin area; Readers cannot. Your login name is private and used only to sign in; your display name is what readers see.
 
+Every account has one of four roles:
+
+- **Administrators:** full access to site configuration and management.
+- **Editors:** review and manage submitted stories, write news, and moderate comments.
+- **Authors:** write and manage their own stories.
+- **Readers:** browse the archive and use reader features.
+
 ## Features
 
 ### Writing and publishing
@@ -40,11 +47,17 @@ Additional features include notes before and after each chapter and after a whol
 
 ### Reading the archive
 
-Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. Stories can be downloaded as EPUB, PDF or HTML, unless the administrator or the author turns that off. Signed-in readers can also comment on chapters and reply to one another one level deep, with the administrator's moderation and the writer's own switch to turn comments off. News posts keep readers informed about the site. Three themes are bundled, the default Storybook and the gradient themes Rosewine and Lavender Mist, each with light and dark colours that a reader sets with one button in the header. An administrator can preview any theme on the whole site before using it, and can let visitors choose their own theme. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
+Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. 
+
+Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. Stories can be downloaded as EPUB, PDF or HTML, unless the administrator or the author turns that off. Signed-in readers can also comment on chapters and reply to one another one level deep, with the administrator's moderation and the writer's own switch to turn comments off. News posts keep readers informed about the site. 
+
+Three themes are included: Storybook (the default), Rosewine and Lavender Mist. Each offers light and dark colour schemes, which readers can switch between using a button in the header. An administrator can preview any theme on the whole site before using it, and can let visitors choose their own theme. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
 
 ### Running the site
 
-Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, and how new writers are moderated. They manage classification lists, users, news, themes and plugins, and see problems with the site in one alerts screen. Starter lists for ratings, warnings and relationship categories are optional. Administrators can also write static pages such as About, FAQ, Terms of Service and a Privacy Policy and link them from the menu or the footer, limit tags to ones they add themselves, moderate reader comments on chapters, and answer a data request by exporting or deleting an account. See the [administration guide](docs/ADMINISTRATION.md).
+Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, and how new writers are moderated. They manage classification lists, users, news, themes and plugins, and see problems with the site in one alerts screen. Starter lists for ratings, warnings and relationship categories are optional. 
+
+Administrators can also write static pages such as About, FAQ, Terms of Service and a Privacy Policy and link them from the menu or the footer, limit tags to ones they add themselves, moderate reader comments on chapters, and answer a data request by exporting or deleting an account. See the [administration guide](docs/ADMINISTRATION.md).
 
 ### Security and maintenance
 

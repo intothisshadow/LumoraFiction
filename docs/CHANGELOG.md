@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] — 2026-11-08
 
 - Story cards on the indexes (home, Browse, search, an author's page, bookmarks, Continue reading, Updated stories) now show how many chapters a story has, such as "Ongoing · 12,345 words · 12 chapters · Updated 21 October 2026", counting published chapters only. Themes get the new `chapters` entry on each card (`story-card` in the bundled themes); a theme that does not print it simply leaves it out. Each card also lists the story's rating, archive warnings, fandoms, characters, relationships and tags as links to their pages (a long list is cut short with "and N more"; genres and categories stay on the story page), read for the whole page at once.
 - Admin dashboard: the **Quick links** card is gone (Archive settings and System information are in the menu).
