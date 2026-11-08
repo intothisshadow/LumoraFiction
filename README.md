@@ -40,7 +40,7 @@ Additional features include notes before and after each chapter and after a whol
 
 ### Reading the archive
 
-Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. Stories can be downloaded as EPUB, PDF or HTML, unless the administrator or the author turns that off. News posts keep readers informed about the site. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
+Readers can browse new, updated and completed stories, explore indexes of fandoms, genres, tags, ratings and warnings, and search by words with filters for classification, status, language and length. Each story has its own page and each chapter its own address, with previous and next links. Signed-in readers can bookmark stories and chapters, follow stories, pick up where they left off, and set their own colours, text size and reading width. Stories can be downloaded as EPUB, PDF or HTML, unless the administrator or the author turns that off. Signed-in readers can also comment on chapters, with the administrator's moderation and the writer's own switch to turn comments off. News posts keep readers informed about the site. Three themes are bundled, the default Storybook and the gradient themes Rosewine and Lavender Mist, each with light and dark colours. Only published work is ever shown. See the [user guide](docs/USER-GUIDE.md).
 
 ### Running the site
 

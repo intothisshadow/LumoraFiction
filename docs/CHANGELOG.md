@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] — 2026-11-08
 
 - Two new bundled themes, **Rosewine** (deep wine, dusty rose and blush on warm cream) and **Lavender Mist** (soft teal, lilac and iris on cream), both with light and dark colours and the same reader controls as Storybook. Gradients sit on the header and footer, buttons, section headings, story and news cards, tags, and the heading of a chapter, page or news post, which are drawn as one rounded card; the text itself stays on a near-flat surface. Dropdowns (the reader's text size and reading width, the colour choice, and the select boxes on the search and account forms) are restyled, and in browsers that cannot style the browser's own list, a small script in the theme draws a matching list that works with the keyboard and screen readers and falls back to the ordinary select without scripts. Switch themes under **Appearance > Themes**; Storybook stays the default.
 - Appearance: the Add a theme notice now reads "Upload a .zip archive containing a theme folder. The destination folder name is derived from the theme's declared name.", and a theme's Details list Author, Design URI, Version and Folder (a theme can declare a `Design URI:` line in its stylesheet header, shown as a link). The Needs, Source and In use lines are gone; a theme the site cannot use still shows the reason.

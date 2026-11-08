@@ -2,6 +2,295 @@
 
 Completed tickets are moved here from `TODO.md` at each Release.
 
+## Version 1.2.0 — 2026-11-08
+
+### LF-016. Privacy page and data requests
+
+**Status:** Complete (5 of 5) — released in 1.2.0
+
+Open registration collects email addresses. Modelled on Lumora Press's privacy settings, copied rather than shared. M4 milestone.
+
+- [x] Settings › Privacy: name an existing page as the privacy policy, exposed to themes through a template tag and linked from the registration form
+- [x] Administrator tool to look up an account by email and export its data as JSON
+- [x] Account deletion that removes personal data while handling the account's stories according to a configurable choice (delete, or keep under a neutral author name)
+- [x] Account deletion also calls `BookmarkService::deleteForUser()` and `ReadingProgressService::deleteForUser()` (built and tested in LF-031), and the data export includes the account's bookmarks and saved reading preferences
+- [x] Tests that exports and logs never include password hashes or other accounts' data
+
+Built 2026-11-06. Beyond the checklist: members can also download their data and delete their own account from **Your data and privacy** (`/account/privacy`, password-confirmed), `StoryFollowService::deleteForUser()` and notifications are removed too, and `UserStatus::Deleted` marks the anonymised row. See `DECISIONS.md` for why the row is anonymised rather than removed.
+
+### LF-060. Option to turn off writer-proposed tags
+
+**Status:** Complete (6 of 6) — released in 1.2.0
+
+On a large open archive, free-form tags can sprawl quickly (near-duplicates, one-off sentences, spelling variants). A site that wants a tidy, curated vocabulary should be able to switch writer proposals off for tags so that only what an Administrator adds is available. Today `TermType::writersMayPropose()` hard-codes tags (with fandoms, characters and relationships) as proposable; this ticket makes tags configurable. Fandoms, characters and relationships are deliberately out of scope (see `DECISIONS.md`). Default stays **on**, so existing installs behave exactly as before.
+
+- [x] Setting under Settings › Archive: "Writers may propose new tags" (default on), stored through `ArchiveSettings` and validated like its neighbours
+- [x] When off, `TaxonomyService` refuses to create a tag from a writer's story submission: only an existing tag or alias resolves, and an unknown name gives the same "choose one from the list" error the closed kinds already give
+- [x] The story form drops the free-text tag entry for writers when off and offers a pick list of the Administrator's tags instead; the suggest endpoint and `TermSuggestController` stay consistent with that
+- [x] Administrators and Editors can still add tags under Classification, and an Administrator's tag list switches to manual ordering when off, as the other curated kinds do
+- [x] Turning the option off never deletes or hides tags that writers already proposed; they stay attached to their stories and remain in the list, and the unreviewed ones can still be reviewed, merged or aliased
+- [x] Tests: proposal refused when off and allowed when on, existing tags and aliases still resolve, a hand-crafted POST cannot create a tag when off, and the setting survives a round trip through the settings screen
+
+Built 2026-11-06. `TaxonomyService::writersMayPropose(TermType)` is the one settings-aware check; the enum method stays the fixed rule. Two limits to know: the Classification screens need `ManageSite`, so Editors could not add tags there before and still cannot (the ticket's mention of Editors is not met by a role that has no access to the screen), and the story form's pick list shows at most 200 tags, which a very large curated vocabulary would outgrow (the list helper caps a page at 200); LF-061 (term import) is the natural place to give the pick list a search box if that is ever needed.
+
+Touch points found while scoping: `TermType::writersMayPropose()` and its roughly ten callers in `TaxonomyService`, `StoryController`, `TermSuggestController`, `TaxonomyController` and `admin/views/taxonomy-list.php`. Because the enum method has no access to settings, the cleanest route is a settings-aware check in `TaxonomyService` (for example `writersMayPropose(TermType)`) that callers use instead. The hint text in `admin/views/settings-archive.php` that says writers propose tags must change with it. Update `README.md` (user-facing setting) and `docs/CHANGELOG.md` when implemented.
+
+### LF-062. Static pages
+
+**Status:** Complete (10 of 10) — released in 1.2.0
+
+Administrators need standalone pages such as About, FAQ, Terms of Service and Privacy Policy that readers can reach from the public site. The themes already ship a `page.php` template for plain text pages, but nothing creates or stores pages yet. LF-016 depends on this ticket: it lets the administrator name one of these pages as the privacy policy.
+
+- [x] Migration and `PageService` (business logic and queries live there, not in the controller): title, slug, content, status (draft or published), menu placement, sort order, created and updated timestamps, and the author who last edited it
+- [x] Admin screen under the site-content area: list, create, edit, and delete pages (delete is confirmed), restricted to `ManageSite`, CSRF-protected on every state change
+- [x] Page content goes through the same editor and sanitiser pipeline as chapter text (WYSIWYG, Markdown, HTML, plain text), so pages cannot carry scripts or unsafe markup
+- [x] Slug generated from the title and editable, unique among pages, and refused when it would collide with a reserved route (browse, search, news, account, admin and the like) or an existing top-level address
+- [x] Public route serving a published page at its slug through the theme's `page.php`; drafts and unknown slugs give the 404 page, and a draft is previewable by an administrator only
+- [x] Placement: each page can be shown in the main menu, in a footer links list, in both, or neither, in an administrator-chosen order; the main menu uses the existing navigation filter, and the footer list is exposed through a template tag so every theme can print it
+- [x] Footer links list added to the Storybook footer (and the Classic Archive theme when LF-033 exists) with its CSS classes and dark-mode rules, and propagated to every theme under `custom themes/`
+- [x] Page title and meta description from the page, a canonical URL, and a `noindex` option per page; published pages included in the sitemap once LF-014 exists
+- [x] Seed suggestions: on the empty list screen, offer one-click starter drafts for About, FAQ, Terms of Service and Privacy Policy with neutral placeholder text for the administrator to edit, never published automatically
+- [x] Tests: a draft is never public or in the menus, a non-admin cannot reach the screen or POST, reserved and duplicate slugs are refused, unsafe markup in content is stripped, menu and footer ordering is respected, and deleting a page removes it from the menus
+
+Built 2026-11-06. The address is `/{slug}`, one path segment, served by a route registered after every plugin route; "already served" is checked against the router when a page is saved. The built-in theme got the footer list too. `custom themes/` does not exist, so nothing was propagated; the Classic Archive theme (LF-033) needs the `lf_footer_links()` call in its footer. The sitemap half of the metadata item belongs to LF-014: published, non-`noindex` pages go in it (`PageService::published()` returns them).
+
+Not in scope: nested page hierarchies, per-page templates beyond the theme's `page.php`, revisions, and a general menu builder (a page's placement flags cover the menus for now). Update `README.md` (user-facing screen), `docs/THEME-DEVELOPMENT.md` (footer links tag) and `docs/CHANGELOG.md` when implemented.
+
+### LF-063. Session handler breaks on PHP 8.6
+
+**Status:** Complete (5 of 5) — released in 1.2.0
+
+Found by adding PHP 8.6 (release candidate) to the test matrix. `DatabaseSessionHandler` implemented `SessionHandlerInterface` and `SessionUpdateTimestampHandlerInterface` but not `SessionIdInterface`. PHP 8.6 deprecates a save handler without `create_sid()`, and the application's error handler turns every deprecation into an exception, so on 8.6 every request that starts a session answered 500 (804 deprecations, 29 end-to-end failures and 2 warnings in the suite). `validateId()`, `updateTimestamp()` and `session.use_strict_mode` were already in place.
+
+- [x] `DatabaseSessionHandler` implements `SessionIdInterface`; `create_sid()` returns `bin2hex(random_bytes(16))` and never calls `session_create_id()`, which calls back into the handler and recurses
+- [x] Regression test: the handler is a `SessionIdInterface`, identifiers are 32 hex characters, unique, and validate only once written (`DatabaseSessionHandlerIntegrationTest`)
+- [x] The dev install's copy of the file is in sync, and the dev site answers 200 again
+- [x] The full suite on PHP 8.6 with warnings and deprecations displayed is clean
+- [x] The 8.2 to 8.6 matrix passes and is logged in `TEST_LOG.md`
+
+The `ReflectionMethod::invokeArgs()`-on-a-static-method pattern was searched for and does not occur in the application, plugins or tests.
+
+### LF-064. Chapter end notes and story end notes
+
+**Status:** Complete (11 of 11) — released in 1.2.0
+
+Writers often want a note after the text as well as before it: a cliffhanger apology, thanks, a pointer to the next update, or a closing word once the whole story is finished. Today a chapter has one `notes` field and the story has one `notes` field, and the Storybook theme prints the chapter's notes above the text only. This ticket keeps the existing fields as the opening notes (no rename, no data change for existing stories) and adds a separate end note to each, so a writer can use either or both.
+
+- [x] Migration adding a nullable `end_notes` column to `chapters`, `chapter_revisions` and `stories` (text, same length family as `notes`); existing rows are untouched and shown exactly as before; migration and rollback tested
+- [x] `ChapterService` and `StoryService` validate and store `end_notes` with the same rules as `notes` (UTF-8, control characters refused, trimmed, line endings normalised), with new `END_NOTES_MAX` limits; the value is carried by `Chapter` and `Story` and by story duplication
+- [x] Chapter revisions keep the end note, and restoring a revision restores it, as for `notes`; the revision screen shows it
+- [x] The chapter form gets an "End notes" textarea after the text editor, and the story form an "End notes" field after "Author's notes", with hints saying where each is shown; the autosave and unsaved-changes warning cover the new field
+- [x] Chapter notes keep today's placement above the text and chapter end notes are printed below it, before the bottom chapter navigation; story end notes are shown on the story page after the chapter list, and on the last chapter's page only when the story's work status is complete
+- [x] Template fields `chapter.end_notes` and `story.end_notes` (available to `lf_has()` and `lf_field()`, escaped like `notes`), with the markup carrying stable `lf-chapter__end-notes` and `lf-story__end-notes` classes
+- [x] Styling in the Storybook stylesheet with dark-mode rules added together with the component, reusing the look of `.lf-chapter__notes`; propagated to every theme under `custom themes/` in the same session (add missing rules only), plus the Classic Archive theme when LF-033 exists
+- [x] The chapter and story views in the full-story reading mode, the print layout, and the story downloads (EPUB, PDF, HTML) include the end notes
+- [x] Draft privacy: unpublished chapters and drafts never expose their end notes through the public pages, search or downloads
+- [x] Search indexes the end notes only if it already indexes `notes`; no new search behaviour is introduced
+- [x] Tests: end notes save, validate and round-trip for chapters and stories; revision restore brings them back; they render below the text and after the chapter list in the right places; a story end note appears on the last chapter only when complete; empty end notes print nothing; markup is escaped; existing rows and revisions without an end note still render and save; the migration upgrades an install that already holds stories
+
+Built 2026-11-06. The rule "story end note on the last chapter only when complete" lives in `StoryPresenter::chapter()`, which blanks `story.end_notes` otherwise, so a theme just prints the field. `custom themes/` does not exist, so nothing was propagated. Still to do when those tickets are built: the exports in LF-013 and the RSS chapter items in LF-012 must include the end notes (chapter end note after the text; a story's own end note on the story item), and feeds and the sitemap (LF-012, LF-014) must keep draft chapters' end notes out. There is no rollback script for a migration in this project (the updater restores the database dump instead), so "rollback tested" is covered by the updater's own restore tests.
+
+Not in scope: rich-text or formatted notes (notes stay plain text like the existing field), separate notes per chapter position beyond start and end, and per-reader hiding of notes. Update `README.md` (user-facing fields), `docs/THEME-DEVELOPMENT.md` (the two new template fields and CSS classes) and `docs/CHANGELOG.md` when implemented.
+
+### LF-065. Staff-created and staff-edited terms are approved automatically
+
+**Status:** Complete (7 of 7) — released in 1.2.0
+
+A term is "not yet reviewed" when a writer proposes it, and an Administrator approves, merges or aliases it later. That queue should hold only writers' proposals. Today `TaxonomyService::create()` and the starter-list path already insert reviewed terms, but `assignToStory()` goes through `selected()` and `propose()`, which always inserts an unreviewed term, even when the person saving the story is an Administrator or Editor. A staff member who types a new fandom, character or tag into a story form therefore lands in their own review queue and has to approve their own entry. Editing a term through `rename()` or the other edit paths also leaves an unreviewed term unreviewed.
+
+- [x] A term proposed through a story by an actor who may curate is inserted already reviewed (`reviewed = 1`), for every kind that writers may propose; a writer's proposal stays unreviewed exactly as today
+- [x] Decide and document who counts as staff here: Administrators (`ManageSite`) at minimum, and Editors if they are allowed to curate classification; `requireCurator()` is currently `ManageSite` only, so this ticket either keeps it that way or adds a narrower "approve terms" capability (record the decision in `DECISIONS.md`)
+- [x] Renaming, re-parenting, describing, or adding or removing an alias on an unreviewed term by staff marks it reviewed in the same transaction, since staff have then looked at it; editing an already reviewed term changes nothing about its status
+- [x] A staff edit never marks a term reviewed when the edit fails validation, and merging into another term keeps the target's own status
+- [x] The audit entry records the creation or edit as it does today, with a flag or action that shows it was approved on the spot (for example `term.propose` with `reviewed: true`), so the log still tells a staff creation apart from a writer proposal
+- [x] The unreviewed counts on the Classification overview and filters, and the public indexes that only list reviewed terms, stay correct: a staff-created term appears on its public index as soon as it has a public story
+- [x] Tests: an Administrator (and an Editor, if included) saving a story with a new tag, fandom, character and relationship creates reviewed terms; an Author doing the same creates unreviewed ones; a hand-crafted POST by an Author cannot get a term reviewed; staff renaming or adding an alias to an unreviewed term approves it; editing a reviewed term leaves it reviewed; the overview counts and audit entries match
+
+Built 2026-11-06. Staff means `TaxonomyService::canCurate()`, which is `ManageSite` (Administrators); Editors are not included because they cannot curate classification today, so what an Editor proposes is reviewed by an Administrator like a writer's. Re-parenting does not exist as an operation, so it is not covered. In the Classification edit form the **Reviewed** tick box still wins over the automatic approval: the rename happens first and the box is applied after, so an administrator who unticks it keeps the term unreviewed.
+
+Not in scope: changing what writers may propose (LF-060) and bulk approval of the existing unreviewed terms, which `setReviewed()` already does one at a time. Existing unreviewed terms are not changed by the migration of behaviour. Update `README.md` (what the unreviewed list contains), `docs/DEVELOPER-APIS.md` if a hook or capability is added, and `docs/CHANGELOG.md` when implemented.
+
+### LF-066. Detect a moved site and offer to update its address and path
+
+**Status:** Complete (9 of 9) — released in 1.2.0
+
+After a site is moved (a new domain, a switch to HTTPS, a different subdirectory, or a new server folder), `site_url` in `config/config.php` still holds the old address, so emailed links, feeds and the HTTPS alert point at the wrong place until someone edits the file by hand. The install location is not recorded anywhere, so a changed folder cannot be noticed at all. This ticket records where the site was installed or last confirmed, notices when the current request or folder no longer matches, and offers the administrator a one-click correction. The address is never changed automatically: `site_url` is deliberately never derived from the request, because a forged Host header must not be able to redirect a password-reset link.
+
+- [x] Record the confirmed install location (the public address and the absolute filesystem path of the site root) at install time and whenever an administrator confirms a change; stored where `config.php` is not needed to read it, so a restored copy of the files from another server still carries the old values to compare against (decide between a settings row and a small file under `storage/`, and record the choice in `DECISIONS.md`)
+- [x] Existing installs that have no record yet get one the first time an administrator opens the admin, taken from the current configuration, without raising an alert
+- [x] Detect a changed filesystem path (the recorded root differs from the real path of the running site) and a changed public address (the address the administrator is using differs from `site_url` in scheme, host, port or subdirectory), checked on admin requests only so public pages pay nothing; both comparisons are normalised (case, trailing slash, `www.` only if it is treated as the same site, symlinked folders resolved with `realpath()`)
+- [x] Never trust the request for anything but the comparison: the proposed address is shown for the administrator to review and edit, honours the trusted-proxy setting for HTTPS detection, and is refused unless it is a well-formed `http` or `https` address with no query or fragment
+- [x] A site alert (`CoreAlerts`) appears when a mismatch is found, with a link to a confirmation screen showing the old and new values side by side, an editable address field, and a plain explanation of what each change affects (emailed links, feeds, the sitemap, canonical URLs)
+- [x] The confirmation screen is behind `ManageSite`, CSRF-protected and writes through the configuration writer already used by the installer and settings; if `config/config.php` is not writable it says so and shows the exact line to change by hand instead of failing; the change is written to the audit log with the old and new values
+- [x] A "Keep the old address" choice dismisses the alert for the current address so a site reachable under two names (a staging alias, a CDN, a temporary host) is not nagged on every visit, and can be reset
+- [x] Nothing else is rewritten: stored content, links inside chapters and cached files are left alone, and the screen says so; caches that embed the address (LF-017 once it exists) are cleared when the address changes
+- [x] Tests: a matching install raises nothing; a changed host, scheme, port or subdirectory raises the alert; a changed root path raises it; a forged Host header on a non-admin request changes nothing; a non-administrator cannot reach the screen or POST; a malformed or non-http address is refused; an unwritable config shows the manual instruction; confirming updates the address and records an audit entry; "keep" suppresses the alert for that address only; existing installs without a record are seeded silently
+
+Not in scope: automatic rewriting of absolute links inside story content, moving the database or files, and changing the database table prefix or secret key (both must never change after install). Update `README.md` (what the alert and screen do), `docs/TROUBLESHOOTING.md` (moving a site to a new host or domain, including the manual `config.php` edit) and `docs/CHANGELOG.md` when implemented.
+
+Built 2026-11-06. The record is the `site.location` setting; the screen is `/admin/maintenance/site-location`, opened from the alert. Caches that embed the address do not exist yet (LF-017 must clear them on a change).
+
+### LF-067. Visitor Stats counts signed-in readers too
+
+**Status:** Complete (6 of 6) — released in 1.2.0
+
+The Visitor Stats plugin (LF-054) counts a view only when the reader is not signed in: `Tracker::handle()` returns early when `$viewer !== null`, and the plugin's README lists "Signed-in people, including you and the story's own author" among the things that never count. Most of an archive's regular readers are signed in (reading lists, bookmarks, follows), so the totals understate real readership. A signed-in reader opening a story or chapter should count exactly like a visitor who is not signed in.
+
+- [x] `Tracker::handle()` no longer skips a view because `$viewer` is set; the other rules stay as they are (only `GET`, no background prefetch, no search robots, only the plugin's own switch), and the `story_viewed` action itself is unchanged since it already passes the viewer
+- [x] Privacy stays as it is: nothing about the signed-in person is stored or used, not the account, id, name or role, so a view row still belongs to no one; `$viewer` is read only to be ignored, and the plugin's privacy wording says plainly that signed-in readers are counted anonymously in the same totals
+- [x] Decide whether the story's own author, and staff previewing their own work, should count; the default is that they count like anyone else, since the totals cannot tell them apart without storing who looked, and the decision (with the option of a "do not count my own views" setting that skips the signed-in author of that story) is recorded in `DECISIONS.md`
+- [x] The plugin's README and the screen's explanatory text are corrected: signed-in people are counted, and the "never count" list keeps previews, drafts, pending and unpublished stories, robots and prefetches
+- [x] Tests: a signed-in reader's story view and chapter view each add one view; a reader who is not signed in still adds one; a signed-in view adds nothing to the breakdowns beyond browser, device, referrer and country as before; prefetches, robots and non-`GET` requests from signed-in people still do not count; no stored row carries an account identifier
+- [x] A one-line note in `docs/CHANGELOG.md` that earlier totals only held readers who were not signed in and are not recalculated, since the past views of signed-in readers were never recorded
+
+Not in scope: per-reader or unique-reader counts, reading history, and any breakdown of views by signed-in versus not signed in (that would need a flag stored on each view and is a separate privacy decision). Bump the plugin's `Version:` header when implemented, and update the `story_viewed` row in `docs/DEVELOPER-APIS.md` only if its wording implies guests alone.
+
+Built 2026-11-06. The plugin's `Version:` is bumped at Release.
+
+### LF-070. Chapter comments by readers
+
+**Status:** Complete (15 of 15) — released in 1.2.0
+
+Readers can leave a comment under a chapter. `Project Architecture.md` deferred comments until the core publishing and reading workflow was solid, and `Project Plan.md` lists them with moderation, reporting and spam controls. The follow, notification and spam-guard services now exist, so this ticket reuses them rather than building new ones. Comments are plain text, flat (no threading), and attached to a chapter; the author answers with an ordinary comment. A reader who has not signed in cannot comment.
+
+- [x] Migration adding a `comments` table (chapter, story, author account, body, status of published, pending, hidden or spam, created and edited timestamps, edited flag) with indexes for the chapter listing, the moderation queue and a reader's own comments; a comment survives its author's account being anonymised per the account-deletion rules; migration and rollback tested
+- [x] `CommentService` for create, edit, delete and listing, with the body validated like other plain text (UTF-8, control characters refused, trimmed, line endings normalised, a `BODY_MAX` limit and a minimum of one visible character); output is escaped and links are never made clickable by default
+- [x] Permissions enforced on the server: any signed-in, verified Reader, Author, Editor or Administrator may comment on a chapter they can read; a comment on a draft, unpublished, pending or private chapter is refused even by a hand-crafted POST; an author can delete or hide comments under their own stories but cannot edit anyone's words; staff can moderate every comment; a commenter can edit their own comment for a short window (a setting) and delete it at any time
+- [x] Reuse the spam controls: comment posts go through `FormGuard` (honeypot, timing, throttle and the optional Akismet check configured in Spam settings), with a per-account rate limit and a refusal of an exact duplicate posted again within a few minutes; a suspected comment is held as pending or marked spam rather than dropped, and the reader is told plainly
+- [x] Moderation setting under Settings: comments on or off for the whole site, who may comment (anyone signed in, or only readers whose first comment was approved), whether a first comment is held for approval, and whether an author may turn comments off per story or per chapter; switching comments off hides the form and the list without deleting any comment
+- [x] Per-story and per-chapter option, set by the author, to turn comments off; the chosen state is shown to readers as "Comments are turned off" instead of the form
+- [x] A Comments screen in the admin under Moderation where an Administrator sees every submitted comment on the site in one list, whatever its status (published, pending, hidden, spam, reported), newest first and paginated for archives with tens of thousands of comments; status tabs with live counts (the pending and reported tabs carry a badge in the admin menu and on the dashboard so nothing waits unseen); filters by status, story, chapter, commenter, date range and text search; each row shows the comment (shortened, expandable), the commenter's display name and slug, the story and chapter with a link to the comment in place, its date, its status and its report count; single and bulk actions to approve, hide, mark as spam, restore and delete (with a confirmation and a preview of how many are affected); an inline edit-free "view in context" and a commenter's history link showing all their comments and how many were held or marked spam, with a one-click action to hold or block that account's future comments; an Editor sees the queue for stories they may moderate and an Author sees only comments on their own stories; every moderation action is written to the audit log
+- [x] Reporting: a signed-in reader can report a comment with a short reason, a comment reported more than a set number of times is hidden pending review, and reports land in the moderation screen with the reporter and reason (the reporter is never shown to the commenter)
+- [x] The comment list on the chapter page (oldest first, paginated, with the commenter's display name and slug and never the login name), the form below it, and a comment count on the chapter and story pages; hidden, spam and pending comments never appear to anyone except their author (pending, marked as awaiting approval) and staff
+- [x] Author badge: a comment written by the account that owns the story is marked with an "Author" badge beside the name, so readers can tell the writer's replies at a glance; comments are flat, so any comment by the story's author counts as a reply and no reply link is stored; the badge is worked out when the list is built by comparing the commenter to the story's owner (never a stored flag, so a changed owner or an anonymised account stays correct), it is real text and not colour alone with a screen-reader label, it appears in the chapter list, the moderation screen and the notification email, and a theme restyles it through a stable `lf-comment__badge` class; staff who are not the story's author get no badge
+- [x] Notifications and follows: the chapter's story author gets a notification and optionally an email for a new published comment (using `NotificationService` and the existing email settings), a commenter can choose to be told of replies from the author, and no email is sent for a pending, hidden or spam comment; account preferences can turn these off
+- [x] Templates, template tags and the `lf-comment` CSS classes in the Storybook stylesheet with dark-mode rules added together with each component (list, single comment, form, notice, report control), propagated to every theme under `custom themes/` in the same session (add missing rules only), plus the Classic Archive theme when LF-033 exists; the form is output through a documented hook or template tag so a theme never re-implements the CSRF or spam-guard fields
+- [x] Privacy and caching: comments are not served from a page cache (LF-017) to a signed-in reader, comment text is excluded from search unless a later ticket adds it, a reader's data export and account deletion include or anonymise their comments, and the profile screens show nothing extra about a commenter
+- [x] Feeds (LF-012) gain an optional per-story comment feed of published comments only; the setting that switches it off is documented, and `docs/DEVELOPER-APIS.md` gains the new actions and filters (for example `comment_created`, `comment_status_changed` and a filter on the body before storing)
+- [x] Tests: validation and round-trip; a hand-crafted POST cannot comment on a draft, unpublished or private chapter, edit someone else's comment, or moderate without permission; an Administrator sees comments of every status and every story, and the tab counts, filters and bulk actions give correct results and need `ManageSite` or the narrower moderation permission; the Author badge shows only on comments by the story's owner and not on a reader's, an Editor's or an Administrator's comment on someone else's story, and follows an ownership change; an Author cannot see or moderate comments on another author's story; held, hidden and spam comments never show to readers or in feeds, counts or notifications; the spam guard and rate limit refuse a flood; reporting hides a comment at the threshold; comments off per site, story and chapter hides the form; editing window; notification and email only for a published comment; anonymising an account keeps its comments; the migration upgrades an install that already holds chapters
+
+Not in scope: threaded replies, reactions or likes, ratings and reviews, guest comments, comments on stories or series pages (chapters only), attachments or images, Markdown or rich text in comments, mentions, and comment search. Update `README.md` (user-facing comment settings, the reader's form, the moderation screen), `docs/THEME-DEVELOPMENT.md` (comment template tags, hook and CSS classes), `docs/DEVELOPER-APIS.md` and `docs/CHANGELOG.md` when implemented.
+
+Built 2026-11-06. The per-story comment feed item moved to LF-012 (no feed exists yet) and comment text is not searched. The first-comment hold and "who may comment" are one control (see `DECISIONS.md`). Per-story and per-chapter switches live in their own table and are set from a small form on the story and chapter screens. Page caching (LF-017) must keep comment pages private for signed-in readers, which the existing private-page rule already does.
+
+### LF-071. Backup archives carry the script name
+
+**Status:** Complete (7 of 7) — released in 1.2.0
+
+A backup is stored under `storage/backups/` as `{id}.json`, `{id}-files.zip` and `{id}-database.sql` (or `.sql.gz`), where the id looks like `20261105-123456-a1b2c3d4e5f6`, and the download sends the same name. Once the files are copied off the server or sit in a downloads folder, nothing in `20261105-123456-a1b2c3d4e5f6-files.zip` says which program or site it belongs to. Backup archives should start with the script name, as `LumoraFiction_20261105-123456-a1b2c3d4e5f6-files.zip`, so they can be told apart from other archives at a glance.
+
+- [x] New backups are written with the script name first, `LumoraFiction_{id}-files.zip`, `LumoraFiction_{id}-database.sql[.gz]` and `LumoraFiction_{id}.json`, built in one place (`BackupService`'s path helpers) from a single constant so the prefix is never typed twice; the id itself, `ID_PATTERN`, the audit entries and the URLs stay exactly as they are, since the prefix is part of the file name only and never of the id
+- [x] Backups made before this change keep working: listing, finding, verifying, downloading, restoring and deleting accept the old names (`{id}-files.zip`) as well as the new, deciding by what exists on disk, and nothing renames or rewrites an existing backup; the path helpers never trust a name from the request and the id is still validated against `ID_PATTERN` before any path is built
+- [x] The download sends the prefixed name for both old and new backups, so a downloaded older backup is also named `LumoraFiction_...`, while the file on disk of an old backup is left as it was
+- [x] The pre-update and pre-restore safety backups made by `UpdateService` use the same naming and show up in the backups list as before; the glob that finds records (`*.json`) and the deletion routine cover both name shapes, and a leftover partial file of either shape is cleaned up
+- [x] Anything that shows a file name (the backups screen, the update and restore progress screens, and the system information page) displays the new name, with the id column unchanged
+- [x] Tests: a new backup creates the three prefixed files and the id is unchanged; an old-style backup is still listed, verified, downloaded under the prefixed name, restored and deleted; a mixed folder lists both; a hand-crafted id or part cannot reach another file or a path outside the backups folder; an update's safety backup uses the new names and restores from them
+- [x] Documentation: `docs/TROUBLESHOOTING.md` (how to recognise and restore a backup by hand from the new file names, including old backups), the backups paragraph in `README.md` if it names the files, and `docs/CHANGELOG.md`
+
+Not in scope: adding the site name or domain to the file name, renaming or migrating existing backups, and changing the backup contents, the id format or the storage folder. The prefix is the script name, `LumoraFiction`, in that capitalisation to match the release packages (`LumoraFiction-v{version}.zip`) with an underscore before the id as requested.
+
+### LF-072. Admin banner while maintenance mode is on
+
+**Status:** Complete (6 of 6) — released in 1.2.0
+
+Maintenance mode takes the public site offline for visitors while administrators keep working, so an administrator signed in during maintenance sees the normal site and admin and can forget that visitors are being turned away. Nothing in the admin says so: `admin/views/layout.php` and the dashboard have no reference to it, and the only place it shows is the Maintenance mode settings screen. A scheduled window that has quietly started, or one left on by mistake, can keep the public site down unnoticed. The admin should say plainly, on every screen, that the site is currently offline to visitors.
+
+- [x] A banner at the top of every admin page (rendered once in the admin layout so no screen can miss it and no plugin screen has to opt in) while `MaintenanceMode::isActive()` is true, saying that the public site is currently offline for visitors and that administrators still see it normally, with a link to the Maintenance mode screen to turn it off; shown only to people who can manage the site, but the layout banner must not depend on which screen is open
+- [x] The banner covers the other cause too: the short-lived maintenance flag an update or restore raises while it runs (`MaintenanceFlag`) shows a banner worded for that case ("The site is offline while an update is running") with a link to the update progress screen, so the two states are told apart and the wording never suggests turning off a mode that an update is holding on
+- [x] The text says whether the mode was switched on by hand or by a schedule, and for a schedule when it ends, using the site timezone already used by the Maintenance mode screen (no new setting; read from the existing values)
+- [x] Styling in the admin stylesheet reusing the existing alert and notice components rather than a lookalike, a `role="status"` landmark with real text (colour alone never carries the meaning), keyboard-reachable link, dark-mode rules added with the component, and the banner not covered by or overlapping the sticky header on narrow screens
+- [x] The dashboard shows the same state in its site-status area so it is visible at a glance, and the banner is not repeated as a Site Alert (Maintenance › Alerts stays for problems, this is a state), so the alert count and the alert email are unchanged
+- [x] Tests: the banner appears on the dashboard and on an unrelated admin screen only when maintenance mode is active (manually or inside a scheduled window) or the update flag is set; it is absent otherwise, including after a schedule ends; the right wording and link are used for each cause; a person without site-management rights never sees the link; the public site and the maintenance page itself are unchanged
+
+Not in scope: changing how maintenance mode works, who is let in, or the public maintenance page; a banner on the public site for administrators; and email or push notices when it turns on. Update `README.md` (the Maintenance mode section, one line) and `docs/CHANGELOG.md` when implemented.
+
+### LF-073. Classification lists: multi-select, select all and approval status filter
+
+**Status:** Complete (8 of 8) — released in 1.2.0
+
+A classification list (fandoms, characters, relationships, tags and so on) shows its terms one per row, and each term is approved, merged, renamed or deleted from its own screen. The only filter is an "Only those not yet reviewed" checkbox, and the Status column says "Reviewed" or "Not yet reviewed". Clearing a queue of writers' proposals therefore means opening every term in turn. This ticket adds a checkbox on each row, a select-all control, bulk actions, and a clear Approved / Unapproved filter. The screen and the audit log use "approved" and "unapproved" wording; the stored `reviewed` column does not change.
+
+- [x] A checkbox in each row of the term list with an accessible label naming the term, and a "select all" checkbox in the table header that selects every row on the current page; the header checkbox shows a mixed state when only some rows are ticked, works from the keyboard, and with scripts off the checkboxes still work as a plain form (select all is a progressive enhancement, so the list never depends on JavaScript to post)
+- [x] An option to select every term that matches the current filter across all pages ("Select all 312 matching terms"), shown only when the match is larger than the page, confirmed with the exact count before anything runs, and capped by a server-side limit so one request cannot run unbounded; the action then acts on the filter as it stands at the time of the post, not on a stale list of ids
+- [x] A bulk actions bar above and below the table with a count of what is selected: **Approve**, **Mark as unapproved** and **Delete**, each acting on exactly the selected terms; Delete goes through a confirmation page that lists the terms and the same rules as deleting a single term (a term still used by stories is refused or reassigned as the single-term screen does), and merging stays a single-term action
+- [x] A status filter replacing the checkbox: **All**, **Approved** and **Unapproved**, with the counts shown beside each, kept together with the search box and in the pagination links; the old `?unreviewed=1` address keeps working and means Unapproved, so existing bookmarks and the links from the Classification overview do not break
+- [x] Wording: the Status column and the term edit screen say **Approved** and **Unapproved** (replacing "Reviewed" and "Not yet reviewed"), and the overview counts and filter links use the same words; the choice is recorded in `DECISIONS.md`
+- [x] Server side: bulk actions need the same capability as single-term curation (`requireCurator()`), are CSRF-protected and POST-only, accept only term ids that belong to the list's own kind (a hand-crafted id from another kind or a disabled kind is ignored and reported), run in one transaction so a failure changes nothing, and write one audit entry per term or one batched entry listing the ids and the action; unapproving never changes a term's aliases, parent or story links, and approving an already approved term is a harmless no-op that is not counted as a change
+- [x] After an action the list reloads on the same filter and page, with a flash message saying how many terms were changed and how many were skipped and why; the selection is cleared, and the Classification overview's unapproved counts and the public indexes (which list approved terms only) are correct straight away
+- [x] Tests: ticking rows and posting approves exactly those terms; select-all on a page covers the page only, and select-all-matching respects the filter and the cap; approve and unapprove change only the status; a hand-crafted POST by an Author or Editor without the right capability is refused; ids of another kind or a deleted term are skipped; the all-or-nothing transaction leaves everything unchanged when one term fails; bulk delete follows the single-term rules; the filter, counts and the `unreviewed=1` redirect behave; the screen works with scripts off
+
+Not in scope: bulk merge, bulk rename, bulk editing of descriptions or parents, drag-reordering, and an undo for a bulk delete. This complements LF-065, which stops staff-created terms from entering the queue at all; the two do not depend on each other. Update `README.md` (the Classification screens), `docs/THEME-DEVELOPMENT.md` only if the public indexes change, and `docs/CHANGELOG.md` when implemented.
+
+Built 2026-11-06.
+
+### LF-074. Updates screen: GitHub and Manual Update in side-by-side tabs
+
+**Status:** Complete (7 of 7) — released in 1.2.0
+
+The Updates screen stacks its two ways of getting a release one above the other: a card to check GitHub and download, then a card to upload a release ZIP, then the settings and history. On a host that cannot reach GitHub the GitHub card is dead weight above the upload, and on a normal host the upload sits below the fold. Lumora Gallery and Lumora Press present the same choice as two pill tabs, **GitHub** and **Manual Update**, with one panel showing at a time. Lumora Fiction should match, so the three admin screens feel the same.
+
+- [x] A tab bar at the top of the update area with two tabs, **GitHub** (check for a release, download and review) and **Manual Update** (upload a release ZIP with the optional checksum); only the selected tab's panel is visible, and the existing content of each panel is moved as it is, not rewritten
+- [x] Built as a real tabs pattern: `role="tablist"`, `role="tab"` with `aria-selected` and `aria-controls`, `role="tabpanel"` with `aria-labelledby`, Left and Right arrow keys, Home and End to move between tabs, a visible focus ring, and a selected state shown by more than colour; the tab bar is horizontally usable on narrow screens
+- [x] Works without JavaScript: each tab is a link to the same screen with a `?tab=github` or `?tab=manual` query, the server renders the chosen panel as selected and the other as hidden, and the script only enhances it by switching panels without a reload and updating the address; an unknown value falls back to GitHub, and the chosen tab survives the page reload that follows a check, a download or an upload
+- [x] A sensible default and automatic switching: GitHub opens first; when an upload was refused or fails, or the Manual Update form returns an error, that tab is opened so the message is not hidden; when the host cannot reach GitHub (the last check failed on the transport) the screen opens on Manual Update instead, with the reason shown
+- [x] The settings (repository and channel) and the history stay below the tabs on the page, visible whichever tab is open, because they apply to both ways of updating; if the upload section is not offered on a host (it is conditional today), its tab is not drawn rather than shown empty
+- [x] Styling in the admin stylesheet with a stable `lf-tabs` family of classes reusing the admin's existing card and spacing, dark-mode rules added with the component, and a reusable partial so the next screen that needs tabs does not build its own; a plugin screen can use it too
+- [x] Tests: the default tab, each `?tab=` value and an unknown one render the right panel as selected; an upload error or a failed GitHub transport opens the right tab; both forms still post to the same actions and everything after (review, run, history) is unchanged; the markup carries the tab roles and the labelling, and the screen is complete and usable with scripts off
+
+Not in scope: changing how an update is checked, downloaded, uploaded, verified or applied, the review and run screens, and tabs on any other admin screen. Update `README.md` only if it describes the screen's layout, and `docs/CHANGELOG.md` when implemented.
+
+### LF-075. Reorder the admin sidebar
+
+**Status:** Complete (7 of 7) — released in 1.2.0
+
+The Maintenance group in the admin sidebar has become a catch-all: Alerts, System Information, Updates, Backups, Maintenance mode, Plugins, Security events and Privacy requests. Things people open every day (Alerts), things that belong with another area (Privacy requests with Users, Plugins as its own area) and the routine maintenance tools are all mixed in one list. The menu is defined in `AdminMenu::definition()`; this ticket rearranges it without changing what any screen does.
+
+- [x] **Alerts** moves out of Maintenance to its own top-level item directly under **Dashboard**, so a Critical or Warning alert is one click from the first screen; it keeps its capability (`ManageSite`) and its path, and carries the open-alert count as it does in the header link today (the count shown next to the sidebar item must come from the same source as the header count so the two never disagree)
+- [x] **Maintenance** is reordered to start with **Updates**, **Backups** and **Maintenance mode**, in that order, followed by **Security events**, with **System Information** last; Alerts, Plugins and Privacy requests are no longer in this group, so the final order is Updates, Backups, Maintenance mode, Security events, System Information
+- [x] **Users** becomes a group with two children, **All users** (today's Users screen) and **Privacy requests** (moved out of Maintenance, keeping its `ManageUsers` capability, so an administrator without site-management rights but with user management still reaches it); a person who can manage users sees the group even if they cannot see anything else in it
+- [x] **Plugins** becomes its own top-level item instead of a Maintenance child; it sits directly after Appearance (confirmed), so the two things that change how the site looks and works sit together, and it keeps its `ManageSite` capability
+- [x] Nothing that links to a screen breaks: every admin URL stays exactly as it is (`maintenance/alerts`, `maintenance/privacy`, `maintenance/plugins`), so bookmarks, emails, the dashboard links and the header alert link keep working; only the menu entry's slug and group change, so the "current page" highlight and the open or collapsed state follow the screen in its new place, and a stored collapsed-group preference for the old Maintenance group does not hide the moved items
+- [x] Plugins that add to the menu keep working: the `admin_menu` filter and the slugs it sees are documented for the new layout, a plugin that attached a child to the `maintenance` group (the bundled Dummy Content plugin does this) is checked and still lands in a sensible place, and `docs/DEVELOPER-APIS.md` records which slugs moved, with the new group slugs for Users
+- [x] Tests (`AdminMenu`): the top-level order is Dashboard, Alerts, then the rest as before with Plugins directly after Appearance; Maintenance lists Updates, Backups, Maintenance mode, Security events and System Information in that order; Privacy requests appears under Users and not under Maintenance; capabilities still filter each item, so an Editor or Author sees none of the moved items, a user manager sees Users and Privacy requests, and an administrator sees all of it; the current-page highlight works for each moved screen; plugin additions through the filter still appear
+
+Not in scope: renaming screens, moving any URL, changing which screens exist, and redesigning the sidebar's look or its collapse behaviour. Update `README.md` only if it describes the menu layout, `docs/DEVELOPER-APIS.md` (moved slugs) and `docs/CHANGELOG.md` when implemented.
+
+### LF-076. Drop PHP 8.2 support, minimum becomes PHP 8.3
+
+**Status:** Complete (9 of 9) — released in 1.2.0. Matrix result is in `PHP Test Suite/TEST_LOG.md`.
+
+PHP 8.2's security support ends on 2026-12-31, about eight weeks after this ticket was written, and the script is days old with one installation. Supporting a version that is about to be unsupported costs a longer test matrix and keeps newer language features off limits for no real gain. The minimum becomes **PHP 8.3**; 8.4, 8.5 and 8.6 stay supported. The trade-off, accepted on purpose: the project is built for shared hosting, and a few hosts still offer 8.2 as their newest option or let customers choose only older versions. State the change plainly in the release notes of the version that ships it.
+
+- [x] The application refuses to run below 8.3 and says so: `index.php` (the `PHP_VERSION_ID` check and its "requires PHP 8.3 or newer" message) and `app/Core/Requirements.php` (`MINIMUM_PHP_VERSION`), and the installer's requirements check and its message follow from the same constant, not a second copy
+- [x] The updater keeps working for the one real case: a release that raises the minimum is refused with the existing compatibility message on a host still running 8.2, before anything is replaced; confirm the shipped release that carries this change goes through that check and the message names 8.3
+- [x] Bundled plugin and theme headers that say `Requires PHP: 8.2` (Visitor Stats and Dummy Content, and any bundled theme) become 8.3, with each package's `Version:` header bumped at Release as usual so the change is offered as an update
+- [x] User documentation: `README.md` and `docs/INSTALLATION.md` (requirements table and the "tested on" sentence, with no hardcoded app version), and a `docs/CHANGELOG.md` entry that says 8.2 is no longer supported; `docs/THEME-DEVELOPMENT.md` and `docs/DEVELOPER-APIS.md` examples that use 8.2 as a sample `Requires PHP:` value are changed to 8.3 so they match the minimum
+- [x] Project documents: the PHP compatibility rules in `CLAUDE.md` (primary 8.5, compatible with 8.3, 8.4 and 8.6, and the sentence about features that break the older versions), `Project Architecture.md`, `DECISIONS.md` (a new dated entry replacing "Target PHP 8.5, supported 8.2–8.5" and recording the reason and the shared-hosting trade-off) and `MEMORY.md`; the separate Guestbook memory that keeps 8.2 as its minimum is a different project and stays untouched
+- [x] PHP Test Suite: `composer.json` (`php` constraint and the `platform` pin move to 8.3, and the lock file or autoload is regenerated if one is committed), `run-tests-all-php.sh` (the list of versions, its usage text and its "unknown version" message), and `docker/Dockerfile.test` (comment on the images built); the Docker image for 8.2 is no longer built or pulled
+- [x] Test fixtures and expectations that use 8.2 are reviewed one by one and changed only where they were standing in for "the minimum": `Support/ReleaseZips::requirements()` default, the updater compatibility tests that build a release requiring a higher version than the host, the plugin and theme header tests that expect "Needs PHP 8.2+" and the parsed `requires_php` value; samples that only need *some* version are changed to 8.3 for consistency, and a test is added that asserts the application's own minimum matches `index.php`, `Requirements` and the bundled package headers so they can never drift apart again
+- [x] Optional cleanup, only when it makes code simpler and never as a reason to churn files: look for 8.2 workarounds, polyfills or comments that mention 8.2 and remove them (for example typed class constants and `#[\Override]` become allowed); no new 8.4-only or 8.5-only feature is introduced by this ticket
+- [x] Verification: the full suite passes on PHP 8.3, 8.4, 8.5 and 8.6 with warnings and deprecations displayed, and the matrix result is logged in `TEST_LOG.md`; a run on 8.2 is confirmed to be refused with the new message (a manual check or a small integration test that stubs the version), and the dev install is on par with the changed source files
+
+Not in scope: raising the minimum above 8.3, adopting 8.3-only language features across existing code, and changing the MySQL or MariaDB support. Historical records (`docs/HISTORY.md`, `TEST_LOG.md` and the v1.0.0 release notes) keep describing what was true when they were written and are not edited.
+
+### LF-079. Bundle the Rosewine and Lavender Mist themes
+
+**Status:** Complete (9 of 9) — released in 1.2.0
+
+Two gradient colour themes, first built as custom themes, ship with every release beside Storybook. Both are copies of Storybook's templates and reader script with their own colours, gradient tokens, card layout and dropdown styling, so a site owner can switch to either under Appearance › Themes. Storybook stays the default.
+
+- [x] Both theme folders live under `content/themes/` (`rosewine`, `lavender-mist`) with a stylesheet header, the full set of templates and parts, `js/reader.js`, `js/select-menu.js`, a README and a `screenshot.jpg` for the theme card; their file headers name the right theme and `@since` the release that adds them
+- [x] Both are listed in `ThemeCatalog::BUNDLED`; `ALWAYS_INSTALLED` in the updater stays Storybook only, since it is the theme the site falls back to
+- [x] Light and dark colours as tokens, plus gradient tokens for the header and footer, page, card, accent, buttons, heading wash, tags and rules, defined in both colour schemes
+- [x] Chapter, page and news post drawn as one rounded card with the heading on a gradient and a bar of chapter links along the bottom; story and news cards, widget-style news headings, tags, pagination and downloads menu styled to match
+- [x] Dropdowns restyled everywhere (reader controls, colour choice, search and account selects): native styling in browsers that support customisable selects, and a keyboard- and screen-reader-friendly scripted list elsewhere that writes back to the real select and falls back to the plain select without scripts
+- [x] Text stays readable on every colour of every gradient it sits on, in both colour schemes, after the test found white-on-lilac button text at 4.34:1 and the stop was darkened
+- [x] PHP Test Suite: `GradientThemesTest` covers both themes (header and templates, no logic or inline styles in templates, scripts loaded only from `functions.php` and nothing fetched from outside, every class styled, dark, print and motion rules, theme options that never override the theme, every gradient token in both schemes, WCAG AA for the token pairs and for text on each gradient stop), and `ThemeCatalogTest` marks all three bundled
+- [x] Documentation: `docs/CHANGELOG.md`, `docs/ADMINISTRATION.md`, `docs/THEME-DEVELOPMENT.md` (the gradient, scripted dropdown and card patterns), `DECISIONS.md` and the themes list in `CLAUDE.md`
+- [x] Dev install on par with the source, and both themes shown on Appearance › Themes with their pictures and activated and browsed in a real browser
+
+Not in scope: making either theme the default, inheriting one theme from another, and the scripted dropdown for browsers that already style the native list (they keep the native control). Rosewine and Lavender Mist now carry a copy of Storybook's templates, so a template change made to Storybook is repeated in both. Whether to propagate theme-wide changes automatically or by hand is left to the Classic Archive ticket (LF-033).
+
 ## Version 1.1.0 — 2026-10-27
 
 ### LF-010. Updater, backups and rollback
