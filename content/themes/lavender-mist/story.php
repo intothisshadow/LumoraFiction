@@ -39,6 +39,7 @@ $groups = lf_items('term_groups');
         <?php lf_downloads(); ?>
     </header>
 
+    <div class="lf-story__details">
     <dl class="lf-story-meta">
         <div class="lf-story-meta__item"><dt class="lf-story-meta__label">Status</dt><dd class="lf-story-meta__value"><?php lf_field('story.status'); ?></dd></div>
         <div class="lf-story-meta__item"><dt class="lf-story-meta__label">Words</dt><dd class="lf-story-meta__value"><?php lf_field('story.words'); ?></dd></div>
@@ -72,10 +73,15 @@ $groups = lf_items('term_groups');
             </section>
         <?php endif; ?>
     <?php endforeach; ?>
+    </div>
 
     <?php if (lf_has('chapter.html')): ?>
         <?php // A finished one-chapter story is read on this page, so there is no list of chapters to open. ?>
         <section class="lf-story__section lf-story__section--text" aria-label="The story">
+            <header class="lf-story__text-header">
+                <h2 class="lf-story__text-title">The story</h2>
+                <p class="lf-story__text-meta"><?php lf_field('story.words'); ?> words</p>
+            </header>
             <?php lf_part('resume-button'); ?>
             <?php lf_part('reader-controls'); ?>
             <?php if (lf_has('chapter.notes')): ?>

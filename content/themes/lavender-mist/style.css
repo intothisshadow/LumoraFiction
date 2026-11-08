@@ -2060,6 +2060,65 @@ body {
     border-color: var(--lf-border);
 }
 
+/* The details above a story are a quieter panel than the reading card below: a flat tint with an accent bar along its top edge. */
+.lf-story__details {
+    margin: 0 0 2rem;
+    padding: 1.1rem 1.5rem 0.5rem;
+    background: var(--lf-grad-accent) top / calc(100% - 2.5rem) 4px no-repeat, var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-story__details .lf-story-meta {
+    margin: 0;
+    padding: 0.9rem 0;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--lf-border);
+    border-radius: 0;
+}
+
+.lf-story__details .lf-term-groups {
+    margin: 0;
+}
+
+.lf-story__details .lf-term-group:last-child {
+    border-bottom: 0;
+}
+
+.lf-story__details .lf-story__section {
+    margin-block: 1.25rem;
+}
+
+/* A one-chapter story is read on its own page, in the same card a chapter page uses. */
+.lf-story__section--text {
+    --lf-chapter-pad: 2rem;
+    padding: 0 var(--lf-chapter-pad) 1.5rem;
+    background: var(--lf-grad-card);
+    border: 1px solid var(--lf-border);
+    border-radius: calc(var(--lf-radius) * 1.6);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.lf-story__text-header {
+    margin: 0 calc(-1 * var(--lf-chapter-pad)) 1rem;
+    padding: 1.5rem var(--lf-chapter-pad) 0.75rem;
+    background: var(--lf-grad-wash);
+    text-align: center;
+}
+
+.lf-story__text-title {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.lf-story__text-meta {
+    margin: 0.2rem 0 0;
+    color: var(--lf-muted);
+    font-size: 0.95rem;
+}
+
 /* Pages and single news posts use the same card as a chapter, with the gradient wash behind a centred heading. */
 .lf-page,
 .lf-news-post {
@@ -2434,6 +2493,8 @@ select.lf-form__input option,
     .lf-news-card,
     .lf-browse__card,
     .lf-letters__link,
+    .lf-story__details,
+    .lf-story__section--text,
     .lf-chapter-nav__link {
         border: 1px solid CanvasText;
     }

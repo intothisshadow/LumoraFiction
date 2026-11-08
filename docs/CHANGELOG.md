@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Rosewine and Lavender Mist: a story that is read on its own page (one chapter, marked Completed) now shows its text in the same card a chapter page uses, with a gradient heading ("The story" and the word count) above the reader controls, instead of loose text on the page. The details above it (status, length and dates, fandoms, characters and tags, summary, notes and disclaimer) now sit together in a quieter panel with an accent bar, so the details and the text read as two different things. The panel appears on every story page in both themes, with light and dark colours.
+
 - Updater: the first update on a site that has never used the updater before (every site installed before 1.2.0) now adds the plugins and themes the new release introduces. Until now it had no record of what the earlier release shipped, assumed every missing bundled plugin or theme had been removed on purpose, and left it out, so the new Rosewine and Lavender Mist themes were not installed by the update to 1.2.0. Only Visitor Stats and Dummy Content, the two bundled plugins that earlier releases shipped, are still treated as removed when missing. A site that was already updated to 1.2.0 this way can add the two themes from **Appearance > Themes > Add a theme**, or by uploading their folders from the release ZIP.
 
 ## [1.2.0] — 2026-11-08
