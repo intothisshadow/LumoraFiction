@@ -69,6 +69,12 @@ final class UpdateService
     /** Shipped with every release; an update never leaves it out, because it is the theme the site falls back to. */
     private const ALWAYS_INSTALLED = ['content/themes/storybook'];
 
+    /**
+     * Everything releases 1.0.0 and 1.1.0 shipped, before the updater recorded what a release ships. A site with no record
+     * can only have removed one of these, so any other missing package is new to it and is added.
+     */
+    private const SHIPPED_BEFORE_RECORDING = ['content/plugins/dummy-content', 'content/plugins/visitor-stats'];
+
     public function __construct(
         private readonly UpdateStorage $storage,
         private readonly BackupService $backups,
@@ -767,7 +773,7 @@ final class UpdateService
     private function planPackages(UpdatePackage $package): array
     {
         $recorded = $this->storage->readJson($this->storage->bundledPath());
-        $previous = is_array($recorded['packages'] ?? null) ? array_map('strval', $recorded['packages']) : null;
+        $previous = is_array($recorded['packages'] ?? null) ? array_map('strval', $recorded['packages']) : self::SHIPPED_BEFORE_RECORDING;
         $skipped = [];
         $added = [];
 
@@ -777,7 +783,7 @@ final class UpdateService
             }
 
             // Gone from the site: if the running release shipped it, the administrator removed it; if not, it is new.
-            if (!in_array($directory, self::ALWAYS_INSTALLED, true) && ($previous === null || in_array($directory, $previous, true))) {
+            if (!in_array($directory, self::ALWAYS_INSTALLED, true) && in_array($directory, $previous, true)) {
                 $skipped[] = $directory;
 
                 continue;

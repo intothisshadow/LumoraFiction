@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Updater: the first update on a site that has never used the updater before (every site installed before 1.2.0) now adds the plugins and themes the new release introduces. Until now it had no record of what the earlier release shipped, assumed every missing bundled plugin or theme had been removed on purpose, and left it out, so the new Rosewine and Lavender Mist themes were not installed by the update to 1.2.0. Only Visitor Stats and Dummy Content, the two bundled plugins that earlier releases shipped, are still treated as removed when missing. A site that was already updated to 1.2.0 this way can add the two themes from **Appearance > Themes > Add a theme**, or by uploading their folders from the release ZIP.
+
 ## [1.2.0] — 2026-11-08
 
 - Two new bundled themes, **Rosewine** (deep wine, dusty rose and blush on warm cream) and **Lavender Mist** (soft teal, lilac and iris on cream), both with light and dark colours and the same reader controls as Storybook. Gradients sit on the header and footer, buttons, section headings, story and news cards, tags, and the heading of a chapter, page or news post, which are drawn as one rounded card; the text itself stays on a near-flat surface. Dropdowns (the reader's text size and reading width, the colour choice, and the select boxes on the search and account forms) are restyled, and in browsers that cannot style the browser's own list, a small script in the theme draws a matching list that works with the keyboard and screen readers and falls back to the ordinary select without scripts. Switch themes under **Appearance > Themes**; Storybook stays the default.
