@@ -296,6 +296,7 @@ The search page tries `search.php`, then `archive.php`, then `index.php`. A them
 | `forms` | A list holding the one search form, `{action, submit, reset_url, filtered, fields}`. It is a plain `GET` form with no `csrf_token`. Hand it to a part such as `search-form`. A field is `{id, name, label, type, value, hint, options}`; the type is `search`, `text`, `number` or `select`, and a select's `options` are `{value, label, selected}`. Print every value with `lf_e()` and do not change the field names: the page reads them from the address. `filtered` is true while anything narrows the search, which is the time to open a disclosure of filters and to show **Clear search**. |
 | `filters` | What the search is narrowed by, each `{label, remove_url}`. Show them as links that remove just that filter. |
 | `notices` | Messages, each `{type, text}`. A search that is too long, too wide, or made only of one-letter words is refused and explained here instead of run. |
+| `total` | How many stories matched, formatted; empty until a search has been made, so print it only when it is there. |
 | `searched` | True when words or filters are in use. Use it to say "no stories match" instead of "no stories yet". |
 
 ### Reader features: bookmarks, progress and preferences

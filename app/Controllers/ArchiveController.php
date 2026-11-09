@@ -143,7 +143,8 @@ final class ArchiveController
 
             return $this->themes->render('search', [
                 'title' => 'Search',
-                'total' => ($capped ? 'More than ' : '') . number_format($total),
+                // Left empty before a search, so a theme prints no count above the list of everything.
+                'total' => $query->isNarrowed() ? ($capped ? 'More than ' : '') . number_format($total) : '',
                 'stories' => $this->cards($stories, $profiles),
                 'forms' => [$this->searchPresenter->form($query)],
                 'filters' => $this->searchPresenter->active($query),
