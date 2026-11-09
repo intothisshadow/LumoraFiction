@@ -145,12 +145,12 @@ require __DIR__ . '/_head.php';
             <?php if (!empty($presetCatalogue)): ?>
                 <fieldset>
                     <legend>Starter lists</legend>
-                    <p class="hint">Ready-made values for ratings, warnings and the like, so you do not have to type them. Every one is optional: choose none to start with an empty list and make your own later. You can add a starter list at any time under Settings.</p>
+                    <p class="hint">Ready-made values for ratings, warnings and the like, so you do not have to type them. Every one is optional: choose none to start with an empty list and make your own later. Ratings are the exception, because every story needs one: with no choice here you start with General Audiences, Teen And Up Audiences, Mature, Explicit and Not Rated. You can add a starter list at any time under Settings.</p>
                     <?php foreach ($presetCatalogue as $kind => $presets): ?>
                         <div class="field<?= isset($errors['preset_' . $kind]) ? ' field--error' : '' ?>">
                             <label for="preset_<?= Html::e($kind) ?>"><?= Html::e(LumoraFiction\Services\ClassificationPresets::KIND_LABELS[$kind] ?? $kind) ?></label>
                             <select id="preset_<?= Html::e($kind) ?>" name="preset_<?= Html::e($kind) ?>"<?= isset($errors['preset_' . $kind]) ? ' aria-invalid="true" aria-describedby="preset_' . Html::e($kind) . '-error"' : '' ?>>
-                                <option value="">No starter list</option>
+                                <option value=""><?= $kind === 'rating' ? 'The common ratings and Not Rated' : 'No starter list' ?></option>
                                 <?php foreach ($presets as $key => $preset): ?>
                                     <option value="<?= Html::e($key) ?>"<?= ($values['preset_' . $kind] ?? '') === $key ? ' selected' : '' ?>><?= Html::e($preset['label']) ?></option>
                                 <?php endforeach; ?>

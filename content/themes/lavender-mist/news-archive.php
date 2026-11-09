@@ -20,6 +20,7 @@ lf_get_header();
 <section class="lf-news">
     <header class="lf-archive__header">
         <h1 class="lf-archive__title"><?php lf_title(); ?></h1>
+        <?php lf_feed_link(); ?>
     </header>
 
     <?php if (lf_has('posts')): ?>

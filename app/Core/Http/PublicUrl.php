@@ -177,6 +177,40 @@ final class PublicUrl
         return BasePath::get() . $path . ($json ? '.json' : '');
     }
 
+    public static function home(): string
+    {
+        return BasePath::get() . '/';
+    }
+
+    public static function sitemap(): string
+    {
+        return BasePath::get() . '/sitemap.xml';
+    }
+
+    /**
+     * One part of the sitemap, named as the sitemap service names it, such as stories-1.
+     */
+    public static function sitemapPart(string $part): string
+    {
+        return BasePath::get() . '/sitemap-' . rawurlencode($part) . '.xml';
+    }
+
+    public static function robots(): string
+    {
+        return BasePath::get() . '/robots.txt';
+    }
+
+    /**
+     * The full address of a path built here. The configured site address already holds any folder the site is installed
+     * in, so the folder is taken off the path first; a path that does not start with it is used as it is.
+     */
+    public static function absolute(string $siteUrl, string $path): string
+    {
+        $base = BasePath::get();
+
+        return rtrim($siteUrl, '/') . ($base !== '' && str_starts_with($path, $base) ? substr($path, strlen($base)) : $path);
+    }
+
     public static function news(): string
     {
         return BasePath::get() . self::NEWS;

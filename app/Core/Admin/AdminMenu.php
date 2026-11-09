@@ -152,6 +152,9 @@ final class AdminMenu
                     ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-comments', 'label' => 'Comments', 'path' => 'settings/comments', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-search', 'label' => 'Search engines', 'path' => 'settings/search', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-redirects', 'label' => 'Redirects', 'path' => 'settings/redirects', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-transfer', 'label' => 'Export and import', 'path' => 'settings/transfer', 'capability' => Capability::ManageSite],
                 ],
             ],
             [
@@ -163,7 +166,7 @@ final class AdminMenu
                     ['slug' => 'maintenance-updates', 'label' => 'Updates', 'path' => 'maintenance/updates', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-backups', 'label' => 'Backups', 'path' => 'maintenance/backups', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-mode', 'label' => 'Maintenance mode', 'path' => 'maintenance/mode', 'capability' => Capability::ManageSite],
-                    ['slug' => 'maintenance-security-events', 'label' => 'Security events', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
+                    ['slug' => 'maintenance-security-events', 'label' => 'Logs', 'path' => 'maintenance/security-events', 'capability' => Capability::ManageSite],
                     ['slug' => 'maintenance-system-information', 'label' => 'System Information', 'path' => 'maintenance/system-information', 'capability' => Capability::ManageSite],
                 ],
             ],

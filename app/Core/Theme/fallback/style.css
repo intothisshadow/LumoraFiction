@@ -143,6 +143,30 @@ a:focus-visible {
     font-weight: 700;
 }
 
+.lf-feed-link {
+    margin: 0.25rem 0 1rem;
+    font-size: 0.9rem;
+}
+
+.lf-feed-link__anchor {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.lf-feed-link__icon {
+    flex: none;
+    width: 1em;
+    height: 1em;
+}
+
+.lf-footer-links__icon {
+    width: 1em;
+    height: 1em;
+    margin-inline-end: 0.35em;
+    vertical-align: -0.125em;
+}
+
 .lf-notice {
     margin: 0 0 1rem;
     padding: 0.75rem 1rem;

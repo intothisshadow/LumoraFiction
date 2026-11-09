@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Maintenance › Security events: what the protections blocked.
+ * Maintenance › Logs: what the protections blocked.
  *
  * @package LumoraFiction
  * @subpackage Admin
@@ -71,6 +71,6 @@ final class SecurityEventsController extends AdminController
             'retentionDays' => $this->events->retentionDays(),
             'listUrl' => AdminUrl::to(self::PATH),
             'settingsUrl' => AdminUrl::to('settings/spam'),
-        ], $user, 'Security events', self::PATH, $this->flash->pull($request->cookies));
+        ], $user, 'Logs', self::PATH, $this->flash->pull($request->cookies));
     }
 }

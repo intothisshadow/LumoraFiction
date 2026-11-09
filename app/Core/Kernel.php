@@ -45,6 +45,15 @@ use LumoraFiction\Controllers\FeedController;
 use LumoraFiction\Controllers\Admin\DownloadSettingsController;
 use LumoraFiction\Controllers\Admin\FeedSettingsController;
 use LumoraFiction\Core\Theme\FeedLinks;
+use LumoraFiction\Core\Theme\SearchHead;
+use LumoraFiction\Controllers\SearchEngineController;
+use LumoraFiction\Controllers\Admin\RedirectsController;
+use LumoraFiction\Controllers\Admin\SearchSettingsController;
+use LumoraFiction\Controllers\Admin\SettingsTransferController;
+use LumoraFiction\Services\RedirectService;
+use LumoraFiction\Services\SearchSettings;
+use LumoraFiction\Services\SettingsTransfer;
+use LumoraFiction\Services\SitemapService;
 use LumoraFiction\Services\FeedService;
 use LumoraFiction\Services\FeedSettings;
 use LumoraFiction\Models\Capability;
@@ -152,6 +161,7 @@ use LumoraFiction\Controllers\FollowController;
 use LumoraFiction\Controllers\ReaderController;
 use LumoraFiction\Controllers\ReadingListController;
 use LumoraFiction\Core\Http\PublicUrl;
+use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AkismetClient;
@@ -260,6 +270,14 @@ final class Kernel
 
     public ?PagePresentation $pagePresentation = null;
 
+    /** Redirects from an old address to a new one, answered for any address no page of the site owns. */
+    public ?RedirectService $redirects = null;
+
+    /** What the head of a public page says about feeds and about search engines; controllers tell them which page is shown. */
+    public ?FeedLinks $feedLinks = null;
+
+    public ?SearchHead $searchHead = null;
+
     /**
      * Privacy settings, the data export and account deletion, built with the other services at boot.
      */
@@ -322,7 +340,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -399,7 +417,7 @@ final class Kernel
         (new StaffNavigation($auth))->register($hooks);
 
         // The public pages and the admin screens work on the same services, so each is built once.
-        $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit);
+        $taxonomy = new TaxonomyService($kernel->database, $kernel->config, $kernel->audit, $kernel->hooks);
         $covers = new CoverImageStore($root . '/content/uploads/covers');
         $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks, $covers);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit, $kernel->config);
@@ -411,6 +429,22 @@ final class Kernel
         $kernel->pages = new PageService($kernel->database, $kernel->audit, static fn (string $slug): bool => $router->isRouted('/' . $slug), $kernel->hooks);
         $kernel->pagePresentation = new PagePresentation($kernel->pages, rtrim((string) $config->get('site_url', ''), '/'));
         $kernel->pagePresentation->register($hooks);
+
+        // A moved page or a merged term leaves its old address answering with a redirect.
+        $kernel->redirects = new RedirectService($database, $audit);
+        $hooks->addAction('page_slug_changed', static function (string $old, string $new) use ($kernel): void {
+            $kernel->redirects?->remember(PublicUrl::page($old, false), PublicUrl::page($new, false));
+        });
+        $hooks->addAction('term_merged', static function (Term $source, Term $target) use ($kernel): void {
+            $kernel->redirects?->remember(
+                BasePath::stripFrom(PublicUrl::term($source->type, $source->slug)),
+                BasePath::stripFrom(PublicUrl::term($target->type, $target->slug)),
+            );
+        });
+        $kernel->feedLinks = new FeedLinks($config, $siteUrl, static fn (): bool => $kernel->comments?->settings()->enabled() === true);
+        $kernel->feedLinks->register($hooks);
+        $kernel->searchHead = new SearchHead($config, $siteUrl);
+        $kernel->searchHead->register($hooks);
         $avatars = new AvatarImageStore($root . '/content/uploads/avatars');
         $authorProfiles = new AuthorProfileService($kernel->database, $renderer, $avatars, $kernel->audit);
 
@@ -526,8 +560,10 @@ final class Kernel
                 ? new DownloadPresenter($kernel->config, $kernel->downloadAccess, $kernel->storyDownloads, $kernel->downloadCounter)
                 : null,
             $commentPresenter,
+            $kernel->feedLinks,
+            $kernel->searchHead,
         );
-        $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config);
+        $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config, $kernel->feedLinks);
 
         $kernel->router->get('/', $archive->home(...), 'home');
         $kernel->router->get(PublicUrl::SEARCH, $archive->search(...), 'search');
@@ -582,7 +618,12 @@ final class Kernel
         $kernel->router->get(PublicUrl::NEWS_POST, $newsPages->post(...), 'news.post');
 
         $siteUrl = (string) $kernel->config->get('site_url', '');
-        (new FeedLinks($kernel->config, $siteUrl))->register($kernel->hooks);
+        (new SearchEngineController(
+            new SitemapService($kernel->database, $kernel->config, $taxonomy, $kernel->pages ?? throw new \LogicException('Built at boot.'), rtrim($siteUrl, '/')),
+            $kernel->themes,
+            $kernel->config,
+            rtrim($siteUrl, '/'),
+        ))->register($kernel->router);
         (new FeedController(
             new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl),
             $kernel->themes,
@@ -703,6 +744,27 @@ final class Kernel
             new CommentSettingsController($kernel->auth, $view, $flash, new CommentSettings($kernel->config, $kernel->audit)),
             new SiteLocationController($kernel->auth, $view, $flash, new SiteLocation($kernel->config, $root, $kernel->audit, $root . '/config/config.php'), $kernel->config),
             new FeedSettingsController($kernel->auth, $view, $flash, new FeedSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new SearchSettingsController($kernel->auth, $view, $flash, new SearchSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->config, rtrim((string) $kernel->config->get('site_url', ''), '/')),
+            new RedirectsController($kernel->auth, $view, $flash, $kernel->redirects ?? throw new \LogicException('Built at boot.')),
+            new SettingsTransferController($kernel->auth, $view, $flash, new SettingsTransfer(
+                new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit),
+                $securitySettings,
+                $kernel->privacy ?? throw new \LogicException('Built at boot.'),
+                new CommentSettings($kernel->config, $kernel->audit),
+                new DownloadSettings($kernel->config, $kernel->database, $kernel->audit),
+                new FeedSettings($kernel->config, $kernel->database, $kernel->audit),
+                new NewsSettings($kernel->config, $kernel->database, $kernel->audit),
+                new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit),
+                $editorSettings,
+                new RetentionSettings($kernel->config, $kernel->database, $kernel->audit),
+                new SearchSettings($kernel->config, $kernel->database, $kernel->audit),
+                $themeSettings,
+                $kernel->themeChoice ?? throw new \LogicException('Built at boot.'),
+                $themeOptions,
+                $themeCatalog,
+                $kernel->audit,
+                $version,
+            )),
         );
     }
 
@@ -744,13 +806,45 @@ final class Kernel
 
             // A handler may return a Response to be sent, or print its own output and return nothing.
             if ($result instanceof Response) {
-                $result->send();
+                ($this->redirectFor($method, BasePath::stripFrom($uri), $result) ?? $result)->send();
             }
 
             return;
         }
 
-        $this->statusResponse($resolution->status, $resolution->allowedMethods)->send();
+        $redirect = $resolution->status === 404 ? $this->redirectFor($method, BasePath::stripFrom($uri), null) : null;
+
+        ($redirect ?? $this->statusResponse($resolution->status, $resolution->allowedMethods))->send();
+    }
+
+    /**
+     * The redirect for a request, or null. A redirect answers a GET or HEAD only where the site itself has nothing to
+     * show: no route owns the address, or the page that does answers "not found" (an old story or term address, a page
+     * that was moved). So a redirect can never take over a page that is really there. The query string is not part of an
+     * address here and is not carried over.
+     *
+     * @param string $uri the request URI with the base path already removed
+     * @param Response|null $answer what the site would send, or null when no route owns the address
+     */
+    public function redirectFor(string $method, string $uri, ?Response $answer): ?Response
+    {
+        if (($answer !== null && $answer->status !== 404) || !in_array(strtoupper($method), ['GET', 'HEAD'], true)) {
+            return null;
+        }
+
+        $path = rawurldecode((string) strtok($uri, '?#'));
+        $path = $path === '/' ? '/' : rtrim($path, '/');
+        $found = $path === '' || $path === '/' ? null : $this->redirects?->find($path);
+
+        if ($found === null) {
+            return null;
+        }
+
+        // A target that starts with a slash is a path on this site and gets the install folder back; anything else was
+        // checked as a full http or https address when it was saved.
+        $location = $found['target'][0] === '/' ? BasePath::get() . $found['target'] : $found['target'];
+
+        return new Response('', $found['status'], ['Location' => $location]);
     }
 
     /**

@@ -59,6 +59,7 @@ final class ThemeContext
         private readonly array $footerLinks = [],
         private readonly ?Closure $privacyLink = null,
         private readonly ?Closure $themeTools = null,
+        private readonly ?Closure $feedLink = null,
     ) {
     }
 
@@ -222,7 +223,8 @@ final class ThemeContext
         echo '<meta name="viewport" content="width=device-width, initial-scale=1">', "\n";
         echo '<title>', Html::e($this->documentTitle()), '</title>', "\n";
 
-        if ($this->noindex) {
+        // The page can ask for it, and so can the site as a whole (the setting that discourages search engines).
+        if ($this->noindex || $this->hooks->applyFilters('lf_noindex', false, $this->view) === true) {
             echo '<meta name="robots" content="noindex, nofollow">', "\n";
         }
 
@@ -302,6 +304,11 @@ final class ThemeContext
      * The footer links (static pages an administrator placed there, and anything a plugin adds) as a list. Prints
      * nothing when there are none, so a theme can call it unconditionally.
      */
+    private static function feedIcon(string $class): string
+    {
+        return '<svg class="' . $class . '" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="3" cy="13" r="1.75" fill="currentColor"/><path d="M1.5 7.25a7.25 7.25 0 0 1 7.25 7.25M1.5 1.75a12.75 12.75 0 0 1 12.75 12.75" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>';
+    }
+
     public function footerLinks(string $label = 'Footer'): void
     {
         if ($this->footerLinks === []) {
@@ -312,7 +319,7 @@ final class ThemeContext
 
         foreach ($this->footerLinks as $item) {
             echo '<li class="lf-footer-links__item', $item['current'] ? ' lf-footer-links__item--current' : '', '"><a class="lf-footer-links__link" href="', Html::e($item['url']), '"',
-                $item['current'] ? ' aria-current="page"' : '', '>', Html::e($item['label']), '</a></li>';
+                $item['current'] ? ' aria-current="page"' : '', '>', ($item['icon'] ?? '') === 'feed' ? self::feedIcon('lf-footer-links__icon') : '', Html::e($item['label']), '</a></li>';
         }
 
         echo '</ul></nav>', "\n";
@@ -356,6 +363,23 @@ final class ThemeContext
         }
 
         echo '<p class="lf-privacy-link">', Html::e($before), '<a class="lf-privacy-link__anchor" href="', Html::e($link['url']), '">', Html::e($link['label']), '</a>', Html::e($after), '</p>', "\n";
+    }
+
+    /**
+     * A link to the feed of the page being shown (an author's stories, a fandom, a story's chapters), or nothing when
+     * the page has no feed on offer. The address and the words come from core, so a theme only places it.
+     */
+    public function feedLink(string $before = '', string $after = ''): void
+    {
+        $link = $this->feedLink === null ? null : ($this->feedLink)();
+
+        if (!is_array($link) || !is_string($link['label'] ?? null) || !is_string($link['url'] ?? null)) {
+            return;
+        }
+
+        echo '<p class="lf-feed-link">', Html::e($before), '<a class="lf-feed-link__anchor" href="', Html::e($link['url']), '" rel="alternate" type="application/rss+xml">',
+            self::feedIcon('lf-feed-link__icon'),
+            '<span class="lf-feed-link__text">Feed for ', Html::e($link['label']), '</span></a>', Html::e($after), '</p>', "\n";
     }
 
     /**

@@ -80,6 +80,8 @@ final class StoryPresenter
                     'type' => $type->value,
                     'terms' => array_map(static fn (Term $term): array => ['name' => $term->name, 'url' => $termUrl === null ? '' : $termUrl($term)], $terms[$type->value]),
                 ];
+            } elseif ($type === TermType::Rating) {
+                $groups[] = self::notRated($type);
             }
         }
 
@@ -182,6 +184,11 @@ final class StoryPresenter
             $all = $terms[$kind] ?? [];
 
             if ($all === []) {
+                // Only an old story can lack a rating; saying so keeps the place from reading as an omission.
+                if ($type === TermType::Rating) {
+                    $groups[] = self::notRated($type) + ['more' => 0];
+                }
+
                 continue;
             }
 
@@ -194,6 +201,16 @@ final class StoryPresenter
         }
 
         return $groups;
+    }
+
+    /**
+     * The rating line of a story that has none, with no address because there is no page to link to.
+     *
+     * @return array{label: string, type: string, terms: list<array{name: string, url: string}>}
+     */
+    private static function notRated(TermType $type): array
+    {
+        return ['label' => $type->label(), 'type' => $type->value, 'terms' => [['name' => 'Not rated', 'url' => '']]];
     }
 
     /**

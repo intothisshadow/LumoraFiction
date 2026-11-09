@@ -189,6 +189,10 @@ final class PageService
 
         $this->published = null;
 
+        if ($page->slug !== $values['slug']) {
+            $this->hooks?->doAction('page_slug_changed', $page->slug, $values['slug']);
+        }
+
         return $this->mustFind($page->id);
     }
 

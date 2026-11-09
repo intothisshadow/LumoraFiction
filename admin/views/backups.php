@@ -39,6 +39,7 @@ $size = static fn (mixed $bytes): string => BackupListing::size($bytes);
 <?php else: ?>
     <form method="post" action="<?= Html::e($createAction) ?>" class="lf-update-actions">
         <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+        <input type="hidden" name="return" value="backups">
         <button type="submit" class="lf-button">Back up now</button>
     </form>
 <?php endif; ?>

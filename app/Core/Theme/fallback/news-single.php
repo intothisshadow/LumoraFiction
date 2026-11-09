@@ -19,6 +19,7 @@ lf_get_header();
 ?>
 <article class="lf-news-post">
     <h1 class="lf-page__title"><?php lf_field('post.title'); ?></h1>
+    <?php lf_feed_link(); ?>
     <p class="lf-news-post__meta">
         <time datetime="<?php lf_field('post.datetime'); ?>"><?php lf_field('post.date'); ?></time>
         <?php if (lf_has('post.author')): ?> &middot; by <?php lf_field('post.author'); ?><?php endif; ?>

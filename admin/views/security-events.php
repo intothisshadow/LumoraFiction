@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Maintenance › Security events.
+ * Maintenance › Logs.
  *
  * @package LumoraFiction
  * @subpackage Admin
@@ -58,7 +58,7 @@ $query = static function (int $number) use ($event): string {
     <p class="lf-hint"><?= number_format($total) ?> found.</p>
 
     <table class="lf-table lf-events-list">
-        <caption class="lf-visually-hidden">Security events, newest first</caption>
+        <caption class="lf-visually-hidden">Logs: what the protections blocked, newest first</caption>
         <thead>
             <tr>
                 <th scope="col">When</th>

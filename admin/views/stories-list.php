@@ -25,7 +25,8 @@ use LumoraFiction\Models\Story;
 /** @var ColumnSort $sort */
 /** @var array<int, string> $owners display names by account id; empty unless every story is listed */
 /** @var array<int, array{total: int, published: int}> $chapterCounts */
-/** @var array{scope: string, state: string, search: string} $filters */
+/** @var array{scope: string, state: string, search: string, rating: string} $filters */
+/** @var list<int> $unrated ids of listed public or waiting stories that have no rating */
 /** @var string $scope */
 /** @var list<PublicationState> $states */
 /** @var int $total */
@@ -37,7 +38,7 @@ use LumoraFiction\Models\Story;
 /** @var string $bulkUrl */
 /** @var string $csrfToken */
 
-$kept = array_filter(['q' => $filters['search'], 'state' => $filters['state']], static fn (string $value): bool => $value !== '');
+$kept = array_filter(['q' => $filters['search'], 'state' => $filters['state'], 'rating' => $filters['rating']], static fn (string $value): bool => $value !== '');
 $query = static function (int $number) use ($kept, $sort): string {
     $parts = $kept + $sort->query();
 
@@ -48,7 +49,7 @@ $query = static function (int $number) use ($kept, $sort): string {
     return $parts === [] ? '' : '?' . http_build_query($parts);
 };
 
-$filtered = $filters['search'] !== '' || $filters['state'] !== '';
+$filtered = $filters['search'] !== '' || $filters['state'] !== '' || $filters['rating'] !== '';
 $statusClass = static fn (PublicationState $state): string => match ($state) {
     PublicationState::Published => ' lf-status--ok',
     PublicationState::Pending => ' lf-status--warning',
@@ -69,6 +70,13 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
             <?php foreach ($states as $state): ?>
                 <option value="<?= Html::e($state->value) ?>"<?= $filters['state'] === $state->value ? ' selected' : '' ?>><?= Html::e($state->label()) ?></option>
             <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="lf-field">
+        <label for="rating">Rating</label>
+        <select id="rating" name="rating">
+            <option value="">Any</option>
+            <option value="none"<?= $filters['rating'] === 'none' ? ' selected' : '' ?>>No rating</option>
         </select>
     </div>
     <?php foreach ($sort->query() as $name => $value): ?>
@@ -108,6 +116,7 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
                         <td>
                             <span class="lf-status<?= $statusClass($story->state) ?>"><?= Html::e($story->state->label()) ?></span>
                             <?php if ($story->wasRejected()): ?><span class="lf-status lf-status--error">Not approved</span><?php endif; ?>
+                            <?php if (in_array($story->id, $unrated, true)): ?><span class="lf-status lf-status--warning">No rating</span><?php endif; ?>
                         </td>
                         <td><?= (int) $counts['published'] ?> of <?= (int) $counts['total'] ?> published</td>
                         <td><?= number_format($story->wordCount) ?></td>

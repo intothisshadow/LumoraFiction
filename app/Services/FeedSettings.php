@@ -39,6 +39,8 @@ final class FeedSettings
         'site' => 'The whole site: recently published and updated stories',
         'author' => 'Each author: their stories',
         'fandom' => 'Each fandom',
+        'character' => 'Each character',
+        'relationship' => 'Each relationship',
         'genre' => 'Each genre',
         'tag' => 'Each tag',
         'story' => 'Each story: its new chapters',
@@ -47,7 +49,7 @@ final class FeedSettings
     ];
 
     public const DEFAULTS = [
-        'feeds.kinds' => ['site', 'author', 'fandom', 'genre', 'tag', 'story', 'news'],
+        'feeds.kinds' => ['site', 'author', 'fandom', 'character', 'relationship', 'genre', 'tag', 'story', 'news'],
         'feeds.json' => true,
         'feeds.limit' => self::DEFAULT_LIMIT,
         'feeds.full_text' => true,

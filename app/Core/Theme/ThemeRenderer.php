@@ -305,6 +305,7 @@ final class ThemeRenderer
             $this->footerLinks(),
             fn (): ?array => $this->privacyLink(),
             $this->themeTools,
+            fn (): ?array => $this->feedLink(),
         );
 
         $level = ob_get_level();
@@ -364,6 +365,21 @@ final class ThemeRenderer
     }
 
     /**
+     * The link to the feed of the page being shown, which core supplies through the lf_page_feed filter. Only a path on
+     * this site is accepted, like every other link a filter can add.
+     *
+     * @return array{label: string, url: string}|null
+     */
+    private function feedLink(): ?array
+    {
+        $link = $this->hooks->applyFilters('lf_page_feed', null);
+
+        return is_array($link) && is_string($link['label'] ?? null) && $link['label'] !== '' && is_string($link['url'] ?? null) && preg_match(self::SAME_SITE, $link['url']) === 1
+            ? ['label' => $link['label'], 'url' => $link['url']]
+            : null;
+    }
+
+    /**
      * The privacy policy link, which core supplies through the lf_privacy_policy filter once a page is named. Only a
      * path on this site is accepted, like every other link a filter can add.
      *
@@ -389,7 +405,8 @@ final class ThemeRenderer
 
         foreach (is_array($items) ? $items : [] as $item) {
             if (is_array($item) && is_string($item['label'] ?? null) && $item['label'] !== '' && is_string($item['url'] ?? null) && preg_match(self::SAME_SITE, $item['url']) === 1) {
-                $clean[] = ['label' => $item['label'], 'url' => $item['url'], 'current' => ($item['current'] ?? false) === true];
+                // The only icon a link may carry is one core draws itself, so a filter cannot put markup in.
+                $clean[] = ['label' => $item['label'], 'url' => $item['url'], 'current' => ($item['current'] ?? false) === true, 'icon' => ($item['icon'] ?? '') === 'feed' ? 'feed' : ''];
             }
         }
 

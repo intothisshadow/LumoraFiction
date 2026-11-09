@@ -136,12 +136,18 @@ final class Installer
     }
 
     /**
-     * Adds the starter lists the person chose, if any. Choosing none leaves a list empty, which the site handles.
+     * Adds the starter lists the person chose, if any. Choosing none leaves a list empty, which the site handles,
+     * except for ratings: every story needs one, so the migration has already added the four common ratings, and
+     * choosing a rating list replaces them (nothing can use them on a site that has only just been installed).
      */
     private function applyStarterLists(Database $database, Configuration $config, User $administrator, InstallRequest $request): void
     {
         if ($request->presets === []) {
             return;
+        }
+
+        if (isset($request->presets['rating'])) {
+            $database->execute('DELETE FROM {prefix}terms WHERE type = :type', ['type' => 'rating']);
         }
 
         $audit = new AuditLogService($database);

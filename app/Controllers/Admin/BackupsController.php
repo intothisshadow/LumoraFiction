@@ -99,6 +99,11 @@ final class BackupsController extends AdminController
 
         $this->audit->record($user->id, 'backup.started', 'backup', $run->id, [], $request->ip());
 
+        // Started from this screen, the run comes back to it; started from Updates, it goes back there.
+        if ($request->input('return') === 'backups' && session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION[UpdatesController::RETURN_KEY] = ['run' => $run->id, 'path' => self::PATH];
+        }
+
         return Response::redirect(AdminUrl::to('maintenance/updates/run'), 303);
     }
 

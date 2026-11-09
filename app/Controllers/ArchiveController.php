@@ -24,8 +24,10 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Theme\FeedLinks;
 use LumoraFiction\Core\Theme\ReadingPositionScript;
 use LumoraFiction\Core\Theme\SafeHtml;
+use LumoraFiction\Core\Theme\SearchHead;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\Story;
@@ -38,6 +40,7 @@ use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\CommentPresenter;
+use LumoraFiction\Services\FeedService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\FollowPresenter;
@@ -110,6 +113,8 @@ final class ArchiveController
         private readonly NewsPresenter $newsPresenter,
         private readonly ?DownloadPresenter $downloadPresenter = null,
         private readonly ?CommentPresenter $comments = null,
+        private readonly ?FeedLinks $feedLinks = null,
+        private readonly ?SearchHead $searchHead = null,
     ) {
     }
 
@@ -250,6 +255,9 @@ final class ArchiveController
 
             do_action('story_viewed', $story, null, $user, $request);
 
+            $this->feedLinks?->showing('story', $story->title, ['story', $story->slug]);
+            $this->searchHead?->canonical(PublicUrl::story($story->slug));
+
             return $this->themes->render('story', $data, 200, ['title' => $story->title]);
         });
     }
@@ -298,6 +306,10 @@ final class ArchiveController
 
             do_action('story_viewed', $story, $chapter, $user, $request);
 
+            // A chapter points at its story's feed, and at its own address as the one to index (comment pages share it).
+            $this->feedLinks?->showing('story', $story->title, ['story', $story->slug]);
+            $this->searchHead?->canonical(PublicUrl::chapter($story->slug, $chapter->number));
+
             return $this->themes->render('chapter', $data, 200, ['title' => $this->presenter->chapterTitle($chapter) . ' — ' . $story->title]);
         });
     }
@@ -318,6 +330,7 @@ final class ArchiveController
             $name = $user->publicProfile()['display_name'];
             $slug = $user->publicProfile()['slug'];
             $about = $this->authorProfiles->publicView($user->id);
+            $this->feedLinks?->showing('author', $name, ['author', $slug]);
 
             return $this->listing(
                 $request,
@@ -487,6 +500,11 @@ final class ArchiveController
 
             if ($total === 0) {
                 return $this->themes->notFound();
+            }
+
+            // Only fandoms, genres and tags have feeds; the other kinds say nothing.
+            if (in_array($type, FeedService::termKinds(), true)) {
+                $this->feedLinks?->showing($type->value, $term->name, [$type->value, $term->slug]);
             }
 
             return $this->listing(

@@ -11,7 +11,7 @@
                 { "key": "teen", "name": "Teen And Up Audiences", "description": "Suitable for readers of about thirteen and older: some violence, strong language or romance without detail." },
                 { "key": "mature", "name": "Mature", "description": "For adult readers: stronger violence, sexual themes or other mature material, not shown in full detail." },
                 { "key": "explicit", "name": "Explicit", "description": "For adult readers: graphic sexual or violent material." },
-                { "key": "not_rated", "name": "Not Rated", "description": "The author has not chosen a rating." }
+                { "key": "not_rated", "name": "Not Rated", "description": "The author has chosen not to rate the story." }
             ]
         },
         {
@@ -24,7 +24,7 @@
                 { "key": "t", "name": "T", "description": "Suitable for teenagers and older: moderate violence, language or romance." },
                 { "key": "m", "name": "M", "description": "For older teenagers and adults: strong violence, language or suggestive material." },
                 { "key": "ma", "name": "MA", "description": "For adults only: explicit material." },
-                { "key": "not_rated", "name": "Not Rated", "description": "The author has not chosen a rating." }
+                { "key": "not_rated", "name": "Not Rated", "description": "The author has chosen not to rate the story." }
             ]
         },
         {
@@ -37,7 +37,7 @@
                 { "key": "pg13", "name": "PG-13", "description": "Some material may be unsuitable for readers under thirteen: action violence, strong language or romance." },
                 { "key": "r", "name": "R", "description": "Restricted: strong violence, language or sexual material, for older teenagers and adults." },
                 { "key": "nc17", "name": "NC-17", "description": "For adults only: explicit sexual or violent material." },
-                { "key": "not_rated", "name": "Not Rated", "description": "The author has not chosen a rating." }
+                { "key": "not_rated", "name": "Not Rated", "description": "The author has chosen not to rate the story." }
             ]
         },
         {
@@ -47,7 +47,8 @@
             "values": [
                 { "key": "everyone", "name": "Everyone", "description": "Suitable for readers of any age." },
                 { "key": "teen", "name": "Teen", "description": "May include themes or scenes that suit older children and teenagers." },
-                { "key": "mature", "name": "Mature", "description": "For adult readers, with strong or explicit themes." }
+                { "key": "mature", "name": "Mature", "description": "For adult readers, with strong or explicit themes." },
+                { "key": "not_rated", "name": "Not Rated", "description": "The author has chosen not to rate the story." }
             ]
         }
     ]

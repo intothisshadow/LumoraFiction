@@ -33,6 +33,7 @@ lf_get_header();
         </section>
     <?php endif; ?>
     <h1 class="lf-page__title"><?php lf_title(); ?></h1>
+    <?php lf_feed_link(); ?>
     <?php foreach (lf_items('related') as $group): ?>
         <h2 class="lf-related__heading"><?= lf_e($group['label'] ?? '') ?> in this fandom</h2>
         <ul class="lf-related__list">

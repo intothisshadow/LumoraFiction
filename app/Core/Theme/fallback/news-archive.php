@@ -19,6 +19,7 @@ lf_get_header();
 ?>
 <section class="lf-news">
     <h1 class="lf-page__title"><?php lf_title(); ?></h1>
+    <?php lf_feed_link(); ?>
     <?php if (lf_has('posts')): ?>
         <ol class="lf-news-list">
             <?php foreach (lf_items('posts') as $card): ?>

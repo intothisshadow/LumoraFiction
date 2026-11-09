@@ -58,13 +58,13 @@ final class FeedService
     }
 
     /**
-     * The kinds of term that have a feed, which are the ones a reader follows: a fandom, a genre or a tag.
+     * The kinds of term that have a feed, which are the ones a reader follows: a fandom, a character, a relationship, a genre or a tag.
      *
      * @return list<TermType>
      */
     public static function termKinds(): array
     {
-        return [TermType::Fandom, TermType::Genre, TermType::Tag];
+        return [TermType::Fandom, TermType::Character, TermType::Relationship, TermType::Genre, TermType::Tag];
     }
 
     public function site(): ?Feed

@@ -33,6 +33,7 @@ use LumoraFiction\Models\WorkStatus;
 /** @var string $csrfToken */
 /** @var string $action */
 /** @var string $listUrl */
+/** @var bool $unrated whether the story is public or waiting and has no rating yet */
 /** @var bool $trusted whether this story goes straight to readers when the writer publishes it */
 /** @var array<string, string> $urls */
 /** @var int $chapterCount */
@@ -179,6 +180,9 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
     <?php if ($fields !== []): ?>
         <section class="lf-card" aria-labelledby="classification-heading">
             <h2 id="classification-heading">Classification</h2>
+            <?php if ($unrated): ?>
+                <p class="lf-notice lf-notice--warning">This story has no rating. Readers can still see it, but choose one below and save: a rating is needed before a story can be published or changed.</p>
+            <?php endif; ?>
             <p class="lf-hint">A rating says who the story suits and a warning says what it contains. They are separate on purpose, so fill in both.</p>
 
             <?php foreach ($fields as $field): ?>
@@ -190,6 +194,11 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
 
                 // A list with nothing to choose from is left off the form, not shown empty, and is never required.
                 if ($field['style'] !== 'names' && $field['options'] === []) {
+                    // The rating is the exception: a story cannot be published without one, so say why it cannot be chosen.
+                    if ($type->isSingleChoice() && $field['required']) {
+                        echo '<p class="lf-notice lf-notice--warning" id="', Html::e($kind), '">No ratings have been set up yet, and a story needs one before it can be published. Ask an administrator to add the ratings under Classification.</p>';
+                    }
+
                     continue;
                 }
 

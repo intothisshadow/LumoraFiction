@@ -165,6 +165,16 @@ final class StoryService
 
         $this->database->transaction(function () use ($actor, $story, $selection, $ipAddress): void {
             $this->taxonomy->assignToStory($actor, $story->id, $selection, $ipAddress);
+
+            // A story readers can see, or that is waiting to be, may not lose its rating; the throw undoes the change above.
+            if (in_array($story->state, [PublicationState::Published, PublicationState::Pending], true)) {
+                $missing = $this->taxonomy->missingRequired($story->id);
+
+                if (isset($missing['rating'])) {
+                    throw new StoryValidationException(['rating' => $missing['rating']]);
+                }
+            }
+
             $this->database->execute('UPDATE {prefix}stories SET updated_at = :updated WHERE id = :id', ['updated' => date('Y-m-d H:i:s'), 'id' => $story->id]);
         });
 
@@ -685,7 +695,7 @@ final class StoryService
                 ['new_story' => $id, 'created' => $now, 'updated' => $now, 'old_story' => $source->id],
             );
             $this->database->execute(
-                'INSERT INTO {prefix}story_terms (story_id, term_id) SELECT :new_story, term_id FROM {prefix}story_terms WHERE story_id = :old_story',
+                'INSERT IGNORE INTO {prefix}story_terms (story_id, term_id) SELECT :new_story, term_id FROM {prefix}story_terms WHERE story_id = :old_story',
                 ['new_story' => $id, 'old_story' => $source->id],
             );
             $this->refreshWordCount($id);
@@ -778,7 +788,7 @@ final class StoryService
      * story with scope "all". The owner restriction is applied here, not by the screen, so a changed address
      * cannot widen it.
      *
-     * @param array{scope?: string, state?: string, search?: string} $filters
+     * @param array{scope?: string, state?: string, search?: string, rating?: string} $filters
      * @return list<Story> most recently changed first unless a sort is given
      */
     public function listForWriter(User $actor, array $filters, int $limit = 25, int $offset = 0, ?ColumnSort $sort = null): array
@@ -797,7 +807,7 @@ final class StoryService
     }
 
     /**
-     * @param array{scope?: string, state?: string, search?: string} $filters
+     * @param array{scope?: string, state?: string, search?: string, rating?: string} $filters
      */
     public function countForWriter(User $actor, array $filters): int
     {
@@ -932,7 +942,7 @@ final class StoryService
     }
 
     /**
-     * @param array{scope?: string, state?: string, search?: string} $filters
+     * @param array{scope?: string, state?: string, search?: string, rating?: string} $filters
      * @return array{string, array<string, mixed>}
      */
     private function writerFilter(User $actor, array $filters): array
@@ -951,6 +961,11 @@ final class StoryService
         if ($state !== null) {
             $where[] = 's.publication_state = :state';
             $params['state'] = $state->value;
+        }
+
+        // "No rating" is meant for stories from before the rating became mandatory, so drafts are not caught.
+        if (($filters['rating'] ?? '') === 'none') {
+            $where[] = 's.publication_state IN (\'published\', \'pending\') AND NOT EXISTS (SELECT 1 FROM {prefix}story_terms rst JOIN {prefix}terms rt ON rt.id = rst.term_id WHERE rst.story_id = s.id AND rt.type = \'rating\')';
         }
 
         $search = mb_substr(trim($filters['search'] ?? ''), 0, 100, 'UTF-8');

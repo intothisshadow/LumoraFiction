@@ -69,11 +69,13 @@ use LumoraFiction\Models\TermType;
 
     <fieldset class="lf-card">
         <legend>Required before a story is submitted</legend>
-        <p class="lf-hint">Drafts can be saved without them. A list with nothing on it is never required, because nobody could fill it in.</p>
+        <p class="lf-hint">Drafts can be saved without them. Apart from the rating, a list with nothing on it is never required, because nobody could fill it in.</p>
         <?php foreach ($types as $type): ?>
+            <?php $always = $type === TermType::Rating; ?>
             <div class="lf-choice">
-                <input type="checkbox" id="required_<?= Html::e($type->value) ?>" name="required_<?= Html::e($type->value) ?>" value="1"<?= in_array($type->value, $required, true) ? ' checked' : '' ?>>
+                <input type="checkbox" id="required_<?= Html::e($type->value) ?>" name="required_<?= Html::e($type->value) ?>" value="1"<?= $always || in_array($type->value, $required, true) ? ' checked' : '' ?><?= $always ? ' disabled aria-describedby="required_rating_hint"' : '' ?>>
                 <label for="required_<?= Html::e($type->value) ?>"><?= Html::e($type->label()) ?></label>
+                <?php if ($always): ?><p class="lf-hint" id="required_rating_hint">Always required. A rating tells readers who a story suits, so every story needs one before it is published.</p><?php endif; ?>
             </div>
         <?php endforeach; ?>
     </fieldset>

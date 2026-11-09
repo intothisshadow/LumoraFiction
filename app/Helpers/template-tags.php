@@ -160,6 +160,14 @@ if (!function_exists('lf_privacy_link')) {
     }
 }
 
+if (!function_exists('lf_feed_link')) {
+    /** Prints a paragraph linking to the feed of the page being shown, with optional text before and after the link, or nothing when the page has no feed on offer. */
+    function lf_feed_link(string $before = '', string $after = ''): void
+    {
+        ThemeContext::current()?->feedLink($before, $after);
+    }
+}
+
 if (!function_exists('lf_pagination')) {
     /** Prints previous and next links with page numbers, when the page has more than one page of results. */
     function lf_pagination(): void

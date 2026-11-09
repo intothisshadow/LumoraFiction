@@ -35,6 +35,7 @@ lf_get_header();
 
     <header class="lf-archive__header">
         <h1 class="lf-archive__title"><?php lf_title(); ?></h1>
+        <?php lf_feed_link(); ?>
         <?php if (lf_has('description')): ?>
             <p class="lf-archive__description"><?php lf_field('description'); ?></p>
         <?php endif; ?>

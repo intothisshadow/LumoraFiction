@@ -22,6 +22,7 @@ lf_get_header();
     <header class="lf-chapter__header">
         <p class="lf-chapter__story"><a href="<?php lf_field('story.url'); ?>"><?php lf_field('story.title'); ?></a></p>
         <h1 class="lf-chapter__title"><?php lf_field('chapter.title'); ?></h1>
+        <?php lf_feed_link(); ?>
         <p class="lf-chapter__meta">Chapter <?php lf_field('chapter.number'); ?> &middot; <?php lf_field('chapter.words'); ?> words</p>
     </header>
 

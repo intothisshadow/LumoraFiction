@@ -21,6 +21,7 @@ use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Theme\FeedLinks;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\NewsPost;
 use LumoraFiction\Services\AuthService;
@@ -43,6 +44,7 @@ final class NewsController
         private readonly NewsPresenter $presenter,
         private readonly AuthService $auth,
         private readonly Configuration $config,
+        private readonly ?FeedLinks $feedLinks = null,
     ) {
     }
 
@@ -65,6 +67,7 @@ final class NewsController
         }
 
         $posts = $total === 0 ? [] : $this->news->listPublic(NewsService::PAGE_SIZE, ($page - 1) * NewsService::PAGE_SIZE);
+        $this->feedLinks?->showing('news', 'news', ['news']);
 
         return $this->shielded($this->themes->render('news-archive', [
             'title' => 'News',
@@ -83,6 +86,8 @@ final class NewsController
         if ($post === null) {
             return $this->themes->notFound();
         }
+
+        $this->feedLinks?->showing('news', 'news', ['news']);
 
         return $this->shielded($this->themes->render('news-single', [
             'post' => $this->presenter->single($post, PublicUrl::newsPost($post->slug)),

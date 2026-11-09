@@ -59,7 +59,7 @@ $number = static function (string $name, string $label, string $hint) use ($valu
     </div>
 <?php endif; ?>
 
-<p class="lf-lead">These protections work quietly in front of the registration form and the other forms a visitor can use without signing in. What they blocked is listed under <a href="<?= Html::e($eventsUrl) ?>">Maintenance &rsaquo; Security events</a>. Setting a limit to 0 turns that limit off.</p>
+<p class="lf-lead">These protections work quietly in front of the registration form and the other forms a visitor can use without signing in. What they blocked is listed under <a href="<?= Html::e($eventsUrl) ?>">Maintenance &rsaquo; Logs</a>. Setting a limit to 0 turns that limit off.</p>
 
 <form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate>
     <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
@@ -130,7 +130,7 @@ $number = static function (string $name, string $label, string $hint) use ($valu
     </fieldset>
 
     <fieldset class="lf-card">
-        <legend>Security events</legend>
+        <legend>Logs</legend>
         <?= $number('retention_days', 'Keep the list for how many days', 'Older entries are removed automatically.') ?>
     </fieldset>
 

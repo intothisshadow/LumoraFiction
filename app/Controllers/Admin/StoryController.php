@@ -204,8 +204,16 @@ final class StoryController extends WriterController
         }
 
         try {
+            $selection = $this->selection($state);
+
+            // A form without the rating field at all (an older page left open, or a site with no ratings yet) leaves the
+            // rating as it was; only a field sent empty ("Not chosen") clears it.
+            if ($request->input('term_rating') === null) {
+                unset($selection['rating']);
+            }
+
             $this->stories->update($user, $story->id, $values, $request->ip());
-            $this->stories->classify($user, $story->id, $this->selection($state), $request->ip());
+            $this->stories->classify($user, $story->id, $selection, $request->ip());
             $this->stories->applyCover($user, $story->id, $request->upload('cover'), $values['cover_alt'], $request->checked('cover_remove'), $request->ip(), $this->postedCrop($request));
 
             // A form that does not carry the field (an older page left open) leaves the choice as it was.
@@ -463,6 +471,7 @@ final class StoryController extends WriterController
             'scope' => $scope,
             'state' => PublicationState::tryFrom($request->queryValue('state') ?? '')?->value ?? '',
             'search' => $request->queryValue('q') ?? '',
+            'rating' => $request->queryValue('rating') === 'none' ? 'none' : '',
         ];
 
         $sort = StoryService::writerSort($request->queryValue('sort'), $request->queryValue('dir'));
@@ -476,6 +485,7 @@ final class StoryController extends WriterController
             'stories' => $stories,
             'owners' => $scope === 'all' ? $this->users->displayNames(array_map(static fn (Story $story): int => $story->ownerId, $stories)) : [],
             'chapterCounts' => $this->chapters->countsForStories($ids),
+            'unrated' => $this->taxonomy->withoutRating(array_map(static fn (Story $story): int => $story->id, array_values(array_filter($stories, static fn (Story $story): bool => in_array($story->state, [PublicationState::Published, PublicationState::Pending], true))))),
             'sort' => $sort,
             'filters' => $filters,
             'scope' => $scope,
@@ -582,8 +592,8 @@ final class StoryController extends WriterController
                 'options' => $options,
                 'ids' => $state[$type->value]['ids'] ?? [],
                 'text' => $state[$type->value]['text'] ?? '',
-                // A kind with nothing to choose from is never enforced (see TaxonomyService::missingRequired()), so it is not marked either.
-                'required' => in_array($type->value, $required, true) && ($names || $options !== []),
+                // Another kind with nothing to choose from is never enforced (see TaxonomyService::missingRequired()), so it is not marked either.
+                'required' => in_array($type->value, $required, true) && ($names || $options !== [] || $type === TermType::Rating),
             ];
         }
 
@@ -608,6 +618,8 @@ final class StoryController extends WriterController
             'action' => $story === null ? AdminUrl::to(self::PATH . '/new') : $base,
             'listUrl' => AdminUrl::to(self::PATH),
             'trusted' => $trusted,
+            // A story from before the rating became mandatory: still shown to readers, but asks for one on the next save.
+            'unrated' => $story !== null && in_array($story->state, [PublicationState::Published, PublicationState::Pending], true) && $this->taxonomy->withoutRating([$story->id]) !== [],
             'urls' => $story === null ? [] : [
                 'chapters' => $base . '/chapters',
                 'addChapter' => $base . '/chapters/new',

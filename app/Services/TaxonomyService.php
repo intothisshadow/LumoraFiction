@@ -20,6 +20,7 @@ namespace LumoraFiction\Services;
 use DateTimeImmutable;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Helpers\Slug;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\Term;
@@ -52,6 +53,7 @@ final class TaxonomyService
         private readonly Database $database,
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
+        private readonly ?HookManager $hooks = null,
     ) {
     }
 
@@ -102,7 +104,8 @@ final class TaxonomyService
     public function requiredTypes(): array
     {
         $stored = $this->config->setting('taxonomy.required');
-        $required = [];
+        // The rating tells a reader who a story suits, so no setting can switch it off.
+        $required = [TermType::Rating->value => TermType::Rating];
 
         foreach (is_array($stored) ? $stored : [] as $value) {
             $type = is_string($value) ? TermType::tryFrom($value) : null;
@@ -123,7 +126,8 @@ final class TaxonomyService
     {
         $this->requireCurator($actor);
 
-        $types = [];
+        // Rebuilt around the rating, so a form that leaves it out changes nothing.
+        $types = [TermType::Rating->value => TermType::Rating->value];
 
         foreach ($values as $value) {
             $type = TermType::tryFrom($value);
@@ -639,6 +643,10 @@ final class TaxonomyService
 
         $term = $this->mustFind($termId);
 
+        if ($hidden && !$term->hidden && $this->isLastVisibleRating($term)) {
+            throw new TaxonomyException(self::LAST_RATING . ' Add another rating before hiding this one.');
+        }
+
         if ($term->hidden !== $hidden) {
             $this->database->transaction(function () use ($actor, $term, $hidden, $ipAddress): void {
                 $this->database->execute('UPDATE {prefix}terms SET hidden = :hidden WHERE id = :id', ['hidden' => $hidden ? 1 : 0, 'id' => $term->id]);
@@ -848,6 +856,9 @@ final class TaxonomyService
             $this->audit->record($actor->id, 'term.merge', 'term', (string) $target->id, ['from' => $source->name, 'into' => $target->name, 'type' => $source->type->value], $ipAddress);
         });
 
+        // The merged term's page is gone, so whoever linked to it is sent to the one that remains.
+        $this->hooks?->doAction('term_merged', $source, $target);
+
         return $this->mustFind($target->id);
     }
 
@@ -1008,6 +1019,10 @@ final class TaxonomyService
     /** Why a term cannot be deleted, or null when nothing depends on it. */
     private function deletionBlocker(Term $term): ?string
     {
+        if ($this->isLastVisibleRating($term)) {
+            return self::LAST_RATING . ' Add another rating before deleting this one.';
+        }
+
         if ((int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}story_terms WHERE term_id = :id', ['id' => $term->id]) > 0) {
             return self::DELETE_IN_USE;
         }
@@ -1017,6 +1032,51 @@ final class TaxonomyService
         }
 
         return null;
+    }
+
+    private const LAST_RATING = 'This is the only rating writers can choose, and every story needs one.';
+
+    /** True when no other rating is on offer, so removing this one would leave writers nothing to pick. */
+    private function isLastVisibleRating(Term $term): bool
+    {
+        if ($term->type !== TermType::Rating || $term->hidden) {
+            return false;
+        }
+
+        return (int) $this->database->fetchColumn(
+            'SELECT COUNT(*) FROM {prefix}terms WHERE type = :type AND hidden = 0 AND id <> :id',
+            ['type' => TermType::Rating->value, 'id' => $term->id],
+        ) === 0;
+    }
+
+    /**
+     * Which of these stories carry no rating at all. A published story from before the rating became mandatory
+     * can be one, and is marked so its author is asked for one.
+     *
+     * @param list<int> $storyIds
+     * @return list<int>
+     */
+    public function withoutRating(array $storyIds): array
+    {
+        if ($storyIds === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $params = ['type' => TermType::Rating->value];
+
+        foreach (array_values($storyIds) as $index => $id) {
+            $placeholders[] = ':s' . $index;
+            $params['s' . $index] = $id;
+        }
+
+        $rated = $this->database->fetchAll(
+            'SELECT DISTINCT st.story_id FROM {prefix}story_terms st JOIN {prefix}terms t ON t.id = st.term_id WHERE t.type = :type AND st.story_id IN (' . implode(', ', $placeholders) . ')',
+            $params,
+        );
+        $ratedIds = array_map(static fn (array $row): int => (int) $row['story_id'], $rated);
+
+        return array_values(array_diff($storyIds, $ratedIds));
     }
 
     /** Removes a term and its aliases and records it; the caller owns the transaction and has checked the blocker. */
@@ -1140,8 +1200,8 @@ final class TaxonomyService
     }
 
     /**
-     * What is still missing for the story to meet the administrator's required kinds. A kind whose list is
-     * empty and cannot be added to by writers is never required, since nothing could satisfy it.
+     * What is still missing for the story to meet the required kinds. The rating is always one of them. Any other
+     * kind whose list is empty and cannot be added to by writers is never required, since nothing could satisfy it.
      *
      * @return array<string, string> kind name => problem
      */
@@ -1159,7 +1219,8 @@ final class TaxonomyService
                 continue;
             }
 
-            if (!$this->writersMayPropose($type) && $this->count($type, ['visible' => true]) === 0) {
+            // The rating is never excused: an empty list is filled with starter ratings, not skipped.
+            if ($type !== TermType::Rating && !$this->writersMayPropose($type) && $this->count($type, ['visible' => true]) === 0) {
                 continue;
             }
 

@@ -40,6 +40,9 @@ final class UpdatesController extends AdminController
 {
     public const PATH = 'maintenance/updates';
 
+    /** Session key holding where a run that was started from another screen returns to when it ends. */
+    public const RETURN_KEY = 'lf_run_return';
+
     private const TOKEN = 'admin_updates';
 
     private const TAB_GITHUB = 'github';
@@ -375,7 +378,7 @@ final class UpdatesController extends AdminController
         if ($run->isTerminal()) {
             $this->flashOutcome($run);
 
-            return $this->jsonRedirect(self::PATH);
+            return $this->jsonRedirect($this->finishPath($run));
         }
 
         return $this->json($this->progressPayload($run));
@@ -442,7 +445,22 @@ final class UpdatesController extends AdminController
 
         $this->flashOutcome($run);
 
-        return $this->back();
+        return Response::redirect(AdminUrl::to($this->finishPath($run)), 303);
+    }
+
+    /**
+     * Where a finished run sends the page: the screen that started it when that was a backup made from the Backups
+     * screen, otherwise Updates.
+     */
+    private function finishPath(UpdateRun $run): string
+    {
+        $return = session_status() === PHP_SESSION_ACTIVE ? ($_SESSION[self::RETURN_KEY] ?? null) : null;
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            unset($_SESSION[self::RETURN_KEY]);
+        }
+
+        return is_array($return) && ($return['run'] ?? null) === $run->id && $run->kind === UpdateRun::KIND_BACKUP && $return['path'] === BackupListing::PATH ? BackupListing::PATH : self::PATH;
     }
 
     private function flashOutcome(UpdateRun $run): void

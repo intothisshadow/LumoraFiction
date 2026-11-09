@@ -63,6 +63,9 @@ final class AdminRoutes
         CommentSettingsController $commentSettings,
         SiteLocationController $siteLocation,
         FeedSettingsController $feedSettings,
+        SearchSettingsController $searchSettings,
+        RedirectsController $redirects,
+        SettingsTransferController $settingsTransfer,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -92,6 +95,15 @@ final class AdminRoutes
         $router->post('/admin/settings/downloads', $downloadSettings->update(...));
         $router->get('/admin/settings/feeds', $feedSettings->show(...), 'admin.settings.feeds');
         $router->post('/admin/settings/feeds', $feedSettings->update(...));
+        $router->get('/admin/settings/search', $searchSettings->show(...), 'admin.settings.search');
+        $router->post('/admin/settings/search', $searchSettings->update(...));
+        $router->get('/admin/settings/redirects', $redirects->index(...), 'admin.settings.redirects');
+        $router->post('/admin/settings/redirects', $redirects->add(...));
+        $router->post('/admin/settings/redirects/{id}/delete', $redirects->delete(...));
+        $router->get('/admin/settings/transfer', $settingsTransfer->show(...), 'admin.settings.transfer');
+        $router->post('/admin/settings/transfer/export', $settingsTransfer->export(...), 'admin.settings.transfer.export');
+        $router->post('/admin/settings/transfer/preview', $settingsTransfer->preview(...), 'admin.settings.transfer.preview');
+        $router->post('/admin/settings/transfer/apply', $settingsTransfer->apply(...), 'admin.settings.transfer.apply');
         $router->get('/admin/settings/news',$newsSettings->show(...), 'admin.settings.news');
         $router->post('/admin/settings/news', $newsSettings->update(...));
         // The fixed word "new" comes before {id} so it is never read as a post number.

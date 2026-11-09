@@ -339,6 +339,40 @@ img {
     color: var(--lf-text);
 }
 
+/* The feed of the page being shown (an author's, a fandom's, a story's), just below its title. */
+.lf-feed-link {
+    margin: 0.25rem 0 1rem;
+    font-size: 0.9rem;
+}
+
+.lf-feed-link__anchor {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    color: var(--lf-muted);
+}
+
+.lf-feed-link__text {
+    text-decoration: underline;
+}
+
+.lf-feed-link__icon {
+    flex: none;
+    width: 1em;
+    height: 1em;
+}
+
+.lf-footer-links__icon {
+    width: 1em;
+    height: 1em;
+    margin-inline-end: 0.35em;
+    vertical-align: -0.125em;
+}
+
+.lf-feed-link__anchor:hover {
+    color: var(--lf-text);
+}
+
 /* ==========================================================================
    4. Forms and buttons
    ========================================================================== */
