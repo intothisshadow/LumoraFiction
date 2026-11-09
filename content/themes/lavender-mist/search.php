@@ -52,8 +52,6 @@ lf_get_header();
         <?php lf_pagination(); ?>
     <?php elseif (lf_has('searched') && !lf_has('notices')): ?>
         <p class="lf-page__message" role="status">No stories match that search. Try fewer words or remove a filter.</p>
-    <?php elseif (!lf_has('notices')): ?>
-        <p class="lf-page__message">There are no stories here yet.</p>
     <?php endif; ?>
 </section>
 <?php

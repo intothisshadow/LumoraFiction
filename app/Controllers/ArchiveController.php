@@ -126,8 +126,9 @@ final class ArchiveController
         return $this->guarded(function () use ($request): Response {
             ['query' => $query, 'notice' => $notice] = $this->searchParser->parse($request->query);
 
-            // A refused search runs nothing, so it shows no stories rather than the whole archive.
-            $matches = $notice === '' ? $this->archive->countSearch($query) : 0;
+            // A refused search, or no search at all, runs nothing: a freshly opened Search page lists no stories, because
+            // nothing has been asked for yet.
+            $matches = $notice === '' && $query->isNarrowed() ? $this->archive->countSearch($query) : 0;
             $capped = $matches > PublicArchive::SEARCH_LIMIT;
             $total = min($matches, PublicArchive::SEARCH_LIMIT);
             $pages = max(1, (int) ceil($total / PublicArchive::PAGE_SIZE));

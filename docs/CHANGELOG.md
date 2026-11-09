@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- The Search page no longer shows "Stories found: N" before a search; the count appears once words or filters are used.
+- The Search page no longer lists stories before a search: opened fresh, it shows only the search form, and the stories and the "Stories found" count appear once words or filters are used.
 - Feeds for characters and relationships: `/feed/character/…` and `/feed/relationship/…` (and `.json`), switchable under **Settings > Feeds** like the other kinds, with the link on each character and relationship page. A site that already saved its feed choices keeps them, so tick the two new kinds there.
 - **Back up now** on the Backups screen now returns to the Backups screen when the backup is finished (a backup started from the Updates screen still returns to Updates).
 - **Maintenance > Security events** is now called **Logs** (the address is unchanged), and the matching setting heading on the Spam protection screen follows.
