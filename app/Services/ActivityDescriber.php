@@ -119,6 +119,7 @@ final class ActivityDescriber
         'archive' => 'archive',
         'downloads' => 'download',
         'editor' => 'editor',
+        'feeds' => 'feed',
         'front_page' => 'front page',
         'maintenance' => 'maintenance mode',
         'news' => 'news',

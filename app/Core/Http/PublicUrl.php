@@ -164,6 +164,19 @@ final class PublicUrl
         return ($withBase ? BasePath::get() : '') . '/' . rawurlencode($slug);
     }
 
+    /**
+     * A feed's address, such as feed(['author', 'ann']) for /feed/author/ann, or feed() for the site-wide one. $json
+     * gives the JSON Feed form of the same feed.
+     *
+     * @param list<string> $segments
+     */
+    public static function feed(array $segments = [], bool $json = false): string
+    {
+        $path = '/feed' . ($segments === [] ? '' : '/' . implode('/', array_map('rawurlencode', $segments)));
+
+        return BasePath::get() . $path . ($json ? '.json' : '');
+    }
+
     public static function news(): string
     {
         return BasePath::get() . self::NEWS;

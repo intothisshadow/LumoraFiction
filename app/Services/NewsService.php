@@ -212,6 +212,20 @@ final class NewsService
         ));
     }
 
+    /**
+     * Published posts by date alone, for a feed. A pinned post keeps its place on the news page but a feed reader sorts
+     * by date, and ranking pinned posts first here would push newer ones out of a short feed.
+     *
+     * @return list<NewsPost>
+     */
+    public function recentPublic(int $limit): array
+    {
+        return array_map($this->hydrate(...), $this->database->fetchAll(
+            'SELECT * FROM {prefix}news_posts WHERE publication_state = :state ORDER BY published_at DESC, id DESC LIMIT ' . max(1, min(100, $limit)),
+            ['state' => PublicationState::Published->value],
+        ));
+    }
+
     public function countPublic(): int
     {
         return (int) $this->database->fetchColumn(

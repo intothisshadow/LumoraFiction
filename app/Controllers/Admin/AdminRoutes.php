@@ -62,6 +62,7 @@ final class AdminRoutes
         CommentsController $commentsScreen,
         CommentSettingsController $commentSettings,
         SiteLocationController $siteLocation,
+        FeedSettingsController $feedSettings,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -89,6 +90,8 @@ final class AdminRoutes
         $router->post('/admin/settings/front-page', $frontPage->update(...));
         $router->get('/admin/settings/downloads', $downloadSettings->show(...), 'admin.settings.downloads');
         $router->post('/admin/settings/downloads', $downloadSettings->update(...));
+        $router->get('/admin/settings/feeds', $feedSettings->show(...), 'admin.settings.feeds');
+        $router->post('/admin/settings/feeds', $feedSettings->update(...));
         $router->get('/admin/settings/news',$newsSettings->show(...), 'admin.settings.news');
         $router->post('/admin/settings/news', $newsSettings->update(...));
         // The fixed word "new" comes before {id} so it is never read as a post number.

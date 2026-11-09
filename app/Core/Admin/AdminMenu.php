@@ -148,6 +148,7 @@ final class AdminMenu
                     ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-front-page', 'label' => 'Front page', 'path' => 'settings/front-page', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-feeds', 'label' => 'Feeds', 'path' => 'settings/feeds', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-comments', 'label' => 'Comments', 'path' => 'settings/comments', 'capability' => Capability::ManageSite],

@@ -582,6 +582,34 @@ final class CommentService
         return $items;
     }
 
+    /**
+     * The newest comments anyone may read under one story, for its comment feed. Only published comments of published
+     * chapters of a published story, and a reply only while its parent is published: pending, hidden and spam comments
+     * and anything under a draft never appear, whoever asks.
+     *
+     * @return list<array{comment: Comment, name: string, chapter: int}>
+     */
+    public function recentPublicForStory(int $storyId, int $limit): array
+    {
+        $rows = $this->database->fetchAll(
+            'SELECT c.*, u.display_name, ch.number AS chapter_number
+             FROM {prefix}comments c
+             JOIN {prefix}chapters ch ON ch.id = c.chapter_id
+             JOIN {prefix}stories s ON s.id = ch.story_id
+             LEFT JOIN {prefix}users u ON u.id = c.user_id
+             WHERE s.id = :story AND ' . StoryVisibility::publicChapterCondition('ch', 's') . " AND c.status = 'published' AND " . self::LIVE_THREAD
+            . ' ORDER BY c.created_at DESC, c.id DESC LIMIT ' . max(1, min(100, $limit)),
+            ['story' => $storyId],
+        );
+        $items = [];
+
+        foreach ($rows as $row) {
+            $items[] = ['comment' => $this->hydrate($row), 'name' => (string) ($row['display_name'] ?? ''), 'chapter' => (int) $row['chapter_number']];
+        }
+
+        return $items;
+    }
+
     public function countVisible(int $chapterId, int $storyOwnerId, ?User $viewer): int
     {
         [$where, $params] = $this->publicWhere($chapterId, $storyOwnerId, $viewer);

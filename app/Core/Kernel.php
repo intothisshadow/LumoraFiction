@@ -41,7 +41,12 @@ use LumoraFiction\Controllers\Admin\NewsSettingsController;
 use LumoraFiction\Controllers\Admin\FrontPageSettingsController;
 use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Controllers\DownloadController;
+use LumoraFiction\Controllers\FeedController;
 use LumoraFiction\Controllers\Admin\DownloadSettingsController;
+use LumoraFiction\Controllers\Admin\FeedSettingsController;
+use LumoraFiction\Core\Theme\FeedLinks;
+use LumoraFiction\Services\FeedService;
+use LumoraFiction\Services\FeedSettings;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Services\DownloadAccess;
 use LumoraFiction\Services\PendingMigrations;
@@ -317,7 +322,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS +MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -576,6 +581,14 @@ final class Kernel
         $kernel->router->get(PublicUrl::NEWS, $newsPages->archive(...), 'news');
         $kernel->router->get(PublicUrl::NEWS_POST, $newsPages->post(...), 'news.post');
 
+        $siteUrl = (string) $kernel->config->get('site_url', '');
+        (new FeedLinks($kernel->config, $siteUrl))->register($kernel->hooks);
+        (new FeedController(
+            new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl),
+            $kernel->themes,
+            $kernel->config,
+        ))->register($kernel->router);
+
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
 
@@ -689,6 +702,7 @@ final class Kernel
             new AdminCommentsController($kernel->auth, $view, $flash, $kernel->comments ?? throw new \LogicException('Built at boot.')),
             new CommentSettingsController($kernel->auth, $view, $flash, new CommentSettings($kernel->config, $kernel->audit)),
             new SiteLocationController($kernel->auth, $view, $flash, new SiteLocation($kernel->config, $root, $kernel->audit, $root . '/config/config.php'), $kernel->config),
+            new FeedSettingsController($kernel->auth, $view, $flash, new FeedSettings($kernel->config, $kernel->database, $kernel->audit)),
         );
     }
 
