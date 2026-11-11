@@ -67,11 +67,11 @@ $statusKey = static fn (string $status): string => $status === '' ? 'all' : $sta
 $filtered = $filters['search'] !== '' || $filters['status'] !== '';
 $bulkForm = 'lf-bulk-form';
 ?>
-<p><a href="<?= Html::e($overviewUrl) ?>">&larr; All lists</a> &middot; <a href="<?= Html::e($newUrl) ?>">Add <?= Html::e(strtolower($type->label())) ?></a></p>
+<p><a href="<?= Html::e($overviewUrl) ?>">&larr; All lists</a> &middot; <a href="<?= Html::e($newUrl) ?>">Add <?= Html::e($labels->lower($type)) ?></a></p>
 
 <form method="get" action="<?= Html::e($listUrl) ?>" class="lf-form lf-filter" role="search">
     <div class="lf-field">
-        <label for="q">Search <?= Html::e(strtolower($type->pluralLabel())) ?></label>
+        <label for="q">Search <?= Html::e($labels->lowerPlural($type)) ?></label>
         <input type="text" id="q" name="q" value="<?= Html::e($filters['search']) ?>" maxlength="100">
     </div>
     <?php if ($filters['status'] !== ''): ?><input type="hidden" name="status" value="<?= Html::e($filters['status']) ?>"><?php endif; ?>
@@ -101,8 +101,8 @@ $bulkForm = 'lf-bulk-form';
     </form>
 
     <?php
-    $bar = static function (string $position) use ($bulkForm, $type): void { ?>
-        <div class="lf-bulk lf-bulk--terms" role="group" aria-label="Actions for the selected <?= Html::e(strtolower($type->pluralLabel())) ?> (<?= Html::e($position) ?>)">
+    $bar = static function (string $position) use ($bulkForm, $type, $labels): void { ?>
+        <div class="lf-bulk lf-bulk--terms" role="group" aria-label="Actions for the selected <?= Html::e($labels->lowerPlural($type)) ?> (<?= Html::e($position) ?>)">
             <span class="lf-bulk__count" data-lf-selected-count hidden>None selected</span>
             <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="approve" class="lf-button lf-button--secondary">Approve</button>
             <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="unapprove" class="lf-button lf-button--secondary">Mark as unapproved</button>
@@ -114,18 +114,18 @@ $bulkForm = 'lf-bulk-form';
     <?php if ($total > $perPage && $total <= $bulkLimit): ?>
         <div class="lf-choice lf-bulk__matching">
             <input type="checkbox" id="all_matching" name="all_matching" value="1" form="<?= Html::e($bulkForm) ?>">
-            <label for="all_matching">Apply to all <?= (int) $total ?> matching <?= Html::e(strtolower($type->pluralLabel())) ?>, not only the ones ticked on this page (you will be asked to confirm)</label>
+            <label for="all_matching">Apply to all <?= (int) $total ?> matching <?= Html::e($labels->lowerPlural($type)) ?>, not only the ones ticked on this page (you will be asked to confirm)</label>
         </div>
     <?php elseif ($total > $bulkLimit): ?>
         <p class="lf-hint"><?= (int) $total ?> terms match, which is more than the <?= (int) $bulkLimit ?> one action can change. Narrow the list with the search or the status filter to act on all of them at once.</p>
     <?php endif; ?>
 
     <table class="lf-table lf-table--selectable">
-        <caption class="lf-visually-hidden"><?= Html::e($type->pluralLabel()) ?></caption>
+        <caption class="lf-visually-hidden"><?= Html::e($labels->plural($type)) ?></caption>
         <thead>
             <tr>
                 <th scope="col">
-                    <input type="checkbox" id="select_page" data-lf-select-all="term_ids" form="<?= Html::e($bulkForm) ?>" aria-label="Select all <?= Html::e(strtolower($type->pluralLabel())) ?> on this page" hidden>
+                    <input type="checkbox" id="select_page" data-lf-select-all="term_ids" form="<?= Html::e($bulkForm) ?>" aria-label="Select all <?= Html::e($labels->lowerPlural($type)) ?> on this page" hidden>
                     <span class="lf-visually-hidden" data-lf-select-fallback>Select</span>
                 </th>
                 <th scope="col">Name</th>

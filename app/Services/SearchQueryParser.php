@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Services;
 
+use LumoraFiction\Core\Configuration;
 use LumoraFiction\Models\SearchQuery;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\WorkStatus;
@@ -45,8 +46,18 @@ final class SearchQueryParser
         TermType::Tag,
     ];
 
-    public function __construct(private readonly TaxonomyService $taxonomy)
+    public const MAX_SERIES_LENGTH = 100;
+
+    public function __construct(private readonly TaxonomyService $taxonomy, private readonly ?Configuration $config = null)
     {
+    }
+
+    /**
+     * Whether a visitor can filter by series title: only while series are on. Without a configuration the filter is off.
+     */
+    public function seriesFilter(): bool
+    {
+        return $this->config !== null && GroupingSettings::seriesEnabled($this->config);
     }
 
     /**
@@ -113,6 +124,7 @@ final class SearchQueryParser
                 $this->count($input['min_words'] ?? null),
                 $this->count($input['max_words'] ?? null),
                 PublicArchive::sortOrDefault(is_string($input['sort'] ?? null) ? $input['sort'] : null),
+                $this->seriesFilter() ? mb_substr($this->text($input['series'] ?? null), 0, self::MAX_SERIES_LENGTH) : '',
             ),
             'notice' => $notice,
         ];

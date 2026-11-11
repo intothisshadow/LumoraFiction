@@ -34,6 +34,7 @@ final readonly class SearchQuery
         public ?int $minWords = null,
         public ?int $maxWords = null,
         public string $sort = 'updated',
+        public string $series = '',
     ) {
     }
 
@@ -43,6 +44,6 @@ final readonly class SearchQuery
     public function isNarrowed(): bool
     {
         return $this->words !== [] || $this->termIds !== [] || $this->status !== null || $this->language !== ''
-            || $this->minWords !== null || $this->maxWords !== null;
+            || $this->minWords !== null || $this->maxWords !== null || $this->series !== '';
     }
 }

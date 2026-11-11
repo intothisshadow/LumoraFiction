@@ -946,3 +946,39 @@ a:focus-visible {
     color: var(--lf-fb-muted);
     font-size: 0.85rem;
 }
+
+/* Series and collections: the line on a story that is in a series, the collections it belongs to, and the list of collections. */
+.lf-series-line,
+.lf-collections-line {
+    margin: 0.5rem 0 0;
+    color: var(--lf-fb-muted);
+}
+
+.lf-series-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-collection-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-collection-list__item {
+    padding: 0.75rem 1rem;
+    background: var(--lf-fb-surface);
+    border: 1px solid var(--lf-fb-border);
+}
+
+.lf-collection-list__meta {
+    display: block;
+    color: var(--lf-fb-muted);
+    font-size: 0.9rem;
+}

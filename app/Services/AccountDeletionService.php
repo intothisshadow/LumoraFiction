@@ -83,6 +83,14 @@ final class AccountDeletionService
                 $this->database->execute('DELETE FROM {prefix}' . $table . ' WHERE user_id = :id', ['id' => $subject->id]);
             }
 
+            // A person's series and collections go with them, and so does anything they offered to someone else's collection.
+            // The stories stay or go as chosen above; only the groupings are removed.
+            $this->database->execute('DELETE ss FROM {prefix}series_stories ss JOIN {prefix}series sr ON sr.id = ss.series_id WHERE sr.owner_id = :id', ['id' => $subject->id]);
+            $this->database->execute('DELETE FROM {prefix}series WHERE owner_id = :id', ['id' => $subject->id]);
+            $this->database->execute('DELETE cs FROM {prefix}collection_stories cs JOIN {prefix}collections c ON c.id = cs.collection_id WHERE c.owner_id = :id', ['id' => $subject->id]);
+            $this->database->execute('DELETE FROM {prefix}collections WHERE owner_id = :id', ['id' => $subject->id]);
+            $this->database->execute('DELETE FROM {prefix}collection_stories WHERE added_by = :id', ['id' => $subject->id]);
+
             // What the person created stays, but no longer points at them.
             $this->database->execute('UPDATE {prefix}terms SET created_by = NULL WHERE created_by = :id', ['id' => $subject->id]);
             $this->database->execute('UPDATE {prefix}chapter_revisions SET created_by = NULL WHERE created_by = :id', ['id' => $subject->id]);

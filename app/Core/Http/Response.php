@@ -34,6 +34,7 @@ final class Response
         public readonly int $status = 200,
         public readonly array $headers = [],
         public readonly ?string $file = null,
+        public readonly bool $temporary = false,
     ) {
         if ($status < 100 || $status > 599) {
             throw new InvalidArgumentException('Invalid HTTP status.');
@@ -89,7 +90,7 @@ final class Response
      * A file on disk the browser saves, sent in pieces so a large one never has to fit in memory. The caller has already
      * decided the path is one that may be sent.
      */
-    public static function file(string $path, string $filename, string $contentType): self
+    public static function file(string $path, string $filename, string $contentType, bool $temporary = false): self
     {
         $safe = trim((string) preg_replace('/[^A-Za-z0-9._-]+/', '-', $filename), '.-') ?: 'download';
 
@@ -98,12 +99,12 @@ final class Response
             'Content-Disposition' => 'attachment; filename="' . $safe . '"',
             'Content-Length' => (string) filesize($path),
             'Cache-Control' => 'private, no-store',
-        ], $path);
+        ], $path, $temporary);
     }
 
     public function withHeader(string $name, string $value): self
     {
-        return new self($this->body, $this->status, [$name => $value] + $this->headers, $this->file);
+        return new self($this->body, $this->status, [$name => $value] + $this->headers, $this->file, $this->temporary);
     }
 
     public function header(string $name): ?string
@@ -131,6 +132,11 @@ final class Response
 
         if ($this->file !== null) {
             readfile($this->file);
+
+            // A file made for this one request, such as an export of private stories, is not left behind on the server.
+            if ($this->temporary && is_file($this->file)) {
+                unlink($this->file);
+            }
         }
     }
 }

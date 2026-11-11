@@ -213,6 +213,13 @@ final class PublicArchive
             $params['language'] = $query->language;
         }
 
+        if ($query->series !== '') {
+            // The title of the series a story is in; the stories were already limited to public ones above, so a series
+            // never makes a draft findable.
+            $where[] = 'EXISTS (SELECT 1 FROM {prefix}series_stories sss JOIN {prefix}series ssr ON ssr.id = sss.series_id WHERE sss.story_id = s.id AND ssr.title LIKE :series_title)';
+            $params['series_title'] = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $query->series) . '%';
+        }
+
         if ($query->minWords !== null) {
             $where[] = 's.word_count >= :min_words';
             $params['min_words'] = $query->minWords;

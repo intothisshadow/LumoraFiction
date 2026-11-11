@@ -766,6 +766,36 @@ fieldset.lf-card legend {
     margin: 0;
 }
 
+/* The stories of a series or a collection, each with its own buttons */
+
+.lf-series-members,
+.lf-collection-members {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+}
+
+.lf-collection-members {
+    padding-left: 0;
+    list-style: none;
+}
+
+.lf-series-members__item,
+.lf-collection-members__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.lf-series-members__actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    margin-left: auto;
+}
+
 /* Approval queue and rejection notes */
 
 .lf-review-queue__actions {

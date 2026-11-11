@@ -587,6 +587,30 @@ final class ChapterService
     }
 
     /**
+     * Every chapter of several stories in one query, for an export whose caller has already checked who may read them.
+     * Chapters in the trash are left out.
+     *
+     * @param list<int> $storyIds
+     * @return array<int, list<Chapter>> story id => its chapters in order
+     */
+    public function forExport(array $storyIds): array
+    {
+        if ($storyIds === []) {
+            return [];
+        }
+
+        $grouped = [];
+
+        foreach ($this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}chapters WHERE story_id IN (' . implode(',', array_map('intval', $storyIds)) . ') AND trashed_at IS NULL ORDER BY story_id, number',
+        )) as $chapter) {
+            $grouped[$chapter->storyId][] = $chapter;
+        }
+
+        return $grouped;
+    }
+
+    /**
      * The chapters a visitor may read, which is none unless the story itself is public.
      *
      * @return list<Chapter>

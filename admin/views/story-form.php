@@ -23,6 +23,10 @@ use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\WorkStatus;
 
+/** @var \LumoraFiction\Services\ClassificationLabels $labels */
+/** @var array{options: list<array{id: int, title: string}>, current: int, position: string, manageUrl: string}|null $seriesChoice null when series are off or the story is new */
+/** @var string $exportUrl the address that exports this story, or an empty string where ZIP files cannot be made */
+/** @var string $exportToken */
 /** @var Story|null $story */
 /** @var array{title: string, summary: string, notes: string, end_notes: string, disclaimer: string, language: string, work_status: string, cover_alt: string} $values */
 /** @var list<array{type: TermType, style: string, options: list<Term>, ids: list<int>, text: string, required: bool}> $fields */
@@ -119,6 +123,24 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
             </select>
             <?= $problem('work_status') ?>
         </div>
+
+        <?php if ($seriesChoice !== null): ?>
+            <div class="lf-field">
+                <label for="series_id">Series</label>
+                <select id="series_id" name="series_id" aria-describedby="series_id_hint">
+                    <option value="0">Not in a series</option>
+                    <?php foreach ($seriesChoice['options'] as $option): ?>
+                        <option value="<?= (int) $option['id'] ?>"<?= $seriesChoice['current'] === $option['id'] ? ' selected' : '' ?>><?= Html::e($option['title']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="lf-hint" id="series_id_hint">Pick one of the series you made to make this story a part of it. <a href="<?= Html::e($seriesChoice['manageUrl']) ?>">Manage series</a></p>
+            </div>
+            <div class="lf-field">
+                <label for="series_position">Part number</label>
+                <input type="text" id="series_position" name="series_position" value="<?= Html::e($seriesChoice['position']) ?>" inputmode="numeric" maxlength="4" aria-describedby="series_position_hint">
+                <p class="lf-hint" id="series_position_hint">Where the story sits in the series. Leave it empty to put a newly added story at the end.</p>
+            </div>
+        <?php endif; ?>
     </section>
 
     <?php if ($coverAvailable): ?>
@@ -189,7 +211,7 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                 <?php
                 $type = $field['type'];
                 $kind = $type->value;
-                $label = $type->isSingleChoice() ? $type->label() : $type->pluralLabel();
+                $label = $type->isSingleChoice() ? $labels->singular($type) : $labels->plural($type);
                 $required = $field['required'] ? ' <span class="lf-required">(needed before publishing)</span>' : '';
 
                 // A list with nothing to choose from is left off the form, not shown empty, and is never required.
@@ -332,6 +354,14 @@ $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class
                 <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
                 <button type="submit" class="lf-button lf-button--secondary">Move to the trash</button>
             </form>
+            <?php if ($exportUrl !== ''): ?>
+                <form method="post" action="<?= Html::e($exportUrl) ?>" class="lf-inline-form">
+                    <input type="hidden" name="csrf_token" value="<?= Html::e($exportToken) ?>">
+                    <input type="hidden" name="story_id" value="<?= (int) $story->id ?>">
+                    <input type="hidden" name="return" value="story">
+                    <button type="submit" class="lf-button lf-button--secondary">Export the story</button>
+                </form>
+            <?php endif; ?>
         </div>
         <p class="lf-hint">A copy has the same details and classification, and its chapters as drafts, but no cover picture. The trash keeps a story, unpublished, until you restore it or the retention period ends.</p>
     </section>

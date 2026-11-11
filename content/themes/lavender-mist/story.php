@@ -29,6 +29,7 @@ $groups = lf_items('term_groups');
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <?php lf_feed_link(); ?>
         <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
+        <?php lf_part('story-groupings'); ?>
         <?php if ($chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html')): ?>
             <p class="lf-story__actions"><a class="lf-button" href="<?= lf_e($chapters[0]['url']) ?>">Start reading</a></p>
         <?php endif; ?>

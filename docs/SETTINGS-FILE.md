@@ -31,6 +31,7 @@
 | `comments` | `enabled`, `author_toggle`, `replies` (true/false), `trust` (text), `edit_minutes`, `report_threshold` (whole numbers) |
 | `downloads` | `enabled`, `count`, `show_counts` (true/false), `formats` (list of format names) |
 | `feeds` | `kinds` (list of feed kinds), `json`, `full_text` (true/false), `limit` (5 to 50) |
+| `classification` | `labels` (a map of the site's own names for the kinds of list: `{kind}_singular` and `{kind}_plural`, such as `relationship_singular` and `relationship_plural`; the kind is the fixed name, never the shown word, and a kind has both or neither) |
 | `news` | `enabled` (true/false), `home_count` (0 to 20) |
 | `front_page` | `published_count`, `updated_count` (whole numbers) |
 | `editor` | `default_mode` (text), `lock_to_default` (true/false) |

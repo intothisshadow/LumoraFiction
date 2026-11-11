@@ -64,6 +64,9 @@ final class FeedController
             $router->get('/feed/' . $type->value . '/{slug}', fn (array $params, Request $request): Response => $this->named($params, $request, fn (string $slug): ?Feed => $this->feeds->term($type, $slug)), 'feed.' . $type->value);
         }
 
+        $router->get('/feed/series/{slug}', fn (array $params, Request $request): Response => $this->named($params, $request, fn (string $slug): ?Feed => $this->feeds->series($slug)), 'feed.series');
+        $router->get('/feed/collection/{slug}', fn (array $params, Request $request): Response => $this->named($params, $request, fn (string $slug): ?Feed => $this->feeds->collection($slug)), 'feed.collection');
+
         $router->get('/feed/story/{slug}/comments', fn (array $params, Request $request): Response => $this->serve($request, false, fn (): ?Feed => $this->feeds->storyComments($params['slug'] ?? '')), 'feed.story.comments');
         $router->get('/feed/story/{slug}/comments.json', fn (array $params, Request $request): Response => $this->serve($request, true, fn (): ?Feed => $this->feeds->storyComments($params['slug'] ?? '')), 'feed.story.comments.json');
         $router->get('/feed/story/{slug}', fn (array $params, Request $request): Response => $this->named($params, $request, fn (string $slug): ?Feed => $this->feeds->story($slug)), 'feed.story');

@@ -49,12 +49,24 @@ final class TaxonomyService
 
     private const SLUG_ATTEMPTS = 5;
 
+    private readonly ClassificationLabels $labels;
+
     public function __construct(
         private readonly Database $database,
         private readonly Configuration $config,
         private readonly AuditLogService $audit,
         private readonly ?HookManager $hooks = null,
     ) {
+        $this->labels = new ClassificationLabels($config);
+    }
+
+    /**
+     * The words the site shows for each kind. Anything that holds the taxonomy service asks here, so a relabelled kind
+     * reads the same on every screen.
+     */
+    public function labels(): ClassificationLabels
+    {
+        return $this->labels;
     }
 
     /**
@@ -64,8 +76,7 @@ final class TaxonomyService
      */
     public function enabledTypes(): array
     {
-        $mode = $this->config->setting('archive.mode');
-        $mode = is_string($mode) && isset(ArchiveSettings::MODES[$mode]) ? $mode : 'both';
+        $mode = ArchiveSettings::modeOf($this->config);
 
         return array_values(array_filter(TermType::cases(), static fn (TermType $type): bool => $type->availableIn($mode)));
     }
@@ -1185,8 +1196,8 @@ final class TaxonomyService
 
             if (count($ids) > $type->maximumPerStory()) {
                 $errors[$type->value] = $type->isSingleChoice()
-                    ? 'Choose only one ' . strtolower($type->label()) . '.'
-                    : 'Choose no more than ' . $type->maximumPerStory() . ' ' . strtolower($type->pluralLabel()) . '.';
+                    ? 'Choose only one ' . $this->labels->lower($type) . '.'
+                    : 'Choose no more than ' . $type->maximumPerStory() . ' ' . $this->labels->lowerPlural($type) . '.';
             }
 
             $desired[$type->value] = array_values($ids);
@@ -1225,8 +1236,8 @@ final class TaxonomyService
             }
 
             $missing[$type->value] = $type->isSingleChoice()
-                ? 'Choose a ' . strtolower($type->label()) . '.'
-                : 'Add at least one ' . strtolower($type->label()) . '.';
+                ? 'Choose a ' . $this->labels->lower($type) . '.'
+                : 'Add at least one ' . $this->labels->lower($type) . '.';
         }
 
         return $missing;
@@ -1303,7 +1314,7 @@ final class TaxonomyService
             $term = $this->find($entry);
 
             if ($term === null || $term->type !== $type) {
-                $errors[$type->value] = 'One of the ' . strtolower($type->pluralLabel()) . ' you chose no longer exists.';
+                $errors[$type->value] = 'One of the ' . $this->labels->lowerPlural($type) . ' you chose no longer exists.';
 
                 return null;
             }
@@ -1326,7 +1337,7 @@ final class TaxonomyService
         }
 
         if (!$this->writersMayPropose($type) || !$actor->can(Capability::WriteStories)) {
-            $errors[$type->value] = '"' . $name . '" is not on the list of ' . strtolower($type->pluralLabel()) . '. Choose one from the list.';
+            $errors[$type->value] = '"' . $name . '" is not on the list of ' . $this->labels->lowerPlural($type) . '. Choose one from the list.';
 
             return null;
         }
@@ -1543,7 +1554,7 @@ final class TaxonomyService
 
         if ($existing !== null && $existing->id !== $exceptTermId) {
             throw new TaxonomyException($this->nameKey($existing->name) === $this->nameKey($name)
-                ? 'There is already a ' . strtolower($type->label()) . ' called "' . $existing->name . '".'
+                ? 'There is already a ' . $this->labels->lower($type) . ' called "' . $existing->name . '".'
                 : '"' . $name . '" is already an alias of "' . $existing->name . '".');
         }
 
@@ -1587,7 +1598,7 @@ final class TaxonomyService
 
                 // A duplicate name means someone added it a moment ago; a duplicate address just needs another suffix.
                 if ($this->resolve($type, $name, $parentId) !== null) {
-                    throw new TaxonomyException('There is already a ' . strtolower($type->label()) . ' with that name.', previous: $exception);
+                    throw new TaxonomyException('There is already a ' . $this->labels->lower($type) . ' with that name.', previous: $exception);
                 }
             }
         }

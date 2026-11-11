@@ -37,13 +37,13 @@ $editing = $mode === 'edit' && $term !== null;
 ?>
 <?= $errorSummary ?>
 
-<p><a href="<?= Html::e($listUrl) ?>">&larr; <?= Html::e($type->pluralLabel()) ?></a></p>
+<p><a href="<?= Html::e($listUrl) ?>">&larr; <?= Html::e($labels->plural($type)) ?></a></p>
 
 <form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate>
     <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
 
     <div class="lf-card">
-        <h2><?= $editing ? 'Name' : 'New ' . Html::e(strtolower($type->label())) ?></h2>
+        <h2><?= $editing ? 'Name' : 'New ' . Html::e($labels->lower($type)) ?></h2>
 
         <div class="lf-field<?= isset($errors['name']) ? ' lf-field--error' : '' ?>">
             <label for="name">Name</label>
@@ -73,7 +73,7 @@ $editing = $mode === 'edit' && $term !== null;
             <div class="lf-choice">
                 <input type="checkbox" id="hidden" name="hidden" value="1"<?= ($values['hidden'] ?? $term->hidden) ? ' checked' : '' ?>>
                 <label for="hidden">Hidden</label>
-                <p class="lf-hint">A hidden <?= Html::e(strtolower($type->label())) ?> cannot be chosen for new stories and is left out of the public indexes and filters. Stories that already have it keep it.</p>
+                <p class="lf-hint">A hidden <?= Html::e($labels->lower($type)) ?> cannot be chosen for new stories and is left out of the public indexes and filters. Stories that already have it keep it.</p>
             </div>
         <?php endif; ?>
 
@@ -86,7 +86,7 @@ $editing = $mode === 'edit' && $term !== null;
             <p class="lf-hint"><?= (int) $term->storyCount ?> public <?= $term->storyCount === 1 ? 'story uses' : 'stories use' ?> this term. Address: <code><?= Html::e($term->slug) ?></code></p>
         <?php endif; ?>
 
-        <p><button type="submit" class="lf-button"><?= $editing ? 'Save changes' : 'Add ' . Html::e(strtolower($type->label())) ?></button></p>
+        <p><button type="submit" class="lf-button"><?= $editing ? 'Save changes' : 'Add ' . Html::e($labels->lower($type)) ?></button></p>
     </div>
 </form>
 
@@ -122,6 +122,6 @@ $editing = $mode === 'edit' && $term !== null;
 
     <section class="lf-card" aria-labelledby="tidy-heading">
         <h2 id="tidy-heading">Tidy up</h2>
-        <p><a href="<?= Html::e($urls['merge']) ?>">Merge into another <?= Html::e(strtolower($type->label())) ?></a> &middot; <a href="<?= Html::e($urls['delete']) ?>">Delete</a></p>
+        <p><a href="<?= Html::e($urls['merge']) ?>">Merge into another <?= Html::e($labels->lower($type)) ?></a> &middot; <a href="<?= Html::e($urls['delete']) ?>">Delete</a></p>
     </section>
 <?php endif; ?>

@@ -35,8 +35,11 @@ use LumoraFiction\Models\WorkStatus;
  */
 final class StoryPresenter
 {
-    public function __construct(private readonly ?CoverImageStore $covers = null)
+    private readonly ClassificationLabels $labels;
+
+    public function __construct(private readonly ?CoverImageStore $covers = null, ?ClassificationLabels $labels = null)
     {
+        $this->labels = $labels ?? new ClassificationLabels();
     }
 
     /**
@@ -76,12 +79,12 @@ final class StoryPresenter
         foreach (TermType::cases() as $type) {
             if (isset($terms[$type->value]) && $terms[$type->value] !== []) {
                 $groups[] = [
-                    'label' => $type->pluralLabel(),
+                    'label' => $this->labels->plural($type),
                     'type' => $type->value,
                     'terms' => array_map(static fn (Term $term): array => ['name' => $term->name, 'url' => $termUrl === null ? '' : $termUrl($term)], $terms[$type->value]),
                 ];
             } elseif ($type === TermType::Rating) {
-                $groups[] = self::notRated($type);
+                $groups[] = $this->notRated($type);
             }
         }
 
@@ -186,14 +189,14 @@ final class StoryPresenter
             if ($all === []) {
                 // Only an old story can lack a rating; saying so keeps the place from reading as an omission.
                 if ($type === TermType::Rating) {
-                    $groups[] = self::notRated($type) + ['more' => 0];
+                    $groups[] = $this->notRated($type) + ['more' => 0];
                 }
 
                 continue;
             }
 
             $groups[] = [
-                'label' => count($all) === 1 ? $type->label() : $type->pluralLabel(),
+                'label' => count($all) === 1 ? $this->labels->singular($type) : $this->labels->plural($type),
                 'type' => $kind,
                 'terms' => array_map(static fn (Term $term): array => ['name' => $term->name, 'url' => PublicUrl::term($term->type, $term->slug)], array_slice($all, 0, $limit)),
                 'more' => max(0, count($all) - $limit),
@@ -208,9 +211,9 @@ final class StoryPresenter
      *
      * @return array{label: string, type: string, terms: list<array{name: string, url: string}>}
      */
-    private static function notRated(TermType $type): array
+    private function notRated(TermType $type): array
     {
-        return ['label' => $type->label(), 'type' => $type->value, 'terms' => [['name' => 'Not rated', 'url' => '']]];
+        return ['label' => $this->labels->singular($type),'type' => $type->value, 'terms' => [['name' => 'Not rated', 'url' => '']]];
     }
 
     /**

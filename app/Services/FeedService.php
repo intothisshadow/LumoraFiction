@@ -53,18 +53,21 @@ final class FeedService
         private readonly StoryPresenter $presenter,
         private readonly ContentRenderer $renderer,
         string $siteUrl,
+        private readonly ?SeriesService $series = null,
+        private readonly ?CollectionService $collections = null,
     ) {
         $this->siteUrl = rtrim($siteUrl, '/');
     }
 
     /**
-     * The kinds of term that have a feed, which are the ones a reader follows: a fandom, a character, a relationship, a genre or a tag.
+     * The kinds of term that have a feed, which are the ones a reader follows: a fandom, a category, a character, a
+     * relationship, a genre or a tag.
      *
      * @return list<TermType>
      */
     public static function termKinds(): array
     {
-        return [TermType::Fandom, TermType::Character, TermType::Relationship, TermType::Genre, TermType::Tag];
+        return [TermType::Fandom, TermType::Category, TermType::Character, TermType::Relationship, TermType::Genre, TermType::Tag];
     }
 
     public function site(): ?Feed
@@ -107,7 +110,8 @@ final class FeedService
 
     public function term(TermType $type, string $slug): ?Feed
     {
-        if (!in_array($type, self::termKinds(), true) || !$this->on($type->value) || !$this->taxonomy->isEnabled($type)) {
+        // on() also says no for a kind the archive mode has switched off, so there is one rule for it.
+        if (!in_array($type, self::termKinds(), true) || !$this->on($type->value)) {
             return null;
         }
 
@@ -118,12 +122,58 @@ final class FeedService
             return null;
         }
 
+        $labels = $this->taxonomy->labels();
+
         return $this->storyFeed(
-            $this->siteName() . ': ' . $type->label() . ' ' . $term->name,
-            'New and updated stories tagged ' . $term->name . ' (' . strtolower($type->label()) . ').',
+            $this->siteName() . ': ' . $labels->singular($type) . ' ' . $term->name,
+            'New and updated stories tagged ' . $term->name . ' (' . $labels->lower($type) . ').',
             [$type->value, $term->slug],
             PublicUrl::term($type, $term->slug),
             $this->archive->forTerm($term->id, 'updated', $this->limit(), 0),
+        );
+    }
+
+    /**
+     * The stories of one series, the most recently changed first. Only stories a visitor can open are listed.
+     */
+    public function series(string $slug): ?Feed
+    {
+        $series = $this->series !== null && $this->on('series') ? $this->series->findPublicBySlug($slug) : null;
+
+        if ($series === null || $this->series === null) {
+            return null;
+        }
+
+        $stories = $this->series->publicStories($series);
+        usort($stories, static fn (Story $a, Story $b): int => [$b->updatedAt, $b->id] <=> [$a->updatedAt, $a->id]);
+
+        return $this->storyFeed(
+            $this->siteName() . ': series ' . $series->title,
+            trim($series->summary) !== '' ? trim($series->summary) : 'New and updated stories in the series ' . $series->title . '.',
+            ['series', $series->slug],
+            PublicUrl::series($series->slug),
+            array_slice($stories, 0, $this->limit()),
+        );
+    }
+
+    /**
+     * The newest additions to one public collection. A private collection has no feed, and only approved stories a visitor
+     * can open are listed.
+     */
+    public function collection(string $slug): ?Feed
+    {
+        $collection = $this->collections !== null && $this->on('collection') ? $this->collections->findBySlug($slug) : null;
+
+        if ($collection === null || $this->collections === null || !$collection->isPublic) {
+            return null;
+        }
+
+        return $this->storyFeed(
+            $this->siteName() . ': collection ' . $collection->title,
+            trim($collection->description) !== '' ? trim($collection->description) : 'Stories added to the collection ' . $collection->title . '.',
+            ['collection', $collection->slug],
+            PublicUrl::collection($collection->slug),
+            $this->collections->publicStories($collection, $this->limit()),
         );
     }
 

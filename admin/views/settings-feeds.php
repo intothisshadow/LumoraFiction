@@ -19,6 +19,7 @@ use LumoraFiction\Helpers\Html;
 
 /** @var array{kinds: list<string>, json: bool, limit: int, full_text: bool} $values */
 /** @var list<array{value: string, label: string, checked: bool}> $kinds */
+/** @var list<string> $hidden */
 /** @var array<string, string> $errors */
 /** @var int $minLimit */
 /** @var int $maxLimit */
@@ -49,6 +50,9 @@ use LumoraFiction\Helpers\Html;
                 <label for="kind_<?= Html::e($kind['value']) ?>"><?= Html::e($kind['label']) ?></label>
             </div>
         <?php endforeach; ?>
+        <?php if ($hidden !== []): ?>
+            <p class="lf-hint">Not listed because the archive mode or the series and collections setting switches them off:<?= Html::e(implode(', ', $hidden)) ?>. What was chosen for them is kept, and comes back if the mode changes.</p>
+        <?php endif; ?>
         <p class="lf-hint">A feed that is switched off answers like a page that does not exist, and the site stops pointing to it. A story's comment feed also needs comments to be on in the comment settings. While the archive requires sign-in to read, no story feed is served at all, because a feed reader cannot sign in; the news feed stays open.</p>
     </fieldset>
 

@@ -39,8 +39,11 @@ use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\BookmarkPresenter;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\CollectionService;
 use LumoraFiction\Services\CommentPresenter;
 use LumoraFiction\Services\FeedService;
+use LumoraFiction\Services\GroupingSettings;
+use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\FollowPresenter;
@@ -115,6 +118,8 @@ final class ArchiveController
         private readonly ?CommentPresenter $comments = null,
         private readonly ?FeedLinks $feedLinks = null,
         private readonly ?SearchHead $searchHead = null,
+        private readonly ?SeriesService $series = null,
+        private readonly ?CollectionService $collections = null,
     ) {
     }
 
@@ -236,6 +241,7 @@ final class ArchiveController
             $data += $this->readerData($user, $story, null, $request->cookies, $following);
             $data['downloads'] = $this->downloadPresenter?->menu($story) ?? [];
             $data['story_comments'] = $this->comments?->storySummary($story->id) ?? [];
+            $data += $this->groupings($story);
 
             // A story told in one chapter reads on this page, so its comments sit here too.
             if ($readsHere) {
@@ -351,6 +357,177 @@ final class ArchiveController
     }
 
     /**
+     * A series: its stories in order, only the ones a visitor may open. A series with none of those answers like a missing
+     * page, so a title cannot be found by guessing an address.
+     *
+     * @param array<string, string> $params
+     */
+    public function series(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($params): Response {
+            $series = $this->series !== null && GroupingSettings::seriesEnabled($this->config) ? $this->series->findPublicBySlug($params['slug'] ?? '') : null;
+
+            if ($series === null || $this->series === null) {
+                return $this->themes->notFound();
+            }
+
+            $stories = $this->series->publicStories($series);
+            $totals = $this->series->totals($stories);
+            $profiles = $this->users->publicProfiles([$series->ownerId, ...array_map(static fn (Story $story): int => $story->ownerId, $stories)]);
+            $author = $profiles[$series->ownerId] ?? ['display_name' => '', 'slug' => ''];
+            $address = PublicUrl::series($series->slug);
+
+            $this->feedLinks?->showing('series', $series->title, ['series', $series->slug]);
+            $this->searchHead?->canonical($address);
+
+            return $this->themes->render('series', [
+                'title' => $series->title,
+                'description' => $series->summary,
+                'series' => [
+                    'author' => $author['display_name'],
+                    'author_url' => $author['slug'] === '' ? '' : PublicUrl::author($author['slug']),
+                    'status' => $series->workStatus->label(),
+                    'stories' => number_format($totals['stories']),
+                    'words' => number_format($totals['words']),
+                    'chapters' => number_format($totals['chapters']),
+                ],
+                'total' => number_format($totals['stories']),
+                'stories' => $this->cards($stories, $profiles),
+                'pagination' => ['page' => 1, 'pages' => 1, 'url' => $address . '?page={page}'],
+            ], 200, ['title' => $series->title]);
+        });
+    }
+
+    /**
+     * One collection. A private one is shown only to its curator and to staff who may edit any story; everyone else gets
+     * the not-found page. The stories are the approved ones a visitor may open, whoever is looking.
+     *
+     * @param array<string, string> $params
+     */
+    public function collection(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($params, $request): Response {
+            $collection = $this->collections !== null && GroupingSettings::collectionsEnabled($this->config) ? $this->collections->findVisible($params['slug'] ?? '', $this->auth->user()) : null;
+
+            if ($collection === null || $this->collections === null) {
+                return $this->themes->notFound();
+            }
+
+            $curator = $this->users->publicProfiles([$collection->ownerId])[$collection->ownerId] ?? ['display_name' => '', 'slug' => ''];
+            $address = PublicUrl::collection($collection->slug);
+
+            if ($collection->isPublic) {
+                $this->feedLinks?->showing('collection', $collection->title, ['collection', $collection->slug]);
+                $this->searchHead?->canonical($address);
+            }
+
+            $response = $this->listing(
+                $request,
+                'collection',
+                null,
+                $collection->title,
+                $collection->description,
+                $address,
+                $this->collections->publicCount($collection->id),
+                fn (string $sort, int $limit, int $offset): array => $this->collections->publicStories($collection, $limit, $offset),
+                'added',
+                ['collection' => [
+                    'curator' => $curator['display_name'],
+                    'curator_url' => $curator['slug'] === '' ? '' : PublicUrl::author($curator['slug']),
+                    'private' => !$collection->isPublic,
+                ]],
+            );
+
+            return $collection->isPublic ? $response : $response->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        });
+    }
+
+    /**
+     * Every public collection that has a story a visitor can open.
+     *
+     * @param array<string, string> $params
+     */
+    public function collections(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($request): Response {
+            if ($this->collections === null || !GroupingSettings::collectionsEnabled($this->config)) {
+                return $this->themes->notFound();
+            }
+
+            $total = $this->collections->countListPublic();
+            $pages = max(1, (int) ceil($total / PublicArchive::PAGE_SIZE));
+            $requested = $request->queryValue('page');
+            $page = $requested === null ? 1 : (preg_match('/^[1-9][0-9]{0,8}\z/', $requested) === 1 ? (int) $requested : 0);
+
+            if ($page < 1 || $page > $pages || $page > self::MAX_PAGE) {
+                return $this->themes->notFound();
+            }
+
+            $rows = $this->collections->listPublic(PublicArchive::PAGE_SIZE, ($page - 1) * PublicArchive::PAGE_SIZE);
+            $profiles = $this->users->publicProfiles(array_map(static fn ($collection): int => $collection->ownerId, $rows));
+            $cards = [];
+
+            foreach ($rows as $collection) {
+                $curator = $profiles[$collection->ownerId] ?? ['display_name' => '', 'slug' => ''];
+                $description = trim($collection->description);
+                $count = $this->collections->publicCount($collection->id);
+
+                $cards[] = [
+                    'title' => $collection->title,
+                    'url' => PublicUrl::collection($collection->slug),
+                    'description' => mb_strlen($description, 'UTF-8') > 240 ? rtrim(mb_substr($description, 0, 240, 'UTF-8')) . '…' : $description,
+                    'curator' => $curator['display_name'],
+                    'curator_url' => $curator['slug'] === '' ? '' : PublicUrl::author($curator['slug']),
+                    'count' => $this->plural($count, 'story', 'stories'),
+                ];
+            }
+
+            return $this->themes->render('collections', [
+                'title' => 'Collections',
+                'description' => 'Groups of stories gathered by the people who run them.',
+                'total' => number_format($total),
+                'collections' => $cards,
+                'pagination' => ['page' => $page, 'pages' => $pages, 'url' => PublicUrl::collections() . '?page={page}'],
+            ], 200, ['title' => 'Collections']);
+        });
+    }
+
+    /**
+     * The series line and the collection list a story page shows. Both count only what a visitor can open.
+     *
+     * @return array{series: array<string, mixed>, collections: list<array{title: string, url: string}>}
+     */
+    private function groupings(Story $story): array
+    {
+        $series = [];
+        $collections = [];
+
+        if ($this->series !== null && GroupingSettings::seriesEnabled($this->config)) {
+            $part = $this->series->partOf($story);
+
+            if ($part !== null) {
+                $series = [
+                    'title' => $part['series']->title,
+                    'url' => PublicUrl::series($part['series']->slug),
+                    'position' => $part['position'],
+                    'total' => $part['total'],
+                    'label' => 'Part ' . $part['position'] . ' of ' . $part['total'],
+                    'previous' => $part['previous'] === null ? [] : ['title' => $part['previous']->title, 'url' => PublicUrl::story($part['previous']->slug)],
+                    'next' => $part['next'] === null ? [] : ['title' => $part['next']->title, 'url' => PublicUrl::story($part['next']->slug)],
+                ];
+            }
+        }
+
+        if ($this->collections !== null && GroupingSettings::collectionsEnabled($this->config)) {
+            foreach ($this->collections->forStory($story->id) as $collection) {
+                $collections[] = ['title' => $collection->title, 'url' => PublicUrl::collection($collection->slug)];
+            }
+        }
+
+        return ['series' => $series, 'collections' => $collections];
+    }
+
+    /**
      * The Browse hub (/browse), the indexes of terms (/browse/tags) and the plain story lists (/browse/new).
      *
      * @param array<string, string> $params
@@ -398,7 +575,8 @@ final class ArchiveController
 
         foreach (PublicUrl::browseKinds() as $segment => $type) {
             if ($this->taxonomy->isEnabled($type) && ($counts[$type->value] ?? 0) > 0) {
-                $kinds[] = ['label' => $type->pluralLabel(), 'url' => PublicUrl::browse($segment), 'count' => number_format($counts[$type->value]), 'count_label' => number_format($counts[$type->value]) . ' ' . strtolower($counts[$type->value] === 1 ? $type->label() : $type->pluralLabel())];
+                $labels = $this->taxonomy->labels();
+                $kinds[] = ['label' => $labels->plural($type), 'url' => PublicUrl::browse($segment), 'count' => number_format($counts[$type->value]), 'count_label' => number_format($counts[$type->value]) . ' ' . ($counts[$type->value] === 1 ? $labels->lower($type) : $labels->lowerPlural($type))];
             }
         }
 
@@ -462,8 +640,8 @@ final class ArchiveController
         $query = http_build_query(array_filter(['letter' => $letter, 'sort' => $sort], static fn (string $value): bool => $value !== ''), '', '&', PHP_QUERY_RFC3986);
 
         return $this->themes->render('browse', [
-            'title' => $type->pluralLabel(),
-            'description' => 'Every ' . strtolower($type->label()) . ' used by at least one story. Each links to the stories that use it.',
+            'title' => $this->taxonomy->labels()->plural($type),
+            'description' => 'Every ' . $this->taxonomy->labels()->lower($type) . ' used by at least one story. Each links to the stories that use it.',
             'total' => number_format($total),
             'terms' => $terms,
             'letters' => count($letters) > 1 ? $letterLinks : [],
@@ -476,7 +654,7 @@ final class ArchiveController
                 'pages' => $pages,
                 'url' => PublicUrl::browse($segment) . '?' . ($query === '' ? '' : $query . '&') . 'page={page}',
             ],
-        ], 200, ['title' => $type->pluralLabel()]);
+        ], 200, ['title' => $this->taxonomy->labels()->plural($type)]);
     }
 
     private function plural(int $count, string $one, string $many): string
@@ -514,7 +692,7 @@ final class ArchiveController
                 'archive',
                 // Template names use hyphens, so a kind such as relationship_category is archive-relationship-category.
                 str_replace('_', '-', $type->value),
-                $type->label() . ': ' . $term->name,
+                $this->taxonomy->labels()->singular($type) . ': ' . $term->name,
                 '',
                 PublicUrl::term($type, $term->slug),
                 $total,
@@ -546,7 +724,7 @@ final class ArchiveController
             );
 
             if ($links !== []) {
-                $groups[] = ['label' => $type->pluralLabel(), 'terms' => $links];
+                $groups[] = ['label' => $this->taxonomy->labels()->plural($type), 'terms' => $links];
             }
         }
 

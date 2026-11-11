@@ -28,6 +28,7 @@ use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\ClassificationLabelSettings;
 use LumoraFiction\Services\TaxonomyException;
 use LumoraFiction\Services\TaxonomyService;
 
@@ -50,8 +51,45 @@ final class TaxonomyController extends AdminController
         AdminView $view,
         FlashMessages $flash,
         private readonly TaxonomyService $taxonomy,
+        private readonly ?ClassificationLabelSettings $labelSettings = null,
     ) {
         parent::__construct($auth, $view, $flash);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function saveLabels(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response || $this->labelSettings === null) {
+            return $user instanceof Response ? $user : $this->missing('Names of the lists cannot be changed here.');
+        }
+
+        $enabled = $this->taxonomy->enabledTypes();
+        $posted = [];
+
+        foreach ($enabled as $type) {
+            $posted[$type->value] = [
+                'singular' => (string) $request->input('label_' . $type->value . '_singular'),
+                'plural' => (string) $request->input('label_' . $type->value . '_plural'),
+            ];
+        }
+
+        $result = $this->labelSettings->validate($posted, $enabled);
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->overviewPage($request, $user, null, ['form' => self::STALE_FORM], 400, $posted);
+        }
+
+        if ($result['errors'] !== []) {
+            return $this->overviewPage($request, $user, null, $result['errors'], 422, $posted);
+        }
+
+        $this->flash->add('success', $this->labelSettings->save($result['values'], $user, $request->ip()) ? 'Names saved.' : 'Nothing needed changing.');
+
+        return Response::redirect(AdminUrl::to(self::PATH), 303);
     }
 
     /**
@@ -129,6 +167,7 @@ final class TaxonomyController extends AdminController
         $terms = $this->taxonomy->list($type, $filters, self::PER_PAGE, ($page - 1) * self::PER_PAGE);
 
         return $this->view->render('taxonomy-list', [
+            'labels' => $this->taxonomy->labels(),
             'type' => $type,
             'curated' => !$this->taxonomy->writersMayPropose($type),
             'terms' => $terms,
@@ -146,7 +185,7 @@ final class TaxonomyController extends AdminController
             'overviewUrl' => AdminUrl::to(self::PATH),
             'termUrl' => AdminUrl::to(self::PATH . '/term'),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
-        ], $user, $type->pluralLabel(), self::PATH, $this->flash->pull($request->cookies));
+        ], $user, $this->taxonomy->labels()->plural($type), self::PATH, $this->flash->pull($request->cookies));
     }
 
     /**
@@ -447,7 +486,7 @@ final class TaxonomyController extends AdminController
             $target = $this->taxonomy->resolve($term->type, $this->taxonomy->cleanName($targetName), $term->parentId);
 
             if ($target === null) {
-                throw new TaxonomyException('There is no ' . strtolower($term->type->label()) . ' with that name' . ($term->type->belongsToFandom() ? ' in the same fandom' : '') . '.');
+                throw new TaxonomyException('There is no ' . $this->taxonomy->labels()->lower($term->type) . ' with that name' . ($term->type->belongsToFandom() ? ' in the same fandom' : '') . '.');
             }
 
             $survivor = $this->taxonomy->merge($user, $term->id, $target->id, $request->ip());
@@ -549,13 +588,14 @@ final class TaxonomyController extends AdminController
      * @param list<string>|null $required kinds ticked on a form that failed; null shows what is saved
      * @param array<string, string> $errors
      */
-    private function overviewPage(Request $request, User $user, ?array $required, array $errors, int $status): Response
+    private function overviewPage(Request $request, User $user, ?array $required, array $errors, int $status, ?array $labelValues = null): Response
     {
         $counts = $this->taxonomy->overview();
         $enabled = $this->taxonomy->enabledTypes();
         $required ??= array_map(static fn (TermType $type): string => $type->value, $this->taxonomy->requiredTypes());
 
         return $this->view->render('taxonomy-overview', [
+            'labels' => $this->taxonomy->labels(),
             'types' => $enabled,
             'hiddenTypes' => array_values(array_filter(TermType::cases(), static fn (TermType $type): bool => !in_array($type, $enabled, true))),
             'counts' => $counts,
@@ -564,6 +604,8 @@ final class TaxonomyController extends AdminController
             'errorSummary' => $this->errorSummary($errors),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
             'action' => AdminUrl::to(self::PATH . '/required'),
+            'labelsAction' => AdminUrl::to(self::PATH . '/labels'),
+            'labelValues' => $labelValues ?? $this->taxonomy->labels()->custom(),
             'baseUrl' => AdminUrl::to(self::PATH),
         ], $user, 'Classification', self::PATH, $this->flash->pull($request->cookies), $status);
     }
@@ -575,6 +617,7 @@ final class TaxonomyController extends AdminController
     private function createPage(Request $request, User $user, TermType $type, array $values, array $errors, int $status): Response
     {
         return $this->view->render('taxonomy-form', [
+            'labels' => $this->taxonomy->labels(),
             'mode' => 'create',
             'type' => $type,
             'curated' => !$this->taxonomy->writersMayPropose($type),
@@ -588,7 +631,7 @@ final class TaxonomyController extends AdminController
             'action' => AdminUrl::to(self::PATH . '/' . $type->value . '/new'),
             'listUrl' => AdminUrl::to(self::PATH . '/' . $type->value),
             'urls' => [],
-        ], $user, 'Add ' . strtolower($type->label()), self::PATH, $this->flash->pull($request->cookies), $status);
+        ], $user, 'Add ' . $this->taxonomy->labels()->lower($type), self::PATH, $this->flash->pull($request->cookies), $status);
     }
 
     /**
@@ -600,6 +643,7 @@ final class TaxonomyController extends AdminController
         $base = AdminUrl::to(self::PATH . '/term/' . $term->id);
 
         return $this->view->render('taxonomy-form', [
+            'labels' => $this->taxonomy->labels(),
             'mode' => 'edit',
             'type' => $term->type,
             'curated' => !$this->taxonomy->writersMayPropose($term->type),
@@ -627,6 +671,7 @@ final class TaxonomyController extends AdminController
     private function mergePage(Request $request, User $user, Term $term, string $target, array $errors, int $status): Response
     {
         return $this->view->render('taxonomy-merge', [
+            'labels' => $this->taxonomy->labels(),
             'term' => $term,
             'target' => $target,
             'errors' => $errors,
@@ -643,6 +688,7 @@ final class TaxonomyController extends AdminController
     private function deletePage(Request $request, User $user, Term $term, array $errors, int $status): Response
     {
         return $this->view->render('taxonomy-delete', [
+            'labels' => $this->taxonomy->labels(),
             'term' => $term,
             'errors' => $errors,
             'errorSummary' => $this->errorSummary($errors),
@@ -669,6 +715,7 @@ final class TaxonomyController extends AdminController
         }
 
         return $this->view->render('taxonomy-bulk-confirm', [
+            'labels' => $this->taxonomy->labels(),
             'type' => $type,
             'action' => $action,
             'count' => count($ids),
@@ -681,7 +728,7 @@ final class TaxonomyController extends AdminController
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
             'formAction' => AdminUrl::to(self::PATH . '/' . $type->value . '/bulk'),
             'backUrl' => AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page),
-        ], $user, 'Confirm: ' . strtolower($type->pluralLabel()), self::PATH, $this->flash->pull($request->cookies));
+        ], $user, 'Confirm: ' . $this->taxonomy->labels()->lowerPlural($type), self::PATH, $this->flash->pull($request->cookies));
     }
 
     /**

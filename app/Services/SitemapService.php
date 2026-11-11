@@ -34,9 +34,9 @@ final class SitemapService
     public const PART_SIZE = 10000;
 
     /** The kinds of part, in the order the index lists them. */
-    public const KINDS = ['site', 'authors', 'terms', 'stories'];
+    public const KINDS = ['site', 'authors', 'terms', 'series', 'collections', 'stories'];
 
-    private const PART_PATTERN = '/^(site|authors|terms|stories)-([1-9][0-9]{0,5})\z/';
+    private const PART_PATTERN = '/^(site|authors|terms|series|collections|stories)-([1-9][0-9]{0,5})\z/';
 
     public function __construct(
         private readonly Database $database,
@@ -62,7 +62,7 @@ final class SitemapService
     {
         $parts = ['site-1'];
 
-        foreach (['authors' => $this->countAuthors(), 'terms' => $this->countTerms(), 'stories' => $this->countStories()] as $kind => $total) {
+        foreach (['authors' => $this->countAuthors(), 'terms' => $this->countTerms(), 'series' => $this->countSeries(), 'collections' => $this->countCollections(), 'stories' => $this->countStories()] as $kind => $total) {
             for ($number = 1; $number <= (int) ceil($total / self::PART_SIZE); $number++) {
                 $parts[] = $kind . '-' . $number;
             }
@@ -105,6 +105,8 @@ final class SitemapService
             'site' => $this->siteRows(),
             'authors' => $this->authorRows($offset),
             'terms' => $this->termRows($offset),
+            'series' => $this->seriesRows($offset),
+            'collections' => $this->collectionRows($offset),
             default => $this->storyRows($offset),
         };
 
@@ -201,6 +203,69 @@ final class SitemapService
         }
 
         return $rows;
+    }
+
+    /**
+     * Series with a story a visitor can open. A series of drafts is not advertised.
+     */
+    private const SERIES_CONDITION = 'EXISTS (SELECT 1 FROM {prefix}series_stories pss JOIN {prefix}stories s ON s.id = pss.story_id WHERE pss.series_id = sr.id AND ';
+
+    /**
+     * @return list<array{string, ?DateTimeImmutable}>
+     */
+    private function seriesRows(int $offset): array
+    {
+        $rows = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT sr.slug, sr.updated_at FROM {prefix}series sr WHERE ' . self::SERIES_CONDITION . StoryVisibility::publicCondition('s') . ') ORDER BY sr.id LIMIT ' . self::PART_SIZE . ' OFFSET ' . $offset,
+        ) as $row) {
+            $rows[] = [PublicUrl::series((string) $row['slug']), $this->date($row['updated_at'])];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Public collections, and only those holding an approved story a visitor can open. The first entry is the index.
+     *
+     * @return list<array{string, ?DateTimeImmutable}>
+     */
+    private function collectionRows(int $offset): array
+    {
+        $rows = $offset === 0 ? [[PublicUrl::collections(), null]] : [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT c.slug, c.updated_at FROM {prefix}collections c WHERE ' . $this->collectionCondition() . ' ORDER BY c.id LIMIT ' . self::PART_SIZE . ' OFFSET ' . $offset,
+        ) as $row) {
+            $rows[] = [PublicUrl::collection((string) $row['slug']), $this->date($row['updated_at'])];
+        }
+
+        return $rows;
+    }
+
+    private function collectionCondition(): string
+    {
+        return "c.visibility = 'public' AND EXISTS (SELECT 1 FROM {prefix}collection_stories pcs JOIN {prefix}stories s ON s.id = pcs.story_id WHERE pcs.collection_id = c.id AND pcs.state = 'approved' AND "
+            . StoryVisibility::publicCondition('s') . ')';
+    }
+
+    private function countSeries(): int
+    {
+        if (!GroupingSettings::seriesEnabled($this->config)) {
+            return 0;
+        }
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}series sr WHERE ' . self::SERIES_CONDITION . StoryVisibility::publicCondition('s') . ')');
+    }
+
+    private function countCollections(): int
+    {
+        if (!GroupingSettings::collectionsEnabled($this->config)) {
+            return 0;
+        }
+
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}collections c WHERE ' . $this->collectionCondition());
     }
 
     private function countStories(): int

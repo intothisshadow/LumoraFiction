@@ -49,6 +49,7 @@ final class SearchPresenter
             ...$query->termNames,
             'status' => $query->status?->value,
             'language' => $query->language,
+            'series' => $query->series,
             'min_words' => $query->minWords,
             'max_words' => $query->maxWords,
             'sort' => $query->sort === PublicArchive::DEFAULT_SORT ? null : $query->sort,
@@ -78,10 +79,10 @@ final class SearchPresenter
 
                 // A list with nothing in it, or nothing used yet, has nothing to filter by, so it is left off rather than shown empty.
                 if (count($options) > 1 || $typed !== '') {
-                    $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $type->label(), 'type' => 'select', 'options' => $options];
+                    $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $this->taxonomy->labels()->singular($type), 'type' => 'select', 'options' => $options];
                 }
             } else {
-                $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $type->label(), 'type' => 'text', 'value' => $typed];
+                $fields[] = ['id' => 'lf-search-' . $type->value, 'name' => $type->value, 'label' => $this->taxonomy->labels()->singular($type), 'type' => 'text', 'value' => $typed];
             }
         }
 
@@ -103,6 +104,10 @@ final class SearchPresenter
             }
 
             $fields[] = ['id' => 'lf-search-language', 'name' => 'language', 'label' => 'Language', 'type' => 'select', 'options' => $options];
+        }
+
+        if ($this->parser->seriesFilter()) {
+            $fields[] = ['id' => 'lf-search-series', 'name' => 'series', 'label' => 'Series', 'type' => 'text', 'value' => $query->series, 'hint' => 'Part of a series title.'];
         }
 
         $fields[] = ['id' => 'lf-search-min-words', 'name' => 'min_words', 'label' => 'Fewest words', 'type' => 'number', 'value' => $query->minWords === null ? '' : (string) $query->minWords];
@@ -144,7 +149,7 @@ final class SearchPresenter
 
         foreach ($query->termNames as $kind => $name) {
             $type = TermType::tryFrom($kind);
-            $add($kind, ($type === null ? $kind : $type->label()) . ': ' . $name);
+            $add($kind, ($type === null ? $kind : $this->taxonomy->labels()->singular($type)) . ': ' . $name);
         }
 
         if ($query->status !== null) {
@@ -153,6 +158,10 @@ final class SearchPresenter
 
         if ($query->language !== '') {
             $add('language', 'Language: ' . $query->language);
+        }
+
+        if ($query->series !== '') {
+            $add('series', 'Series: ' . $query->series);
         }
 
         if ($query->minWords !== null) {

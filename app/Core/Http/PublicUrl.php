@@ -34,6 +34,12 @@ final class PublicUrl
 
     public const AUTHOR = '/author/{slug}';
 
+    public const SERIES = '/series/{slug}';
+
+    public const COLLECTIONS = '/collections';
+
+    public const COLLECTION = '/collections/{slug}';
+
     public const SEARCH = '/search';
 
     public const BROWSE = '/browse';
@@ -252,6 +258,21 @@ final class PublicUrl
     public static function author(string $slug): string
     {
         return BasePath::get() . '/author/' . rawurlencode($slug);
+    }
+
+    public static function series(string $slug): string
+    {
+        return BasePath::get() . '/series/' . rawurlencode($slug);
+    }
+
+    public static function collections(): string
+    {
+        return BasePath::get() . self::COLLECTIONS;
+    }
+
+    public static function collection(string $slug): string
+    {
+        return BasePath::get() . '/collections/' . rawurlencode($slug);
     }
 
     public static function term(TermType $type, string $slug): string

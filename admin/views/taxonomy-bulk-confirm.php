@@ -31,8 +31,8 @@ use LumoraFiction\Models\TermType;
 /** @var string $formAction */
 /** @var string $backUrl */
 
-$plural = strtolower($type->pluralLabel());
-$what = $count === 1 ? 'this ' . strtolower($type->label()) : 'these ' . $count . ' ' . $plural;
+$plural = $labels->lowerPlural($type);
+$what = $count === 1 ? 'this ' . $labels->lower($type) :'these ' . $count . ' ' . $plural;
 $title = match ($action) {
     'delete' => 'Delete ' . $what . '?',
     'approve' => 'Approve ' . $what . '?',

@@ -105,7 +105,7 @@ final class StoryDocumentFactory
             $names = array_map(static fn ($term): string => $term->name, $terms[$type->value] ?? []);
 
             if ($names !== [] && in_array($type, $enabled, true)) {
-                $details[] = ['label' => $type === TermType::Rating ? 'Rating' : $type->pluralLabel(), 'values' => $names];
+                $details[] = ['label' => $type === TermType::Rating ? $this->taxonomy->labels()->singular($type) : $this->taxonomy->labels()->plural($type), 'values' => $names];
             }
         }
 

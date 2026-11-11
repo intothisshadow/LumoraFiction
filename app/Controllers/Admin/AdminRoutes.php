@@ -66,6 +66,10 @@ final class AdminRoutes
         SearchSettingsController $searchSettings,
         RedirectsController $redirects,
         SettingsTransferController $settingsTransfer,
+        SeriesController $series,
+        CollectionController $collections,
+        GroupingSettingsController $groupingSettings,
+        ExportController $export,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -95,6 +99,35 @@ final class AdminRoutes
         $router->post('/admin/settings/downloads', $downloadSettings->update(...));
         $router->get('/admin/settings/feeds', $feedSettings->show(...), 'admin.settings.feeds');
         $router->post('/admin/settings/feeds', $feedSettings->update(...));
+        $router->get('/admin/settings/series-collections', $groupingSettings->show(...), 'admin.settings.groupings');
+        $router->post('/admin/settings/series-collections', $groupingSettings->update(...));
+        // The fixed word "new" comes before {id} so it is never read as a number.
+        $router->get('/admin/export', $export->show(...), 'admin.export');
+        // An export is only ever a POST with a token, so it cannot be fetched by a link.
+        $router->post('/admin/export/story', $export->story(...), 'admin.export.story');
+        $router->post('/admin/export/author', $export->author(...), 'admin.export.author');
+        $router->post('/admin/export/archive', $export->archive(...), 'admin.export.archive');
+        $router->get('/admin/series', $series->index(...), 'admin.series');
+        $router->get('/admin/series/new', $series->showCreate(...), 'admin.series.new');
+        $router->post('/admin/series/new', $series->create(...));
+        $router->get('/admin/series/{id}', $series->showEdit(...), 'admin.series.edit');
+        $router->post('/admin/series/{id}', $series->update(...));
+        $router->post('/admin/series/{id}/stories', $series->addStory(...), 'admin.series.add');
+        $router->post('/admin/series/{id}/stories/{story}/remove', $series->removeStory(...), 'admin.series.remove');
+        $router->post('/admin/series/{id}/stories/{story}/move', $series->move(...), 'admin.series.move');
+        $router->get('/admin/series/{id}/delete', $series->showDelete(...), 'admin.series.delete');
+        $router->post('/admin/series/{id}/delete', $series->delete(...));
+        $router->get('/admin/collections', $collections->index(...), 'admin.collections');
+        $router->get('/admin/collections/new', $collections->showCreate(...), 'admin.collections.new');
+        $router->post('/admin/collections/new', $collections->create(...));
+        $router->get('/admin/collections/{id}', $collections->showEdit(...), 'admin.collections.edit');
+        $router->post('/admin/collections/{id}', $collections->update(...));
+        $router->post('/admin/collections/{id}/submit', $collections->submit(...), 'admin.collections.submit');
+        $router->post('/admin/collections/{id}/withdraw', $collections->withdraw(...), 'admin.collections.withdraw');
+        $router->post('/admin/collections/{id}/approve', $collections->approve(...), 'admin.collections.approve');
+        $router->post('/admin/collections/{id}/remove', $collections->remove(...), 'admin.collections.remove');
+        $router->get('/admin/collections/{id}/delete', $collections->showDelete(...), 'admin.collections.delete');
+        $router->post('/admin/collections/{id}/delete', $collections->delete(...));
         $router->get('/admin/settings/search', $searchSettings->show(...), 'admin.settings.search');
         $router->post('/admin/settings/search', $searchSettings->update(...));
         $router->get('/admin/settings/redirects', $redirects->index(...), 'admin.settings.redirects');
@@ -147,6 +180,7 @@ final class AdminRoutes
         $router->get('/admin/taxonomy/suggest', $suggest->suggest(...), 'admin.taxonomy.suggest');
         $router->get('/admin/taxonomy', $taxonomy->overview(...), 'admin.taxonomy');
         $router->post('/admin/taxonomy/required', $taxonomy->saveRequired(...), 'admin.taxonomy.required');
+        $router->post('/admin/taxonomy/labels', $taxonomy->saveLabels(...), 'admin.taxonomy.labels');
         $router->get('/admin/taxonomy/term/{id}', $taxonomy->showEdit(...), 'admin.taxonomy.term');
         $router->post('/admin/taxonomy/term/{id}', $taxonomy->update(...));
         $router->post('/admin/taxonomy/term/{id}/aliases', $taxonomy->addAlias(...));

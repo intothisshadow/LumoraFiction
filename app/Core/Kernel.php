@@ -43,7 +43,11 @@ use LumoraFiction\Services\FrontPageSettings;
 use LumoraFiction\Controllers\DownloadController;
 use LumoraFiction\Controllers\FeedController;
 use LumoraFiction\Controllers\Admin\DownloadSettingsController;
+use LumoraFiction\Controllers\Admin\CollectionController;
+use LumoraFiction\Controllers\Admin\ExportController;
 use LumoraFiction\Controllers\Admin\FeedSettingsController;
+use LumoraFiction\Controllers\Admin\GroupingSettingsController;
+use LumoraFiction\Controllers\Admin\SeriesController;
 use LumoraFiction\Core\Theme\FeedLinks;
 use LumoraFiction\Core\Theme\SearchHead;
 use LumoraFiction\Controllers\SearchEngineController;
@@ -188,6 +192,11 @@ use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\AuthorProfileService;
 use LumoraFiction\Services\AuthService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\ClassificationLabelSettings;
+use LumoraFiction\Services\CollectionService;
+use LumoraFiction\Services\ExportService;
+use LumoraFiction\Services\GroupingSettings;
+use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\ClassificationPresets;
 use LumoraFiction\Services\NotificationService;
 use LumoraFiction\Services\RetentionSettings;
@@ -267,6 +276,10 @@ final class Kernel
      * Static pages and the object that links them from the menus, built at boot for the same reason.
      */
     public ?PageService $pages = null;
+
+    public ?SeriesService $series = null;
+
+    public ?CollectionService $collections = null;
 
     public ?PagePresentation $pagePresentation = null;
 
@@ -422,7 +435,7 @@ final class Kernel
         $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks, $covers);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit, $kernel->config);
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
-        $presenter = new StoryPresenter($covers);
+        $presenter = new StoryPresenter($covers, $taxonomy->labels());
         $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks);
         $newsPresenter = new NewsPresenter($renderer, $kernel->users);
         // The closure is evaluated at save time, so a route a plugin adds later still counts as taken.
@@ -447,6 +460,10 @@ final class Kernel
         $kernel->searchHead->register($hooks);
         $avatars = new AvatarImageStore($root . '/content/uploads/avatars');
         $authorProfiles = new AuthorProfileService($kernel->database, $renderer, $avatars, $kernel->audit);
+
+        $kernel->series = new SeriesService($database, $audit, $stories, $hooks);
+        $kernel->collections = new CollectionService($database, $config, $audit, $stories, $hooks);
+        GroupingSettings::hideFromMenu($hooks, $config);
 
         $kernel->privacy = new PrivacySettings($config, $database, $audit, $kernel->pages);
         $kernel->comments = new CommentService($database, new CommentSettings($config, $audit), $audit, $hooks);
@@ -532,7 +549,7 @@ final class Kernel
 
         $public = new PublicController($kernel->themes, $themeOptions, __DIR__ . '/Theme/fallback/style.css');
         $publicArchive = new PublicArchive($kernel->database, $stories);
-        $searchParser = new SearchQueryParser($taxonomy);
+        $searchParser = new SearchQueryParser($taxonomy, $kernel->config);
         $archive = new ArchiveController(
             $kernel->themes,
             $stories,
@@ -562,8 +579,10 @@ final class Kernel
             $commentPresenter,
             $kernel->feedLinks,
             $kernel->searchHead,
+            $kernel->series,
+            $kernel->collections,
         );
-        $newsPages = new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config, $kernel->feedLinks);
+        $newsPages =new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config, $kernel->feedLinks);
 
         $kernel->router->get('/', $archive->home(...), 'home');
         $kernel->router->get(PublicUrl::SEARCH, $archive->search(...), 'search');
@@ -625,7 +644,7 @@ final class Kernel
             rtrim($siteUrl, '/'),
         ))->register($kernel->router);
         (new FeedController(
-            new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl),
+            new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl, $kernel->series, $kernel->collections),
             $kernel->themes,
             $kernel->config,
         ))->register($kernel->router);
@@ -650,6 +669,9 @@ final class Kernel
         }
 
         $kernel->router->get(PublicUrl::AUTHOR, $archive->author(...), 'author');
+        $kernel->router->get(PublicUrl::SERIES, $archive->series(...), 'series');
+        $kernel->router->get(PublicUrl::COLLECTIONS, $archive->collections(...), 'collections');
+        $kernel->router->get(PublicUrl::COLLECTION, $archive->collection(...), 'collection');
 
         // One route per kind of term, so an address under any other first segment is never read as a term.
         foreach (TermType::cases() as $type) {
@@ -706,8 +728,8 @@ final class Kernel
             new ContentEditorController($kernel->auth, $renderer),
             new TermSuggestController($kernel->auth, $taxonomy),
             new AuthorProfileController($kernel->auth, $view, $flash, $authorProfiles, $editor, $kernel->downloadAccess, $kernel->config),
-            new TaxonomyController($kernel->auth, $view, $flash, $taxonomy),
-            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config, $kernel->comments),
+            new TaxonomyController($kernel->auth, $view, $flash, $taxonomy, new ClassificationLabelSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config, $kernel->comments, $kernel->series),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter, $kernel->comments),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
             new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config, $authorProfiles),
@@ -743,7 +765,7 @@ final class Kernel
             new AdminCommentsController($kernel->auth, $view, $flash, $kernel->comments ?? throw new \LogicException('Built at boot.')),
             new CommentSettingsController($kernel->auth, $view, $flash, new CommentSettings($kernel->config, $kernel->audit)),
             new SiteLocationController($kernel->auth, $view, $flash, new SiteLocation($kernel->config, $root, $kernel->audit, $root . '/config/config.php'), $kernel->config),
-            new FeedSettingsController($kernel->auth, $view, $flash, new FeedSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new FeedSettingsController($kernel->auth, $view, $flash, new FeedSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->config),
             new SearchSettingsController($kernel->auth, $view, $flash, new SearchSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->config, rtrim((string) $kernel->config->get('site_url', ''), '/')),
             new RedirectsController($kernel->auth, $view, $flash, $kernel->redirects ?? throw new \LogicException('Built at boot.')),
             new SettingsTransferController($kernel->auth, $view, $flash, new SettingsTransfer(
@@ -753,6 +775,7 @@ final class Kernel
                 new CommentSettings($kernel->config, $kernel->audit),
                 new DownloadSettings($kernel->config, $kernel->database, $kernel->audit),
                 new FeedSettings($kernel->config, $kernel->database, $kernel->audit),
+                new ClassificationLabelSettings($kernel->config, $kernel->database, $kernel->audit),
                 new NewsSettings($kernel->config, $kernel->database, $kernel->audit),
                 new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit),
                 $editorSettings,
@@ -765,6 +788,23 @@ final class Kernel
                 $kernel->audit,
                 $version,
             )),
+            new SeriesController($kernel->auth, $view, $flash, $kernel->series ?? throw new \LogicException('Built at boot.'), $stories, $kernel->config),
+            new CollectionController($kernel->auth, $view, $flash, $kernel->collections ?? throw new \LogicException('Built at boot.'), $stories, $kernel->config),
+            new GroupingSettingsController($kernel->auth, $view, $flash, new GroupingSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new ExportController($kernel->auth, $view, $flash, new ExportService(
+                $kernel->database,
+                $kernel->config,
+                $kernel->audit,
+                $stories,
+                $chapters,
+                $taxonomy,
+                $kernel->users,
+                $kernel->series ?? throw new \LogicException('Built at boot.'),
+                $kernel->collections ?? throw new \LogicException('Built at boot.'),
+                new CoverImageStore($root . '/content/uploads/covers'),
+                $root . '/storage/cache/exports',
+                $version,
+            ), $stories),
         );
     }
 

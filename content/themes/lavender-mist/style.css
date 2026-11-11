@@ -2702,6 +2702,168 @@ select.lf-form__input option,
     }
 }
 
+/* Series and collections: the line that places a story in its series, the collections it belongs to, and the pages for a
+   series, a collection and the list of collections. Colours come from the tokens, so dark mode follows without extra rules. */
+.lf-story-groupings {
+    margin: 0.5rem 0 0;
+}
+
+.lf-series-line {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 1.05rem;
+}
+
+.lf-series-line__part {
+    color: var(--lf-text);
+    font-weight: 600;
+}
+
+.lf-series-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-series-nav__link {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    text-decoration: none;
+}
+
+.lf-series-nav__link:hover,
+.lf-series-nav__link:focus-visible {
+    background: var(--lf-surface);
+}
+
+.lf-collections-line {
+    margin: 0.5rem 0 0;
+    color: var(--lf-muted);
+}
+
+.lf-collections-line__list {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-collections-line__item {
+    display: inline;
+}
+
+.lf-collections-line__item + .lf-collections-line__item::before {
+    content: ", ";
+}
+
+.lf-series__byline,
+.lf-collection__curator {
+    margin: 0 0 0.75rem;
+    color: var(--lf-muted);
+    font-size: 1.1rem;
+}
+
+.lf-collection__private {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.9rem;
+    background: var(--lf-info-bg);
+    border: 1px solid var(--lf-info-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-series__header,
+.lf-collection__header {
+    margin-bottom: 1.5rem;
+}
+
+/* A summary or description keeps the line breaks its author typed. */
+.lf-series__summary,
+.lf-collection__description {
+    white-space: pre-line;
+}
+
+.lf-series__facts {
+    margin-top: 1rem;
+}
+
+.lf-series-line__link {
+    font-weight: 600;
+}
+
+.lf-series-nav__item {
+    margin: 0;
+}
+
+.lf-collections-line__label {
+    margin-right: 0.25rem;
+}
+
+/* The stories of a series are numbered, so the order is plain to see. */
+.lf-story-list--series {
+    counter-reset: lf-series-part;
+}
+
+.lf-story-list--series > .lf-story-list__item {
+    position: relative;
+    padding-left: 2.75rem;
+    counter-increment: lf-series-part;
+}
+
+.lf-story-list--series > .lf-story-list__item::before {
+    content: counter(lf-series-part);
+    position: absolute;
+    top: 0.9rem;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: var(--lf-surface-strong);
+    border: 1px solid var(--lf-border);
+    border-radius: 50%;
+    font-weight: 600;
+}
+
+.lf-collection-list {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-collection-list__item {
+    margin: 0;
+}
+
+.lf-collection-card {
+    padding: 1rem 1.25rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-collection-card__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+}
+
+.lf-collection-card__meta {
+    margin: 0 0 0.5rem;
+    color: var(--lf-muted);
+    font-size: 0.95rem;
+}
+
+.lf-collection-card__description {
+    margin: 0;
+}
+
 /* ==========================================================================
    12. Motion, forced colours and print
    ========================================================================== */

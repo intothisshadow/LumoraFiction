@@ -26,6 +26,7 @@ lf_get_header();
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <?php lf_feed_link(); ?>
         <p class="lf-story__byline">by <?php lf_field('story.author'); ?></p>
+        <?php lf_part('story-groupings'); ?>
         <p class="lf-story__meta"><?php lf_field('story.status'); ?> &middot; <?php lf_field('story.words'); ?> words &middot; <?php lf_field('story.language'); ?></p>
         <?php if (lf_has('continue.url')): ?>
             <p class="lf-story__actions"><a href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>

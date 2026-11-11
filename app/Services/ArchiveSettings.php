@@ -61,15 +61,25 @@ final class ArchiveSettings
     }
 
     /**
+     * The archive mode, falling back to "both" for a missing or damaged value. The one place that reads it, so every
+     * rule that depends on the mode agrees on what it is.
+     */
+    public static function modeOf(Configuration $config): string
+    {
+        $mode = $config->setting('archive.mode');
+
+        return is_string($mode) && isset(self::MODES[$mode]) ? $mode : 'both';
+    }
+
+    /**
      * @return array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool}
      */
     public function current(): array
     {
-        $mode = $this->config->setting('archive.mode');
         $role = $this->config->setting('registration.default_role');
 
         return [
-            'archive_mode' => is_string($mode) && isset(self::MODES[$mode]) ? $mode : 'both',
+            'archive_mode' => self::modeOf($this->config),
             // Anything other than a real "true" counts as closed, matching how the registration code reads it.
             'registration_enabled' => $this->config->setting('registration.enabled') === true,
             'default_role' => is_string($role) && in_array($role, self::roleValues(), true) ? $role : UserRole::Reader->value,

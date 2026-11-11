@@ -21,6 +21,7 @@ use Closure;
 use JsonException;
 use LumoraFiction\Core\Theme\ThemeCatalog;
 use LumoraFiction\Models\Capability;
+use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 
 /**
@@ -51,6 +52,7 @@ final class SettingsTransfer
         private readonly CommentSettings $comments,
         private readonly DownloadSettings $downloads,
         private readonly FeedSettings $feeds,
+        private readonly ClassificationLabelSettings $classification,
         private readonly NewsSettings $news,
         private readonly FrontPageSettings $frontPage,
         private readonly EditorSettings $editor,
@@ -274,6 +276,47 @@ final class SettingsTransfer
             : [];
     }
 
+    /**
+     * The site's own names for the kinds as one flat map of "{kind}_singular" and "{kind}_plural", the shape a settings
+     * file can hold.
+     *
+     * @param array<string, array{singular: string, plural: string}> $labels
+     * @return array<string, string>
+     */
+    private function flattenLabels(array $labels): array
+    {
+        $flat = [];
+
+        foreach ($labels as $kind => $entry) {
+            $flat[$kind . '_singular'] = $entry['singular'];
+            $flat[$kind . '_plural'] = $entry['plural'];
+        }
+
+        return $flat;
+    }
+
+    /**
+     * The reverse of flattenLabels(). A key that names no kind is dropped, and the check that follows then refuses the
+     * file because what comes back differs from what went in.
+     *
+     * @return array<string, array{singular: string, plural: string}>
+     */
+    private function expandLabels(mixed $flat): array
+    {
+        $labels = [];
+
+        foreach (is_array($flat) ? $flat : [] as $key => $word) {
+            if (!is_string($key) || !is_string($word) || preg_match('/^([a-z_]+)_(singular|plural)\z/', $key, $match) !== 1 || TermType::tryFrom($match[1]) === null) {
+                continue;
+            }
+
+            $labels[$match[1]] ??= ['singular' => '', 'plural' => ''];
+            $labels[$match[1]][$match[2]] = $word;
+        }
+
+        return $labels;
+    }
+
     private function hasType(mixed $value, string $type): bool
     {
         return match ($type) {
@@ -393,6 +436,23 @@ final class SettingsTransfer
                 'validate' => fn (array $in): array => $this->feeds->validate($in['kinds'], $in['json'], (string) $in['limit'], $in['full_text']),
                 'save' => function (array $values, User $actor, string $ip): void {
                     $this->feeds->save($values, $actor, $ip);
+                },
+            ],
+            'classification' => [
+                'label' => 'Classification',
+                'fields' => ['labels' => 'map'],
+                'current' => fn (): array => ['labels' => $this->flattenLabels($this->classification->current())],
+                'validate' => function (array $in): array {
+                    // Every kind is accepted whatever the archive mode, so a file from a site with another mode still imports.
+                    $result = $this->classification->validate($this->expandLabels($in['labels']), TermType::cases());
+
+                    return [
+                        'errors' => $result['errors'] === [] ? [] : ['labels' => reset($result['errors'])],
+                        'values' => ['labels' => $this->flattenLabels($result['values'])],
+                    ];
+                },
+                'save' => function (array $values, User $actor, string $ip): void {
+                    $this->classification->save($this->expandLabels($values['labels']), $actor, $ip);
                 },
             ],
             'news' => [

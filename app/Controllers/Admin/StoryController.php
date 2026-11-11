@@ -40,6 +40,10 @@ use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\DownloadAccess;
 use LumoraFiction\Services\DownloadSettings;
+use LumoraFiction\Services\ExportService;
+use LumoraFiction\Services\GroupingException;
+use LumoraFiction\Services\GroupingSettings;
+use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
@@ -80,6 +84,7 @@ final class StoryController extends WriterController
         private readonly ?DownloadAccess $downloads = null,
         private readonly ?Configuration $config = null,
         private readonly ?CommentService $comments = null,
+        private readonly ?SeriesService $series = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -228,9 +233,61 @@ final class StoryController extends WriterController
             return $this->missing($exception->getMessage());
         }
 
+        $seriesProblem = $this->assignSeries($user, $story, $request);
+
         $this->flash->add('success', 'The story was saved.');
 
+        if ($seriesProblem !== '') {
+            $this->flash->add('error', 'The story was saved, but its series was not changed: ' . $seriesProblem);
+        }
+
         return Response::redirect(AdminUrl::to(self::PATH . '/' . $story->id), 303);
+    }
+
+    /**
+     * Applies the series choice of the story form. A form that does not carry the field (an older page left open, or one
+     * made while series were off) leaves the story where it is.
+     *
+     * @return string the reason it could not be done, or an empty string
+     */
+    private function assignSeries(User $user, Story $story, Request $request): string
+    {
+        if ($this->series === null || $this->config === null || !GroupingSettings::seriesEnabled($this->config) || $request->input('series_id') === null) {
+            return '';
+        }
+
+        $seriesId = (int) $request->input('series_id');
+        $position = preg_match('/^[1-9][0-9]{0,3}\z/', trim((string) $request->input('series_position'))) === 1 ? (int) trim((string) $request->input('series_position')) : null;
+
+        try {
+            $this->series->assign($user, $story->id, $seriesId > 0 ? $seriesId : null, $position, $request->ip());
+        } catch (GroupingException $exception) {
+            return $exception->getMessage();
+        }
+
+        return '';
+    }
+
+    /**
+     * What the story form shows for series: the person's own series to choose from, and where this story stands now.
+     *
+     * @return array{options: list<array{id: int, title: string}>, current: int, position: string, manageUrl: string}|null
+     */
+    private function seriesChoice(?Story $story): ?array
+    {
+        if ($story === null || $this->series === null || $this->config === null || !GroupingSettings::seriesEnabled($this->config)) {
+            return null;
+        }
+
+        $current = $this->series->forStory($story->id);
+        $position = $current === null ? null : $this->series->positionOf($story->id);
+
+        return [
+            'options' => array_map(static fn ($series): array => ['id' => $series->id, 'title' => $series->title], $this->series->ownedBy($story->ownerId)),
+            'current' => $current === null ? 0 : $current->id,
+            'position' => $position === null ? '' : (string) $position,
+            'manageUrl' => AdminUrl::to('series'),
+        ];
     }
 
     /**
@@ -607,6 +664,10 @@ final class StoryController extends WriterController
         $base = $story === null ? AdminUrl::to(self::PATH) : AdminUrl::to(self::PATH . '/' . $story->id);
 
         return $this->view->render('story-form', [
+            'labels' => $this->taxonomy->labels(),
+            'seriesChoice' => $this->seriesChoice($story),
+            'exportUrl' => $story !== null && ExportService::available() ? AdminUrl::to('export/story') : '',
+            'exportToken' => Csrf::token('admin_export'),
             'story' => $story,
             'values' => $values,
             'fields' => $fields,

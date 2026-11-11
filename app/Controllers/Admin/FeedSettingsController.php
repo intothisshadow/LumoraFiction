@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -39,6 +40,7 @@ final class FeedSettingsController extends AdminController
         AdminView $view,
         FlashMessages $flash,
         private readonly FeedSettings $settings,
+        private readonly Configuration $config,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -97,14 +99,21 @@ final class FeedSettingsController extends AdminController
     private function page(Request $request, User $user, array $values, array $errors, int $status = 200): Response
     {
         $kinds = [];
+        $hidden = [];
+        $listed = FeedSettings::listedKinds($this->config);
 
         foreach (FeedSettings::KINDS as $kind => $label) {
-            $kinds[] = ['value' => $kind, 'label' => $label, 'checked' => in_array($kind, $values['kinds'], true)];
+            if (in_array($kind, $listed, true)) {
+                $kinds[] = ['value' => $kind, 'label' => $label, 'checked' => in_array($kind, $values['kinds'], true)];
+            } else {
+                $hidden[] = lcfirst($label);
+            }
         }
 
         return $this->view->render('settings-feeds', [
             'values' => $values,
             'kinds' => $kinds,
+            'hidden' => $hidden,
             'errors' => $errors,
             'minLimit' => FeedSettings::MIN_LIMIT,
             'maxLimit' => FeedSettings::MAX_LIMIT,

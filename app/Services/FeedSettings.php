@@ -20,6 +20,7 @@ namespace LumoraFiction\Services;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Models\Capability;
+use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 
 /**
@@ -39,17 +40,20 @@ final class FeedSettings
         'site' => 'The whole site: recently published and updated stories',
         'author' => 'Each author: their stories',
         'fandom' => 'Each fandom',
+        'category' => 'Each category',
         'character' => 'Each character',
         'relationship' => 'Each relationship',
         'genre' => 'Each genre',
         'tag' => 'Each tag',
+        'series' => 'Each series',
+        'collection' => 'Each collection',
         'story' => 'Each story: its new chapters',
         'comments' => 'Each story: its comments',
         'news' => 'News posts',
     ];
 
     public const DEFAULTS = [
-        'feeds.kinds' => ['site', 'author', 'fandom', 'character', 'relationship', 'genre', 'tag', 'story', 'news'],
+        'feeds.kinds' => ['site', 'author', 'fandom', 'category', 'character', 'relationship', 'genre', 'tag', 'series', 'collection', 'story', 'news'],
         'feeds.json' => true,
         'feeds.limit' => self::DEFAULT_LIMIT,
         'feeds.full_text' => true,
@@ -63,7 +67,8 @@ final class FeedSettings
     }
 
     /**
-     * The kinds that are on, in the fixed order of KINDS. A name this version does not know is ignored.
+     * The kinds that are ticked, in the fixed order of KINDS, whatever the archive mode: a kind the mode hides keeps its
+     * tick, so switching the mode back restores it. A name this version does not know is ignored.
      *
      * @return list<string>
      */
@@ -75,9 +80,39 @@ final class FeedSettings
         return array_values(array_filter(array_keys(self::KINDS), static fn (string $kind): bool => in_array($kind, $chosen, true)));
     }
 
+    /**
+     * Whether the archive mode allows this kind at all. A feed of a kind of term follows the term's own rule (original
+     * fiction has no fandoms, fanfiction has no categories); the other kinds are open in every mode.
+     */
+    public static function modeAllows(Configuration $config, string $kind): bool
+    {
+        $type = TermType::tryFrom($kind);
+
+        return $type === null || $type->availableIn(ArchiveSettings::modeOf($config));
+    }
+
+    /**
+     * The kinds the settings screen lists: the ones the archive mode and the series and collections switches have not turned off.
+     *
+     * @return list<string>
+     */
+    public static function listedKinds(Configuration $config): array
+    {
+        return array_values(array_filter(array_keys(self::KINDS), static fn (string $kind): bool => self::available($config, $kind)));
+    }
+
     public static function kindEnabled(Configuration $config, string $kind): bool
     {
-        return in_array($kind, self::kinds($config), true);
+        return self::available($config, $kind) && in_array($kind, self::kinds($config), true);
+    }
+
+    /**
+     * The one rule for a kind the site cannot offer at all: the archive mode has no such kind, or the feature it is about
+     * (series, collections) is switched off. What was ticked for it is kept.
+     */
+    private static function available(Configuration $config, string $kind): bool
+    {
+        return self::modeAllows($config, $kind) && GroupingSettings::kindOn($config, $kind);
     }
 
     /**
@@ -131,8 +166,13 @@ final class FeedSettings
      */
     public function validate(array $kinds, bool $json, string $limit, bool $fullText): array
     {
-        // Kept in the fixed order whatever order the browser sent them in.
-        $chosen = array_values(array_filter(array_keys(self::KINDS), static fn (string $kind): bool => in_array($kind, $kinds, true)));
+        // Kept in the fixed order whatever order the browser sent them in. A kind the archive mode hides is not on the
+        // form, so what was saved for it stays and a hand-made post cannot change it.
+        $stored = self::kinds($this->config);
+        $chosen = array_values(array_filter(
+            array_keys(self::KINDS),
+            fn (string $kind): bool => in_array($kind, self::available($this->config, $kind) ? $kinds : $stored, true),
+        ));
         $errors = [];
         $number = filter_var(trim($limit), FILTER_VALIDATE_INT);
 

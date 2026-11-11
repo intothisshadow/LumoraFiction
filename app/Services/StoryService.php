@@ -708,6 +708,28 @@ final class StoryService
     }
 
     /**
+     * Takes a story out of its series, closing the gap so the parts stay numbered 1, 2, 3, and out of every collection. The
+     * series and the collections are left as they are. Runs inside the caller's transaction.
+     */
+    private function removeFromGroupings(int $storyId): void
+    {
+        $seriesId = $this->database->fetchColumn('SELECT series_id FROM {prefix}series_stories WHERE story_id = :id', ['id' => $storyId]);
+
+        $this->database->execute('DELETE FROM {prefix}series_stories WHERE story_id = :id', ['id' => $storyId]);
+        $this->database->execute('DELETE FROM {prefix}collection_stories WHERE story_id = :id', ['id' => $storyId]);
+
+        if ($seriesId === null || $seriesId === false) {
+            return;
+        }
+
+        $position = 1;
+
+        foreach ($this->database->fetchAll('SELECT story_id FROM {prefix}series_stories WHERE series_id = :id ORDER BY position ASC, story_id ASC', ['id' => $seriesId]) as $row) {
+            $this->database->execute('UPDATE {prefix}series_stories SET position = :position WHERE series_id = :series AND story_id = :story', ['position' => $position++, 'series' => $seriesId, 'story' => (int) $row['story_id']]);
+        }
+    }
+
+    /**
      * Deletes a story and everything that hangs off it. $actor is null when the retention period does the removing.
      */
     private function remove(Story $story, ?User $actor, string $ipAddress): void
@@ -722,6 +744,8 @@ final class StoryService
             $this->database->execute('DELETE r FROM {prefix}comment_reports r JOIN {prefix}comments m ON m.id = r.comment_id WHERE m.story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}comments WHERE story_id = :id', ['id' => $story->id]);
             $this->database->execute('DELETE FROM {prefix}comment_closures WHERE story_id = :id', ['id' => $story->id]);
+            // Only the links: the series and the collections, and the other stories in them, stay as they were.
+            $this->removeFromGroupings($story->id);
             $this->database->execute('DELETE FROM {prefix}stories WHERE id = :id', ['id' => $story->id]);
             $this->audit->record($actor?->id, $actor === null ? 'story.purge' : 'story.delete', 'story', (string) $story->id, ['title' => $story->title, 'owner' => $story->ownerId], $ipAddress);
         });
