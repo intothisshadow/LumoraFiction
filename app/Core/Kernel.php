@@ -209,6 +209,8 @@ use LumoraFiction\Services\StoryNotifier;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Core\Media\AvatarImageStore;
 use LumoraFiction\Core\Media\CoverImageStore;
+use LumoraFiction\Core\Media\ThemePictureStore;
+use LumoraFiction\Services\ThemePictures;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\StoryService;
@@ -430,7 +432,8 @@ final class Kernel
         $version = require $root . '/version.php';
 
         $themeCatalog = new ThemeCatalog($root . '/content/themes', __DIR__ . '/Theme/fallback');
-        $themeOptions = new ThemeOptions($config, $hooks, $audit);
+        $themePictures = new ThemePictures($root . '/content/uploads/theme-headers', 'content/uploads/theme-headers', new ThemePictureStore($root . '/content/uploads/theme-headers/uploaded'));
+        $themeOptions = new ThemeOptions($config, $hooks, $audit, $themePictures);
         $themes = new ThemeRenderer($themeCatalog, $config, $hooks, $themeOptions, $errors, $version['version']);
 
         $kernel = new self($config, $database, $errors, $hooks, $router, $sessions, $users, $auth, $audit, $themes, $isHttps, $proxies);

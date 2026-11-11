@@ -184,6 +184,7 @@ The page links the options stylesheet of the theme it is drawn in, by name: `/th
 | Tag | Purpose |
 | --- | ------- |
 | `lf_option(string $key)` | Print the value of one of the theme's options. |
+| `lf_option_class(string $key)` | Print an option's value as the end of a CSS class name (letters, digits and hyphens only). A picture choice such as `file:banner-sea.jpg` prints its kind, `file`; `upload` prints `upload`. |
 | `lf_option_enabled(string $key): bool` | Whether a checkbox option is on. |
 
 ## The data each view receives
@@ -392,11 +393,27 @@ add_filter('theme_option_fields', function (array $fields): array {
 | --- | ------- |
 | `key` | Lower-case letters, digits and underscores, starting with a letter. |
 | `label` | The label on the screen. |
-| `type` | `color` (a `#rrggbb` value), `select`, or `checkbox`. |
+| `type` | `color` (a `#rrggbb` value), `select`, `checkbox`, or `image` (one uploaded picture). |
 | `choices` | For `select`: value => label. |
-| `css_variable` | Optional, for `color` and `select`: a custom property such as `--lf-accent`. |
-| `default` | The starting value, for options without a CSS variable. |
+| `css_variable` | Optional, for `color`, `select` and `image`: a custom property such as `--lf-accent`. For `image` it holds `url("…")` of the uploaded picture. |
+| `pictures` | Optional, for `select`: `['variable' => '--lf-header-picture', 'upload' => 'header_upload']`. See "Pictures" below. |
+| `default` | The starting value, for options without a CSS variable. An `image` never has one. |
 | `hint` | Help text under the field. |
+
+### Pictures
+
+An `image` field gives the administrator a file input on the options screen. The picture goes through the same checks as a story cover (a real JPEG, PNG or WebP, never SVG; re-encoded under a generated name; at most 1600 pixels wide, with a smaller preview), and is stored under `content/uploads/theme-headers/uploaded/`. The form becomes a file form on its own while the theme has an image field. Replacing or removing the picture deletes the old files, and an upload that fails keeps the previous picture. Nothing is printed, and no custom property is written, until a picture is set.
+
+A `select` with a `pictures` setting also offers the pictures an administrator has added by FTP to `content/uploads/theme-headers/`, which a theme update never touches. A file is listed when its name is `banner-{words}.{jpg|jpeg|png|webp|svg}` in lower case (`banner-sea-glass.jpg` is "Sea glass"), a picture is really the kind its extension says, and an SVG carries no script, event handler or reference to another file. When `upload` names an `image` field that holds a picture, the select lists **Uploaded picture** as well.
+
+The chosen picture reaches the stylesheet as the custom property named in `variable`, in the generated options stylesheet. Its address is never written into a template. The select's value is `file:{file name}` for a picture from the folder and `upload` for the uploaded one, and a value that no longer matches a file (it was deleted) falls back to the field's default. In a template print the kind with `lf_option_class('header_image')`, which gives `file` or `upload` for these two and the plain value for any other choice, so one rule per kind is enough:
+
+```css
+.lf-site-banner--file,
+.lf-site-banner--upload { background-image: var(--lf-header-picture); }
+```
+
+A settings file (**Settings > Export and import**) never carries a picture: pictures are left as they are on import.
 
 **An option with a CSS variable never has a default of its own.** It starts as "use the theme's own value", and nothing is written to the stylesheet until an administrator picks something. The options stylesheet loads after the theme's, so a default would silently replace the design you chose. Put your real default in `style.css`, and let the variable override it only when chosen:
 
@@ -436,7 +453,7 @@ The template tags are the boundary between a theme and the application. PHP cann
 
 **Classic Archive** (`content/themes/classic-archive/`) also starts from Storybook's templates, with the same files and parts, and shows two patterns:
 
-- **An optional decorative picture without a new field type.** The pictures ship in the theme's `images/` folder. A `checkbox` option (`show_header_image`, default off) decides whether `header.php` prints the band, and a `select` option without a `css_variable` (`header_image`) supplies a modifier class, so `lf-site-banner--dusk` is the rule that names `images/banner-dusk.svg`. Nothing is injected over the stylesheet and no template carries an inline style. The band is `aria-hidden` and left out of the print rules.
+- **An optional decorative picture.** Three pictures ship in the theme's `images/` folder. A `checkbox` option (`show_header_image`, default off) decides whether `header.php` prints the band, and a `select` option without a `css_variable` (`header_image`) supplies a modifier class through `lf_option_class()`, so `lf-site-banner--dusk` is the rule that names `images/banner-dusk.svg`. The same select has a `pictures` setting and a sibling `image` field (`header_upload`), so it also lists pictures added by FTP and the administrator's own upload, which one rule per kind (`--file`, `--upload`) draws from `--lf-header-picture`. Nothing is injected over the stylesheet unless one of those two is chosen, and no template carries an inline style. The band is `aria-hidden` and left out of the print rules.
 - **A card drawn from the same data in another layout.** `parts/story-card.php` reads the same `story` array and sorts its `term_groups` by `type`: the first rating becomes a square, fandoms become a bold line, and every other group becomes one tag list with an `lf-tag--{type}` class. It derives nothing about meaning (a rating's colour, whether a warning "applies"), because the vocabulary is the site's own.
 
 ## The built-in theme

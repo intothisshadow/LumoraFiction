@@ -269,6 +269,12 @@ img {
     background-image: url("images/banner-meadow.svg");
 }
 
+/* A picture added by FTP or uploaded in the theme options; the address arrives as a custom property in the generated options stylesheet. */
+.lf-site-banner--file,
+.lf-site-banner--upload {
+    background-image: var(--lf-header-picture);
+}
+
 @media (max-width: 34rem) {
     .lf-site-banner {
         height: 6.5rem;

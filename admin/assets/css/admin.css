@@ -1515,6 +1515,15 @@ fieldset.lf-card legend {
     font-weight: normal;
 }
 
+/* The picture a theme option holds, shown above its file input; the border keeps a pale picture visible in both colour schemes. */
+.lf-option-picture {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
 /* Sign-in and other pages without a menu */
 
 .lf-bare {

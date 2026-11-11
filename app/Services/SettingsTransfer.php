@@ -524,7 +524,7 @@ final class SettingsTransfer
             'visitor_choice' => $this->themeChoice->enabled(),
             'visitor_themes' => $this->themeChoice->ticked(),
             // Options are only known for the theme in use, so that is the only one a file can carry.
-            'options' => $active === '' ? [] : $this->themeOptions->values($active),
+            'options' => $active === '' ? [] : array_diff_key($this->themeOptions->values($active), array_flip($this->themeOptions->imageKeys())),
         ];
     }
 
@@ -559,13 +559,15 @@ final class SettingsTransfer
         if ($values['active'] !== $current['active'] || $current['active'] === '') {
             $values['options'] = $current['options'];
         } else {
-            $checked = $this->themeOptions->validate($current['active'], $in['options']);
+            // A picture is a file on this server, so a settings file can neither carry one nor point at one; the pictures stay as they are.
+            $options = array_diff_key($in['options'], array_flip($this->themeOptions->imageKeys()));
+            $checked = $this->themeOptions->validate($current['active'], $options);
 
             foreach ($checked['errors'] as $key => $message) {
                 $errors['options'] = $this->humanise((string) $key) . ': ' . $message;
             }
 
-            $values['options'] = $errors === [] || !isset($errors['options']) ? $checked['values'] : $current['options'];
+            $values['options'] = $errors === [] || !isset($errors['options']) ? array_diff_key($checked['values'], array_flip($this->themeOptions->imageKeys())) : $current['options'];
         }
 
         return ['errors' => $errors, 'values' => $values];

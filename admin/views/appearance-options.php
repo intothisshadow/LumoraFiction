@@ -18,7 +18,8 @@ declare(strict_types=1);
 use LumoraFiction\Helpers\Html;
 
 /** @var string $themeName */
-/** @var list<array{key: string, label: string, type: string, css_variable: string, choices: array<string, string>, default: string|bool, hint: string}> $fields */
+/** @var list<array{key: string, label: string, type: string, css_variable: string, choices: array<string, string>, default: string|bool, hint: string, preview: string}> $fields */
+/** @var bool $hasUpload */
 /** @var array<string, string|bool> $values */
 /** @var array<string, string> $errors */
 /** @var string $csrfToken */
@@ -38,7 +39,7 @@ use LumoraFiction\Helpers\Html;
 <?php if ($fields === []): ?>
     <p class="lf-lead"><?= Html::e($themeName) ?> has no options to change.</p>
 <?php else: ?>
-    <form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate>
+    <form method="post" action="<?= Html::e($action) ?>" class="lf-form" novalidate<?= $hasUpload ? ' enctype="multipart/form-data"' : '' ?>>
         <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
 
         <fieldset class="lf-card">
@@ -69,6 +70,18 @@ use LumoraFiction\Helpers\Html;
                                 <option value="<?= Html::e((string) $choice) ?>"<?= (string) $value === (string) $choice ? ' selected' : '' ?>><?= Html::e($label) ?></option>
                             <?php endforeach; ?>
                         </select>
+                    <?php elseif ($field['type'] === 'image'): ?>
+                        <label for="<?= Html::e($id) ?>"><?= Html::e($field['label']) ?></label>
+                        <?php if ($field['preview'] !== ''): ?>
+                            <p><img src="<?= Html::e($field['preview']) ?>" alt="" class="lf-option-picture" width="320"></p>
+                        <?php endif; ?>
+                        <input type="file" id="<?= Html::e($id) ?>" name="<?= Html::e($id) ?>" accept="image/jpeg,image/png,image/webp"<?= $describedBy ?>>
+                        <?php if ($field['preview'] !== ''): ?>
+                            <span class="lf-choice lf-choice--inline">
+                                <input type="checkbox" id="remove_<?= Html::e($key) ?>" name="remove_<?= Html::e($key) ?>" value="1">
+                                <label for="remove_<?= Html::e($key) ?>">Remove this picture</label>
+                            </span>
+                        <?php endif; ?>
                     <?php else: ?>
                         <label for="<?= Html::e($id) ?>"><?= Html::e($field['label']) ?></label>
                         <input type="color" id="<?= Html::e($id) ?>" name="<?= Html::e($id) ?>" value="<?= Html::e(is_string($value) && $value !== '' ? $value : '#000000') ?>"<?= $describedBy ?>>

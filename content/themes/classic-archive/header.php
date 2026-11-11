@@ -38,7 +38,7 @@ declare(strict_types=1);
 </div>
 <?php if (lf_option_enabled('show_header_image')): ?>
     <?php // Decorative only: the picture is a background chosen in the theme's options, so it carries no text alternative. ?>
-    <div class="lf-site-banner lf-site-banner--<?php lf_option('header_image'); ?>" aria-hidden="true"></div>
+    <div class="lf-site-banner lf-site-banner--<?php lf_option_class('header_image'); ?>" aria-hidden="true"></div>
 <?php endif; ?>
 <div class="lf-site-nav-wrap">
     <div class="lf-site-nav">

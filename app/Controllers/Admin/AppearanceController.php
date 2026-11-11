@@ -395,10 +395,26 @@ final class AppearanceController extends AdminController
         $theme = $this->themes->activeTheme();
         $this->themes->bootTheme($theme);
 
+        // Nothing is stored for a form that fails the token check, so a forged request cannot fill the uploads folder.
+        if (!$this->validToken($request, 'admin_appearance_options')) {
+            $message = $this->exceedsServerLimit($request)
+                ? 'That upload is larger than this server accepts, so nothing was saved. Use a smaller picture.'
+                : 'Your session expired, so nothing was saved. Please check the options and save again.';
+
+            return $this->optionsPage($request, $user, $this->options->values($theme->slug), ['form' => $message], 400);
+        }
+
         $input = [];
+        $sent = [];
 
         foreach ($this->options->fields() as $field) {
             $name = 'opt_' . $field['key'];
+
+            if ($field['type'] === 'image') {
+                $sent[$field['key']] = ['upload' => $request->upload($name), 'remove' => $request->checked('remove_' . $field['key'])];
+
+                continue;
+            }
 
             $input[$field['key']] = match ($field['type']) {
                 'checkbox' => $request->checked($name),
@@ -408,14 +424,14 @@ final class AppearanceController extends AdminController
             };
         }
 
-        $result = $this->options->validate($theme->slug, $input);
+        $pictures = $this->options->receivePictures($theme->slug, $sent);
+        $result = $this->options->validate($theme->slug, $input + $pictures['images']);
+        $errors = $pictures['errors'] + $result['errors'];
 
-        if (!$this->validToken($request, 'admin_appearance_options')) {
-            return $this->optionsPage($request, $user, $result['values'], ['form' => 'Your session expired, so nothing was saved. Please check the options and save again.'], 400);
-        }
+        if ($errors !== []) {
+            $this->options->discardPictures($pictures['created']);
 
-        if ($result['errors'] !== []) {
-            return $this->optionsPage($request, $user, $result['values'], $result['errors'], 422);
+            return $this->optionsPage($request, $user, $result['values'], $errors, 422);
         }
 
         $changed = $this->options->save($theme->slug, $result['values'], $user, $request->ip());
@@ -459,7 +475,8 @@ final class AppearanceController extends AdminController
 
         return $this->view->render('appearance-options', [
             'themeName' => $theme->name,
-            'fields' => $this->options->fields(),
+            'fields' => $this->options->displayFields($values),
+            'hasUpload' => $this->options->hasImageField(),
             'values' => $values,
             'errors' => $errors,
             'csrfToken' => Csrf::token('admin_appearance_options'),

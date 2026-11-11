@@ -183,6 +183,17 @@ final class ThemeContext
         return self::printable($this->options[$key] ?? null);
     }
 
+    /**
+     * An option's value made safe to use as the end of a CSS class name. A picture choice such as "file:banner-sea.jpg"
+     * gives "file", the kind of picture, so a stylesheet needs one rule per kind and not one per file.
+     */
+    public function optionClass(string $key): string
+    {
+        $value = strtolower(strtok($this->option($key), ':') ?: '');
+
+        return preg_replace('/[^a-z0-9-]/', '', $value) ?? '';
+    }
+
     public function optionEnabled(string $key): bool
     {
         return ($this->options[$key] ?? false) === true;

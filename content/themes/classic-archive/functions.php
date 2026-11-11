@@ -52,7 +52,15 @@ add_filter('theme_option_fields', static function (array $fields): array {
             'meadow' => 'Meadow (soft green hills)',
         ],
         'default' => 'dusk',
-        'hint' => 'Used only when the picture band is switched on.',
+        // The picture choices beyond the three bundled ones (files added by FTP and the uploaded picture) reach the stylesheet as this variable.
+        'pictures' => ['variable' => '--lf-header-picture', 'upload' => 'header_upload'],
+        'hint' => 'Used only when the picture band is switched on. Pictures named banner-something.jpg (or .png, .webp, .svg) in content/uploads/theme-headers/ are listed here too.',
+    ];
+    $fields[] = [
+        'key' => 'header_upload',
+        'label' => 'Upload your own header picture',
+        'type' => 'image',
+        'hint' => 'A JPEG, PNG or WebP picture. A wide, short one (around 1600 by 300 pixels) suits the band, because it is cropped to fill it. After saving, choose "Uploaded picture" above.',
     ];
     $fields[] = [
         'key' => 'show_credit',

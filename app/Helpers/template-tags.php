@@ -297,6 +297,14 @@ if (!function_exists('lf_option')) {
     }
 }
 
+if (!function_exists('lf_option_class')) {
+    /** Prints an option's value as the end of a CSS class name; a picture choice prints its kind ("file" or "upload"). */
+    function lf_option_class(string $key): void
+    {
+        echo ThemeContext::current()?->optionClass($key) ?? '';
+    }
+}
+
 if (!function_exists('lf_option_enabled')) {
     /** Whether a checkbox option of the active theme is on. */
     function lf_option_enabled(string $key): bool

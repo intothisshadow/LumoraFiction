@@ -16,4 +16,7 @@ Open **Appearance > Themes**, find Classic Archive and press **Use this theme**.
 
 ## Theme options
 
-**Appearance > Theme options** offers the story text typeface (leave it on "use the theme's own" for the theme's serif), whether the footer shows the "Powered by" credit, and **Show a picture band under the site header**. The band is off until you turn it on; when it is on, choose Dusk, Ink or Meadow. The picture is decorative and is not printed.
+**Appearance > Theme options** offers the story text typeface (leave it on "use the theme's own" for the theme's serif), whether the footer shows the "Powered by" credit, and **Show a picture band under the site header**. The band is off until you turn it on; when it is on, choose Dusk, Ink or Meadow, a picture you added yourself, or your own upload. The picture is decorative and is not printed.
+
+- **Upload your own picture** on the same screen takes a JPEG, PNG or WebP picture. A wide, short one (around 1600 by 300 pixels) suits the band, because it is cropped to fill it. After saving, choose **Uploaded picture** in the list. **Remove this picture** deletes it.
+- **Add pictures by FTP.** Put a file named `banner-something.jpg` (also `.jpeg`, `.png`, `.webp` or `.svg`, in lower case) in `content/uploads/theme-headers/` and it appears in the list, so `banner-sea-glass.jpg` is "Sea glass". Keep a picture under 3 MB (an SVG under 256 KB). A file that is not really that kind of picture, or an SVG that contains script or links to other files, is not listed. Theme updates never touch this folder.
