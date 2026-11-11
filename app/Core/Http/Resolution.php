@@ -34,15 +34,16 @@ final class Resolution
         public readonly ?Closure $handler = null,
         public readonly array $params = [],
         public readonly array $allowedMethods = [],
+        public readonly ?string $name = null,
     ) {
     }
 
     /**
      * @param array<string, string> $params
      */
-    public static function found(callable $handler, array $params): self
+    public static function found(callable $handler, array $params, ?string $name = null): self
     {
-        return new self(200, $handler(...), $params);
+        return new self(200, $handler(...), $params, name: $name);
     }
 
     public static function notFound(): self

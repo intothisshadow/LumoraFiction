@@ -98,12 +98,13 @@ final class DashboardController extends AdminController
     /**
      * The latest entries of the activity log as sentences a person can read.
      *
-     * @return list<array{actor: string, text: string, at: \DateTimeImmutable}>
+     * @return list<array{actor: string, system: bool, text: string, at: \DateTimeImmutable}>
      */
     private function activity(): array
     {
         return array_map(fn (array $entry): array => [
             'actor' => $entry['actor'] ?? 'The system',
+            'system' => $entry['actor'] === null,
             'text' => $this->describer->describe($entry),
             'at' => $entry['at'],
         ], $this->audit->recent(8));

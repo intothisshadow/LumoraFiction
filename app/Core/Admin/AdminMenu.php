@@ -33,7 +33,7 @@ final class AdminMenu
     }
 
     /**
-     * @return list<array{slug: string, label: string, path: string, capability: Capability|null, children: list<array{slug: string, label: string, path: string, capability: Capability|null}>}>
+     * @return list<array{slug: string, label: string, path: string, capability: Capability|null, children: list<array{slug: string, label: string, path: string, capability: Capability|null, heading: bool}>}>
      */
     public function definition(): array
     {
@@ -144,20 +144,26 @@ final class AdminMenu
                 'path' => 'settings/archive',
                 'capability' => Capability::ManageSite,
                 'children' => [
+                    ['slug' => 'settings-heading-general', 'label' => 'General', 'path' => '', 'capability' => null, 'heading' => true],
                     ['slug' => 'settings-archive', 'label' => 'Archive', 'path' => 'settings/archive', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-security', 'label' => 'Security', 'path' => 'settings/security', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-front-page', 'label' => 'Front page', 'path' => 'settings/front-page', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-feeds', 'label' => 'Feeds', 'path' => 'settings/feeds', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-groupings', 'label' => 'Series and collections', 'path' => 'settings/series-collections', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-news','label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
-                    ['slug' => 'settings-comments', 'label' => 'Comments', 'path' => 'settings/comments', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-heading-reading', 'label' => 'Reading and discovery', 'path' => '', 'capability' => null, 'heading' => true],
+                    ['slug' => 'settings-feeds', 'label' => 'Feeds', 'path' => 'settings/feeds', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-search', 'label' => 'Search engines', 'path' => 'settings/search', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-redirects', 'label' => 'Redirects', 'path' => 'settings/redirects', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-cache', 'label' => 'Cache', 'path' => 'settings/cache', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-downloads', 'label' => 'Downloads', 'path' => 'settings/downloads', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-heading-community', 'label' => 'Community', 'path' => '', 'capability' => null, 'heading' => true],
+                    ['slug' => 'settings-comments', 'label' => 'Comments', 'path' => 'settings/comments', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-news', 'label' => 'News', 'path' => 'settings/news', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-heading-safety', 'label' => 'Safety and privacy', 'path' => '', 'capability' => null, 'heading' => true],
+                    ['slug' => 'settings-security', 'label' => 'Security', 'path' => 'settings/security', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-spam', 'label' => 'Spam protection', 'path' => 'settings/spam', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-privacy', 'label' => 'Privacy', 'path' => 'settings/privacy', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-heading-data', 'label' => 'Data', 'path' => '', 'capability' => null, 'heading' => true],
+                    ['slug' => 'settings-retention', 'label' => 'Retention', 'path' => 'settings/retention', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-transfer', 'label' => 'Export and import', 'path' => 'settings/transfer', 'capability' => Capability::ManageSite],
                 ],
             ],
@@ -201,6 +207,12 @@ final class AdminMenu
             $children = [];
 
             foreach ($item['children'] as $child) {
+                if ($child['heading'] ?? false) {
+                    $children[] = ['label' => $child['label'], 'url' => '', 'current' => false, 'count' => null, 'heading' => true];
+
+                    continue;
+                }
+
                 if ($child['capability'] !== null && !$user->can($child['capability'])) {
                     continue;
                 }
@@ -210,8 +222,11 @@ final class AdminMenu
                     'url' => AdminUrl::to($child['path']),
                     'current' => trim($child['path'], '/') === $currentPath,
                     'count' => ($counts[$child['slug']] ?? 0) > 0 ? $counts[$child['slug']] : null,
+                    'heading' => false,
                 ];
             }
+
+            $children = $this->withoutEmptyHeadings($children);
 
             $isCurrent = trim($item['path'], '/') === $currentPath;
             $childIsCurrent = in_array(true, array_column($children, 'current'), true);
@@ -231,6 +246,28 @@ final class AdminMenu
     }
 
     /**
+     * A heading stays only while an entry the person can see follows it before the next heading, so a heading never
+     * stands over nothing.
+     *
+     * @param list<array{label: string, url: string, current: bool, count: int|null, heading: bool}> $children
+     * @return list<array{label: string, url: string, current: bool, count: int|null, heading: bool}>
+     */
+    private function withoutEmptyHeadings(array $children): array
+    {
+        $kept = [];
+
+        foreach ($children as $index => $child) {
+            if ($child['heading'] && (!isset($children[$index + 1]) || $children[$index + 1]['heading'])) {
+                continue;
+            }
+
+            $kept[] = $child;
+        }
+
+        return $kept;
+    }
+
+    /**
      * A group that is folded still tells the person that something inside it is waiting.
      *
      * @param list<array{count?: int|null}> $children
@@ -247,7 +284,7 @@ final class AdminMenu
      * break its own menu item but never the whole sidebar.
      *
      * @param array<mixed> $items
-     * @return list<array{slug: string, label: string, path: string, capability: Capability|null, children: list<array{slug: string, label: string, path: string, capability: Capability|null}>}>
+     * @return list<array{slug: string, label: string, path: string, capability: Capability|null, children: list<array{slug: string, label: string, path: string, capability: Capability|null, heading: bool}>}>
      */
     private function sanitise(array $items): array
     {
@@ -277,7 +314,7 @@ final class AdminMenu
     }
 
     /**
-     * @return array{slug: string, label: string, path: string, capability: Capability|null}|null
+     * @return array{slug: string, label: string, path: string, capability: Capability|null, heading: bool}|null
      */
     private function entry(mixed $item): ?array
     {
@@ -297,6 +334,7 @@ final class AdminMenu
             $capability = Capability::ManageSite;
         }
 
-        return ['slug' => $item['slug'], 'label' => $item['label'], 'path' => $item['path'], 'capability' => $capability];
+        // A heading is a label with no address: it is never a link, so it needs no capability of its own.
+        return ['slug' => $item['slug'], 'label' => $item['label'], 'path' => $item['path'], 'capability' => $capability, 'heading' => ($item['heading'] ?? false) === true];
     }
 }

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * The privacy choices an administrator makes: which page is the privacy policy and what happens to the stories of a deleted account.
+ * The privacy choices an administrator makes: which page is the privacy policy, what happens to the stories of a deleted account, and the anonymous install ping switch.
  *
  * @package LumoraFiction
  * @subpackage Services
@@ -47,6 +47,7 @@ final class PrivacySettings
         'page_id' => 'privacy.page_id',
         'deleted_stories' => 'privacy.deleted_stories',
         'neutral_name' => 'privacy.neutral_name',
+        'ping_enabled' => 'ping.enabled',
     ];
 
     public function __construct(
@@ -58,7 +59,7 @@ final class PrivacySettings
     }
 
     /**
-     * @return array{page_id: int, deleted_stories: string, neutral_name: string}
+     * @return array{page_id: int, deleted_stories: string, neutral_name: string, ping_enabled: bool}
      */
     public function current(): array
     {
@@ -70,6 +71,7 @@ final class PrivacySettings
             'page_id' => is_int($page) && $page > 0 ? $page : 0,
             'deleted_stories' => is_string($choice) && isset(self::STORY_CHOICES[$choice]) ? $choice : 'keep',
             'neutral_name' => is_string($name) && trim($name) !== '' ? $name : self::DEFAULTS['privacy.neutral_name'],
+            'ping_enabled' => $this->config->setting('ping.enabled') === true,
         ];
     }
 
@@ -109,8 +111,10 @@ final class PrivacySettings
     }
 
     /**
-     * @param array{page_id: string|null, deleted_stories: string|null, neutral_name: string|null} $input
-     * @return array{errors: array<string, string>, values: array{page_id: int, deleted_stories: string, neutral_name: string}}
+     * A field left out of the input keeps its current value, so a settings file (which never carries the ping switch) cannot change it.
+     *
+     * @param array{page_id: string|null, deleted_stories: string|null, neutral_name: string|null, ping_enabled?: bool} $input
+     * @return array{errors: array<string, string>, values: array{page_id: int, deleted_stories: string, neutral_name: string, ping_enabled: bool}}
      */
     public function validate(array $input): array
     {
@@ -148,13 +152,15 @@ final class PrivacySettings
             $name = $current['neutral_name'];
         }
 
-        return ['errors' => $errors, 'values' => ['page_id' => $page, 'deleted_stories' => $choice, 'neutral_name' => $name]];
+        $ping = array_key_exists('ping_enabled', $input) ? $input['ping_enabled'] === true : $current['ping_enabled'];
+
+        return ['errors' => $errors, 'values' => ['page_id' => $page, 'deleted_stories' => $choice, 'neutral_name' => $name, 'ping_enabled' => $ping]];
     }
 
     /**
      * Saves only what changed and records it in the same transaction. Returns the names of the settings that changed.
      *
-     * @param array{page_id: int, deleted_stories: string, neutral_name: string} $values
+     * @param array{page_id: int, deleted_stories: string, neutral_name: string, ping_enabled: bool} $values
      * @return list<string>
      */
     public function save(array $values, User $actor, string $ipAddress): array

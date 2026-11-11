@@ -26,6 +26,9 @@ use InvalidArgumentException;
  */
 final class Router
 {
+    /** The name a match of the last-resort GET route carries (it is the static pages). */
+    public const FALLBACK_NAME = 'fallback';
+
     private const PLACEHOLDER = '#\{([a-zA-Z_][a-zA-Z0-9_]*)(\*)?\}#';
 
     /**
@@ -118,7 +121,7 @@ final class Router
                 }
             }
 
-            return Resolution::found($route['handler'], $params);
+            return Resolution::found($route['handler'], $params, $route['name']);
         }
 
         if ($allowed !== []) {
@@ -134,7 +137,7 @@ final class Router
                 }
             }
 
-            return Resolution::found($this->fallback['handler'], $params);
+            return Resolution::found($this->fallback['handler'], $params, self::FALLBACK_NAME);
         }
 
         return Resolution::notFound();

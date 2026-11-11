@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 use LumoraFiction\Helpers\Html;
 
-/** @var array{page_id: int, deleted_stories: string, neutral_name: string} $values */
+/** @var array{page_id: int, deleted_stories: string, neutral_name: string, ping_enabled: bool} $values */
 /** @var array<string, string> $errors */
 /** @var array<int, string> $pageChoices */
 /** @var array<string, string> $storyChoices */
@@ -26,6 +26,9 @@ use LumoraFiction\Helpers\Html;
 /** @var string $action */
 /** @var string $pagesUrl */
 /** @var string $requestsUrl */
+/** @var string $testPingUrl */
+/** @var string|null $installId */
+/** @var int|null $lastPing */
 ?>
 <?php if ($errors !== []): ?>
     <div class="lf-notice lf-notice--error" role="alert" id="lf-error-summary" tabindex="-1">
@@ -77,5 +80,28 @@ use LumoraFiction\Helpers\Html;
         </div>
     </fieldset>
 
+    <fieldset class="lf-card">
+        <legend>Anonymous install ping</legend>
+
+        <div class="lf-choice">
+            <input type="checkbox" id="ping_enabled" name="ping_enabled" value="1"<?= $values['ping_enabled'] ? ' checked' : '' ?> aria-describedby="ping_enabled_hint">
+            <label for="ping_enabled">Tell the Lumora Fiction project this site exists</label>
+        </div>
+        <p class="lf-hint" id="ping_enabled_hint">Off unless you turn it on. When on, this site sends three things about once a month, and only when an Administrator opens an admin page: a random install ID, the Lumora Fiction version and the PHP version. It never sends your site&rsquo;s address or name, any email address, any story, setting or visitor information. It helps the project see roughly how many sites are in use and which PHP versions can be dropped. Nothing on this site depends on it, and it is not part of the exported settings file.</p>
+
+        <dl class="lf-details-list">
+            <dt>Install ID</dt>
+            <dd><?= $installId !== null ? '<code>' . Html::e($installId) . '</code>' : 'Made when you first turn the ping on.' ?></dd>
+            <dt>Last tried</dt>
+            <dd><?= $lastPing !== null ? Html::e(gmdate('j F Y, H:i', $lastPing)) . ' UTC' : 'Never.' ?></dd>
+        </dl>
+    </fieldset>
+
     <p><button type="submit" class="lf-button">Save settings</button></p>
+</form>
+
+<form method="post" action="<?= Html::e($testPingUrl) ?>" class="lf-form">
+    <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+    <p><button type="submit" class="lf-button lf-button--secondary">Send a test ping now</button></p>
+    <p class="lf-hint">Sends one ping straight away, while the switch is on, and tells you whether it was accepted.</p>
 </form>

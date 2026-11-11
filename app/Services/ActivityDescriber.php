@@ -109,6 +109,8 @@ final class ActivityDescriber
         'term.move' => 'moved a classification term',
         'term.propose' => 'suggested a classification term',
         'term.rename' => 'renamed a classification term',
+        'sweep.run' => 'ran a Sweep cleanup',
+        'sweep.settings' => 'changed the Sweep settings',
         'term.review' => 'approved a classification term',
         'update.cancel_requested' => 'asked to cancel the update',
         'user.publishing_override' => 'changed whether someone\'s stories need approval',
@@ -120,6 +122,7 @@ final class ActivityDescriber
     /** @var array<string, string> the part of settings.{name}.update => how the screen is called */
     private const SETTINGS = [
         'archive' => 'archive',
+        'cache' => 'cache',
         'downloads' => 'download',
         'editor' => 'editor',
         'feeds' => 'feed',

@@ -29,8 +29,23 @@ final class AuditLogService
 {
     private const MAX_DETAILS_BYTES = 8000;
 
+    /** @var list<callable(string, ?string, ?string): void> */
+    private array $listeners = [];
+
     public function __construct(private readonly Database $database)
     {
+    }
+
+    /**
+     * Something that must follow every recorded change, such as emptying a page cache. Every content change already
+     * passes through here, so a listener hears all of them without each service calling it. A listener that fails is
+     * ignored: it must never undo or block the change that was just recorded.
+     *
+     * @param callable(string $action, ?string $targetType, ?string $targetId): void $listener
+     */
+    public function listen(callable $listener): void
+    {
+        $this->listeners[] = $listener;
     }
 
     /**
@@ -62,6 +77,14 @@ final class AuditLogService
                 'created' => date('Y-m-d H:i:s'),
             ],
         );
+
+        foreach ($this->listeners as $listener) {
+            try {
+                $listener($action, $targetType, $targetId);
+            } catch (\Throwable $exception) {
+                error_log('[AuditLogService] A listener failed: ' . $exception::class);
+            }
+        }
     }
 
     /**

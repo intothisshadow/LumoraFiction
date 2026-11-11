@@ -23,7 +23,7 @@ use CurlHandle;
  * Only https addresses are ever requested, certificates are always verified, and the size of an answer is capped as it
  * arrives, so a wrong or hostile server cannot fill the disk. The caller decides which hosts are acceptable.
  */
-final class HttpClient implements TokenAwareTransport
+final class HttpClient implements TokenAwareTransport, HttpPoster
 {
     private const CONNECT_TIMEOUT = 10;
 
@@ -64,6 +64,76 @@ final class HttpClient implements TokenAwareTransport
         });
 
         return $body;
+    }
+
+    /**
+     * No redirect is followed and no token is sent, so the data only ever goes to the address that was asked for.
+     */
+    public function postJson(string $url, string $json, int $timeout): int
+    {
+        $this->assertHttps($url);
+
+        if (function_exists('curl_init')) {
+            $handle = curl_init($url);
+
+            if (!$handle instanceof CurlHandle) {
+                throw new UpdateException('This server could not start an outgoing connection.');
+            }
+
+            curl_setopt_array($handle, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $json,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_CONNECTTIMEOUT => $timeout,
+                CURLOPT_TIMEOUT => $timeout,
+                CURLOPT_USERAGENT => $this->userAgent,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+                // The answer is not wanted; discarding it keeps a large one from being held in memory.
+                CURLOPT_WRITEFUNCTION => static fn (CurlHandle $curl, string $chunk): int => strlen($chunk),
+            ]);
+
+            if (curl_exec($handle) === false) {
+                throw new UpdateException('The connection failed: ' . $this->plain(curl_error($handle)));
+            }
+
+            return (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        }
+
+        if (ini_get('allow_url_fopen') !== '1' && strtolower((string) ini_get('allow_url_fopen')) !== 'on') {
+            throw new UpdateException('This server cannot make outgoing connections (it has neither cURL nor allow_url_fopen).');
+        }
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'timeout' => $timeout,
+                'follow_location' => 0,
+                'ignore_errors' => true,
+                'header' => "User-Agent: " . $this->userAgent . "\r\nContent-Type: application/json\r\n",
+                'content' => $json,
+            ],
+            'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+        ]);
+
+        $stream = fopen($url, 'rb', false, $context);
+
+        if ($stream === false) {
+            throw new UpdateException('The connection failed.');
+        }
+
+        $status = 0;
+
+        foreach (stream_get_meta_data($stream)['wrapper_data'] ?? [] as $header) {
+            if (is_string($header) && preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $match) === 1) {
+                $status = (int) $match[1];
+            }
+        }
+
+        fclose($stream);
+
+        return $status;
     }
 
     public function download(string $url, string $destination, int $maxBytes): int

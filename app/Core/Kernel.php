@@ -85,6 +85,11 @@ use LumoraFiction\Controllers\Admin\PrivacySettingsController;
 use LumoraFiction\Controllers\PrivacyController;
 use LumoraFiction\Services\AccountDataExporter;
 use LumoraFiction\Services\AccountDeletionService;
+use LumoraFiction\Services\InstallPingService;
+use LumoraFiction\Services\CacheSettings;
+use LumoraFiction\Core\Cache\PageCache;
+use LumoraFiction\Core\Cache\PurgeRules;
+use LumoraFiction\Controllers\Admin\CacheSettingsController;
 use LumoraFiction\Services\PrivacySettings;
 use LumoraFiction\Controllers\Admin\PageController as AdminPageController;
 use LumoraFiction\Controllers\PageController;
@@ -296,9 +301,23 @@ final class Kernel
      */
     public ?PrivacySettings $privacy = null;
 
+    public ?InstallPingService $installPing = null;
+
+    /** Cache headers, conditional answers and purge instructions for public pages. */
+    public ?PageCache $pageCache = null;
+
     public ?AccountDataExporter $accountExporter = null;
 
     public ?AccountDeletionService $accountDeletion = null;
+
+    /** The shared story, chapter, classification and inbox services, built once at boot for the screens and for plugins. */
+    public ?StoryService $stories = null;
+
+    public ?ChapterService $chapters = null;
+
+    public ?TaxonomyService $taxonomy = null;
+
+    public ?NotificationService $notifications = null;
 
     public function __construct(
         public readonly Configuration $config,
@@ -353,7 +372,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + InstallPingService::DEFAULTS + CacheSettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -434,6 +453,10 @@ final class Kernel
         $covers = new CoverImageStore($root . '/content/uploads/covers');
         $stories = new StoryService($kernel->database, $kernel->config, $kernel->audit, $taxonomy, $kernel->hooks, $covers);
         $chapters = new ChapterService($kernel->database, $stories, $kernel->audit, $kernel->config);
+        $kernel->stories = $stories;
+        $kernel->chapters = $chapters;
+        $kernel->taxonomy = $taxonomy;
+        $kernel->notifications = $notifications;
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $presenter = new StoryPresenter($covers, $taxonomy->labels());
         $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks);
@@ -466,6 +489,19 @@ final class Kernel
         GroupingSettings::hideFromMenu($hooks, $config);
 
         $kernel->privacy = new PrivacySettings($config, $database, $audit, $kernel->pages);
+        $kernel->pageCache = new PageCache(
+            new CacheSettings($config, $database, $audit),
+            $hooks,
+            static fn (): bool => $config->setting('reading.require_signin') === true,
+            static fn (): bool => $kernel->themeChoice?->enabled() === true,
+            $root . '/storage/cache/purge-log.json',
+        );
+        // Every change to the site is written to the audit log, so one listener there knows when a cached page went stale.
+        $purgeRules = new PurgeRules($database);
+        $audit->listen(static function (string $action, ?string $targetType, ?string $targetId) use ($kernel, $purgeRules): void {
+            $kernel->pageCache?->purge($purgeRules->scopeFor($action, $targetType, $targetId));
+        });
+        $kernel->installPing = new InstallPingService($config, new HttpClient('Lumora Fiction/' . $version['version']), $version['version']);
         $kernel->comments = new CommentService($database, new CommentSettings($config, $audit), $audit, $hooks);
         $kernel->commentGuard = new CommentGuard($formGuard, $spamSettings, $akismet);
         (new CommentNotifier($notifications, $kernel->comments, $database, $mailer, $siteUrl, (string) $config->setting('site.name', 'Lumora Fiction')))->register($hooks);
@@ -760,7 +796,7 @@ final class Kernel
             new BackupsController($kernel->auth, $view, $flash, $backups, $updates, $kernel->audit, $backupListing),
             new MaintenanceModeController($kernel->auth, $view, $flash, $kernel->maintenance ?? new MaintenanceMode($kernel->config, $kernel->database, $kernel->audit)),
             new AdminPageController($kernel->auth, $view, $flash, $kernel->pages ?? throw new \LogicException('Pages are built at boot.'), $editor, $kernel->themes, new PagePresenter($renderer)),
-            new PrivacySettingsController($kernel->auth, $view, $flash, $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->pages),
+            new PrivacySettingsController($kernel->auth, $view, $flash, $kernel->privacy ?? throw new \LogicException('Built at boot.'), $kernel->pages, static fn (): InstallPingService => $kernel->installPing ?? throw new \LogicException('Built at boot.')),
             new PrivacyRequestsController($kernel->auth, $view, $flash, $kernel->users, $kernel->accountExporter ?? throw new \LogicException('Built at boot.'), $kernel->accountDeletion ?? throw new \LogicException('Built at boot.'), $kernel->privacy, $kernel->audit),
             new AdminCommentsController($kernel->auth, $view, $flash, $kernel->comments ?? throw new \LogicException('Built at boot.')),
             new CommentSettingsController($kernel->auth, $view, $flash, new CommentSettings($kernel->config, $kernel->audit)),
@@ -805,6 +841,16 @@ final class Kernel
                 $root . '/storage/cache/exports',
                 $version,
             ), $stories),
+            new CacheSettingsController(
+                $kernel->auth,
+                $view,
+                $flash,
+                $kernel->pageCache?->settings() ?? throw new \LogicException('Built at boot.'),
+                $kernel->pageCache ?? throw new \LogicException('Built at boot.'),
+                static fn (): bool => $kernel->themeChoice?->enabled() === true,
+                static fn (): bool => $kernel->config->setting('reading.require_signin') === true,
+                static fn (): bool => $kernel->hooks->hasAction('story_viewed'),
+            ),
         );
     }
 
@@ -827,6 +873,7 @@ final class Kernel
 
         $this->upgradeDatabase($request, BasePath::stripFrom($uri));
         $this->checkForUpdates($request, BasePath::stripFrom($uri));
+        $this->sendInstallPing($request, BasePath::stripFrom($uri));
 
         // After the maintenance check, which always shows the site's own theme, and before anything is drawn.
         $started = $this->selectTheme($request, BasePath::stripFrom($uri));
@@ -846,7 +893,7 @@ final class Kernel
 
             // A handler may return a Response to be sent, or print its own output and return nothing.
             if ($result instanceof Response) {
-                ($this->redirectFor($method, BasePath::stripFrom($uri), $result) ?? $result)->send();
+                $this->finishResponse($request, $this->redirectFor($method, BasePath::stripFrom($uri), $result) ?? $result, $resolution->name, $resolution->params)->send();
             }
 
             return;
@@ -854,7 +901,25 @@ final class Kernel
 
         $redirect = $resolution->status === 404 ? $this->redirectFor($method, BasePath::stripFrom($uri), null) : null;
 
-        ($redirect ?? $this->statusResponse($resolution->status, $resolution->allowedMethods))->send();
+        $this->finishResponse($request, $redirect ?? $this->statusResponse($resolution->status, $resolution->allowedMethods), null)->send();
+    }
+
+    /**
+     * The last step before a response is sent: cache headers on a public page, the answer that nothing changed when the
+     * visitor already holds it, and any instruction to an outside cache that this request caused.
+     *
+     * @param array<string, string> $params
+     */
+    public function finishResponse(Request $request, Response $response, ?string $routeName, array $params = []): Response
+    {
+        try {
+            return $this->pageCache?->apply($request, $response, $routeName, $params) ?? $response;
+        } catch (Throwable $exception) {
+            // Caching is an optimisation: whatever goes wrong here, the page itself is still sent, and not kept.
+            $this->errors->report($exception);
+
+            return $response->withHeader('Cache-Control', 'private, no-store');
+        }
     }
 
     /**
@@ -966,6 +1031,41 @@ final class Kernel
 
             if ($user !== null && $user->can(Capability::ManageSite)) {
                 $this->updateChecker->checkIfDue();
+            }
+        } catch (Throwable $exception) {
+            $this->errors->report($exception);
+        }
+    }
+
+    /**
+     * The anonymous install ping, when an administrator has turned it on and one is due. Like the update check it runs
+     * only for an Administrator opening an admin page, so no visitor's request ever waits on it, and a failure is
+     * recorded by the service and never shown.
+     *
+     * @param string $path the request path with the base path already removed
+     */
+    public function sendInstallPing(Request $request, string $path): void
+    {
+        $path = (string) strtok($path, '?#');
+
+        if (
+            $this->installPing === null || $request->method !== 'GET'
+            || ($path !== '/admin' && !str_starts_with($path, '/admin/'))
+            || str_starts_with($path, '/admin/maintenance/updates/run')
+            || MaintenanceFlag::read($this->root) !== null
+        ) {
+            return;
+        }
+
+        try {
+            if (!$this->installPing->isDue()) {
+                return;
+            }
+
+            $user = $this->auth->user($request->cookies);
+
+            if ($user !== null && $user->can(Capability::ManageSite)) {
+                $this->installPing->maybeSendPing();
             }
         } catch (Throwable $exception) {
             $this->errors->report($exception);

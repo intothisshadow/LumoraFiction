@@ -67,9 +67,9 @@ final class Screen extends AdminController
             return $user;
         }
 
-        $range = (int) ($request->queryValue('range') ?? self::RANGES[1]);
+        $range = (int) ($request->queryValue('range') ?? self::RANGES[0]);
 
-        return $this->page($request, $user, in_array($range, self::RANGES, true) ? $range : self::RANGES[1]);
+        return $this->page($request, $user, in_array($range, self::RANGES, true) ? $range : self::RANGES[0]);
     }
 
     /**

@@ -56,7 +56,10 @@ final class EntityTag
     private static function strip(string $tag): string
     {
         $tag = trim($tag);
+        $tag = str_starts_with($tag, 'W/') ? substr($tag, 2) : $tag;
 
-        return str_starts_with($tag, 'W/') ? substr($tag, 2) : $tag;
+        // Apache's mod_deflate (and nginx or brotli modules) add the content coding to the ETag of a compressed answer
+        // ("abc-gzip"), so the browser sends that back; without this a compressing host never gets a match.
+        return preg_replace('/-(?:gzip|br|deflate|zstd)"\z/', '"', $tag) ?? $tag;
     }
 }

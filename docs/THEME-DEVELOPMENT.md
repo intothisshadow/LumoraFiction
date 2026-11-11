@@ -417,6 +417,7 @@ A theme is presentation only. If an experienced theme author could not safely re
 - Do not read the database, configuration, request, cookies or session. A template receives the data its view defines, and nothing else.
 - Do not use inline `style` attributes, inline `<style>` blocks, or inline scripts. The Content-Security-Policy refuses them.
 - Class names use the `lf-` prefix, so another theme can restyle every part without editing a template.
+- Pages for a signed-out visitor are cached (Settings > Cache), so the same HTML may be sent to many people. Print nothing in a template that differs from one signed-out visitor to the next (a name, an address, a token, the time); anything that does is added by the application or by a plugin through the hooks, which already take care of it.
 
 The template tags are the boundary between a theme and the application. PHP cannot stop a theme that deliberately reaches around them, so only install themes you trust.
 

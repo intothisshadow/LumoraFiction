@@ -239,6 +239,26 @@ select:focus-visible,
     margin: 0.1rem 0 0.5rem 1.25rem;
 }
 
+/* A non-clickable label that groups the entries after it */
+.lf-menu__heading {
+    margin: 0.6rem 0 0.1rem;
+    padding: 0 0.6rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.lf-menu__heading:first-child {
+    margin-top: 0.1rem;
+}
+
+/* Entries after a heading sit a little further in than the heading */
+.lf-menu__heading ~ li > a {
+    padding-left: 1.25rem;
+}
+
 .lf-menu a:hover {
     background: var(--surface);
 }
@@ -474,6 +494,21 @@ fieldset.lf-card legend {
 .lf-activity {
     margin: 0;
     padding-left: 1.1rem;
+}
+
+.lf-activity li {
+    margin-bottom: 0.3rem;
+}
+
+/* The person is what the eye looks for first, so the name stands out from the sentence */
+.lf-activity__actor {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.lf-activity__actor--system {
+    color: var(--muted);
+    font-style: italic;
 }
 
 .lf-activity time {
@@ -1533,6 +1568,15 @@ fieldset.lf-card legend {
     .lf-menu__item.is-open .lf-menu__children {
         display: block;
         margin-left: 0;
+    }
+
+    /* The menu wraps in a row here, so a label would only add noise between the links. */
+    .lf-menu__heading {
+        display: none;
+    }
+
+    .lf-menu__heading ~ li > a {
+        padding-left: 0.6rem;
     }
 
     .lf-admin__main {

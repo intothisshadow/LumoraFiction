@@ -43,7 +43,7 @@ Every account has one of four roles:
 
 Authors can create and edit stories, organise chapters, describe their work with classification lists, add a cover and an author profile, and preview drafts before publishing. Chapters are written in a Visual, Markdown, HTML or plain text editor with a live word count and separate **Save draft** and **Publish** buttons. Editors and Administrators review stories waiting for approval and can approve them or send them back with a reason.
 
-Additional features include notes before and after each chapter and after a whole story, chapter version history, story copying, trash and recovery, notifications, and bulk actions. A bundled Visitor Stats plugin, off until you turn it on, counts story views on your own site without cookies or personal data. See the [user guide](docs/USER-GUIDE.md).
+Additional features include notes before and after each chapter and after a whole story, chapter version history, story copying, trash and recovery, notifications, and bulk actions. A bundled Sweep plugin, off until you turn it on, shows what a long-running archive can clean out (old chapter versions, expired trash and links, accounts that never confirmed, unused tags and fandoms), previews it and removes it only on confirmation. A bundled Visitor Stats plugin, off until you turn it on, counts story views on your own site without cookies or personal data. See the [user guide](docs/USER-GUIDE.md).
 
 ### Reading the archive
 
@@ -61,7 +61,9 @@ Administrators can also write static pages such as About, FAQ, Terms of Service 
 
 ### Security and maintenance
 
-Sign-in is throttled after repeated failures, password resets use single-use expiring links, registration forms are protected against automated sign-ups, and security events are logged without recording what visitors typed. HTTPS-only mode and trusted-proxy settings are available. See the [security guide](docs/SECURITY.md).
+Public pages are sent with cache headers and answered with a short "not modified" reply when a visitor already holds them, and LiteSpeed Cache is told which pages to forget when a story, chapter, comment or news post changes (**Settings > Cache**); nothing is ever cached for a signed-in reader, a draft, the admin or an account page. Sign-in is throttled after repeated failures, password resets use single-use expiring links, registration forms are protected against automated sign-ups, and security events are logged without recording what visitors typed. HTTPS-only mode and trusted-proxy settings are available. See the [security guide](docs/SECURITY.md).
+
+An anonymous install counter is available and is **off unless an Administrator turns it on** under **Settings > Privacy**. When on, the site sends three things, about once a month and only when an Administrator opens an admin page: a random install ID, the Lumora Fiction version and the PHP version. It never sends the site's address or name, an email address, any story, setting or visitor information. The ID belongs to the site address, so a copy or a move to another address gets its own. Turn the switch off at any time; nothing on the site depends on it.
 
 If the site is moved to a new domain, to HTTPS or to another folder, the admin notices that the address or folder no longer matches what was saved and shows an alert. The alert leads to a screen that suggests the new address, which you can correct and confirm, or keep the old one for a site that is meant to answer under two names. The saved address is never changed without that confirmation.
 

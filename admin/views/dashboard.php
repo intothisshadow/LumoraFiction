@@ -36,7 +36,7 @@ use LumoraFiction\Models\User;
 /** @var string $newNewsUrl */
 /** @var string $storiesUrl */
 /** @var string $newStoryUrl */
-/** @var list<array{actor: string, text: string, at: DateTimeImmutable}> $activity the latest activity, already worded as sentences */
+/** @var list<array{actor: string, system: bool, text: string, at: DateTimeImmutable}> $activity the latest activity, already worded as sentences */
 ?>
 <p class="lf-lead">Welcome, <?= Html::e($user->displayName) ?>. You are signed in as <?= Html::e(strtolower($user->role->label())) ?>.</p>
 
@@ -154,7 +154,7 @@ use LumoraFiction\Models\User;
             <ul class="lf-activity">
                 <?php foreach ($activity as $entry): ?>
                     <li>
-                        <?= Html::e($entry['actor']) ?>
+                        <strong class="lf-activity__actor<?= $entry['system'] ? ' lf-activity__actor--system' : '' ?>"><?= Html::e($entry['actor']) ?></strong>
                         <?= Html::e($entry['text']) ?>
                         <time datetime="<?= Html::e($entry['at']->format('Y-m-d\TH:i:s')) ?>"><?= Html::e($entry['at']->format('j M Y, H:i')) ?></time>
                     </li>
