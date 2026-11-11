@@ -27,7 +27,7 @@ final class ThemeCatalog
     public const FALLBACK_SLUG = 'fallback';
 
     /** Themes that ship with the application; deleting one is allowed but comes back with the next update. */
-    public const BUNDLED = ['storybook', 'rosewine', 'lavender-mist'];
+    public const BUNDLED = ['storybook', 'rosewine', 'lavender-mist', 'classic-archive'];
 
     /** The header sits at the top of the stylesheet; reading more than this would only be reading CSS. */
     private const HEADER_BYTES = 8192;

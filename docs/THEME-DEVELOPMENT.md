@@ -434,6 +434,11 @@ The template tags are the boundary between a theme and the application. PHP cann
 - **A scripted dropdown as an enhancement.** Browsers that support `appearance: base-select` style the select's own list from the stylesheet, inside `@supports`. For the others, `js/select-menu.js` (added from `functions.php` after the reader script) hides each `select.lf-select` and `select.lf-form__input`, draws a button and a listbox with the `lf-menu` classes, and writes the choice back into the real select and fires its `change` event, so the reader script and forms keep working. Without the script the plain select shows.
 - **A page or post as one card.** The chapter, page and news post templates keep their ordinary markup; the stylesheet turns the outer element into a rounded card and lets the heading and the chapter links run to its edges with negative margins taken from one `--lf-chapter-pad` custom property.
 
+**Classic Archive** (`content/themes/classic-archive/`) also starts from Storybook's templates, with the same files and parts, and shows two patterns:
+
+- **An optional decorative picture without a new field type.** The pictures ship in the theme's `images/` folder. A `checkbox` option (`show_header_image`, default off) decides whether `header.php` prints the band, and a `select` option without a `css_variable` (`header_image`) supplies a modifier class, so `lf-site-banner--dusk` is the rule that names `images/banner-dusk.svg`. Nothing is injected over the stylesheet and no template carries an inline style. The band is `aria-hidden` and left out of the print rules.
+- **A card drawn from the same data in another layout.** `parts/story-card.php` reads the same `story` array and sorts its `term_groups` by `type`: the first rating becomes a square, fandoms become a bold line, and every other group becomes one tag list with an `lf-tag--{type}` class. It derives nothing about meaning (a rating's colour, whether a warning "applies"), because the vocabulary is the site's own.
+
 ## The built-in theme
 
 When no theme is chosen, or the chosen one is missing or broken, a plain built-in theme draws the site. It is a complete, small example of the rules above and is a good place to start. It is never listed as an installed folder and cannot be replaced by a folder with the same name.
