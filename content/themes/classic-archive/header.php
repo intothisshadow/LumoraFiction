@@ -30,7 +30,7 @@ declare(strict_types=1);
     <header class="lf-site-header">
         <p class="lf-site-title"><a href="<?php lf_site_url(); ?>"><?php lf_site_name(); ?></a></p>
         <div class="lf-site-header__tools">
-            <?php lf_navigation(); ?>
+            <?php lf_navigation('Account', 'account'); ?>
             <?php lf_part('scheme-switch'); ?>
             <?php lf_theme_switch(); ?>
         </div>
@@ -40,5 +40,10 @@ declare(strict_types=1);
     <?php // Decorative only: the picture is a background chosen in the theme's options, so it carries no text alternative. ?>
     <div class="lf-site-banner lf-site-banner--<?php lf_option('header_image'); ?>" aria-hidden="true"></div>
 <?php endif; ?>
+<div class="lf-site-nav-wrap">
+    <div class="lf-site-nav">
+        <?php lf_navigation('Main', 'main'); ?>
+    </div>
+</div>
 
 <main id="lf-main" class="lf-main" tabindex="-1">

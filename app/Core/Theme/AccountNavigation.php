@@ -46,15 +46,15 @@ final class AccountNavigation
         }
 
         if ($this->auth->check()) {
-            $items[] = ['label' => 'My account', 'url' => PublicUrl::account('profile'), 'current' => false];
+            $items[] = ['label' => 'My account', 'url' => PublicUrl::account('profile'), 'current' => false, 'area' => 'account'];
 
             return $items;
         }
 
-        $items[] = ['label' => 'Sign in', 'url' => PublicUrl::account('sign-in'), 'current' => false];
+        $items[] = ['label' => 'Sign in', 'url' => PublicUrl::account('sign-in'), 'current' => false, 'area' => 'account'];
 
         if ($this->config->setting('registration.enabled', true) === true) {
-            $items[] = ['label' => 'Register', 'url' => PublicUrl::account('register'), 'current' => false];
+            $items[] = ['label' => 'Register', 'url' => PublicUrl::account('register'), 'current' => false, 'area' => 'account'];
         }
 
         return $items;

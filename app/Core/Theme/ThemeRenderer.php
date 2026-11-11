@@ -409,7 +409,8 @@ final class ThemeRenderer
         foreach (is_array($items) ? $items : [] as $item) {
             if (is_array($item) && is_string($item['label'] ?? null) && $item['label'] !== '' && is_string($item['url'] ?? null) && preg_match(self::SAME_SITE, $item['url']) === 1) {
                 // The only icon a link may carry is one core draws itself, so a filter cannot put markup in.
-                $clean[] = ['label' => $item['label'], 'url' => $item['url'], 'current' => ($item['current'] ?? false) === true, 'icon' => ($item['icon'] ?? '') === 'feed' ? 'feed' : ''];
+                // Likewise "account" is the one area a link may name, so a theme can draw sign-in and account links apart from the menu.
+                $clean[] = ['label' => $item['label'], 'url' => $item['url'], 'current' => ($item['current'] ?? false) === true, 'icon' => ($item['icon'] ?? '') === 'feed' ? 'feed' : '', 'area' => ($item['area'] ?? '') === 'account' ? 'account' : ''];
             }
         }
 

@@ -137,10 +137,10 @@ if (!function_exists('lf_comments')) {
 }
 
 if (!function_exists('lf_navigation')) {
-    /** Prints the main menu as a list of links. */
-    function lf_navigation(string $label = 'Main'): void
+    /** Prints the main menu as a list of links; an area of "account" or "main" prints only the sign-in and account links, or only the rest. */
+    function lf_navigation(string $label = 'Main', ?string $area = null): void
     {
-        ThemeContext::current()?->navigation($label);
+        ThemeContext::current()?->navigation($label, $area);
     }
 }
 

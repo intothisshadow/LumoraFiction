@@ -39,7 +39,7 @@ final class ThemeContext
      * @param array<string, mixed> $data
      * @param array{label: string, edit_url: string}|null $preview
      * @param array<string, string|bool> $options
-     * @param list<array{label: string, url: string, current: bool}> $navigation
+     * @param list<array{label: string, url: string, current: bool, area?: string}> $navigation
      * @param Closure(string, array<string, mixed>): void $includePart
      */
     public function __construct(
@@ -284,15 +284,24 @@ final class ThemeContext
         )));
     }
 
-    public function navigation(string $label = 'Main'): void
+    /**
+     * Prints the menu. With an area of "account" only the sign-in, account and admin links print; with "main" only the
+     * rest; with none, everything, as before. A theme that draws both areas shows every link once.
+     */
+    public function navigation(string $label = 'Main', ?string $area = null): void
     {
-        if ($this->navigation === []) {
+        $items = array_filter(
+            $this->navigation,
+            static fn (array $item): bool => $area === null || (($item['area'] ?? '') === 'account') === ($area === 'account'),
+        );
+
+        if ($items === []) {
             return;
         }
 
-        echo '<nav class="lf-nav" aria-label="', Html::e($label), '"><ul class="lf-nav__list">';
+        echo '<nav class="lf-nav', $area === null ? '' : ' lf-nav--' . ($area === 'account' ? 'account' : 'main'), '" aria-label="', Html::e($label), '"><ul class="lf-nav__list">';
 
-        foreach ($this->navigation as $item) {
+        foreach ($items as $item) {
             echo '<li class="lf-nav__item', $item['current'] ? ' lf-nav__item--current' : '', '"><a class="lf-nav__link" href="', Html::e($item['url']), '"',
                 $item['current'] ? ' aria-current="page"' : '', '>', Html::e($item['label']), '</a></li>';
         }

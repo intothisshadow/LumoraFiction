@@ -28,6 +28,7 @@ Description: A traditional fandom-archive look. Compact story blurbs with rating
     --lf-accent: #a3321f;
     --lf-header-bg: #1f3a56;
     --lf-header-text: #ffffff;
+    --lf-nav-bg: #2c4c6c;
     --lf-info-bg: #eef3f8;
     --lf-info-border: #7f9ab8;
     --lf-success-bg: #eef5ec;
@@ -61,6 +62,7 @@ Description: A traditional fandom-archive look. Compact story blurbs with rating
         --lf-accent: #e88b78;
         --lf-header-bg: #0f2236;
         --lf-header-text: #e4e2dc;
+        --lf-nav-bg: #16293c;
         --lf-info-bg: #1b2733;
         --lf-info-border: #46688a;
         --lf-success-bg: #1a2a1a;
@@ -85,6 +87,7 @@ Description: A traditional fandom-archive look. Compact story blurbs with rating
     --lf-accent: #e88b78;
     --lf-header-bg: #0f2236;
     --lf-header-text: #e4e2dc;
+    --lf-nav-bg: #16293c;
     --lf-info-bg: #1b2733;
     --lf-info-border: #46688a;
     --lf-success-bg: #1a2a1a;
@@ -201,6 +204,7 @@ img {
 }
 
 .lf-site-header,
+.lf-site-nav,
 .lf-main,
 .lf-site-footer__inner {
     width: min(100% - 2rem, var(--lf-page-width));
@@ -209,6 +213,12 @@ img {
 
 .lf-site-header-wrap {
     background: var(--lf-header-bg);
+    color: var(--lf-header-text);
+}
+
+/* The menu bar sits under the title row, and under the picture band when there is one; the brick rule closes it. */
+.lf-site-nav-wrap {
+    background: var(--lf-nav-bg);
     color: var(--lf-header-text);
     border-bottom: 4px solid var(--lf-accent);
 }
@@ -303,7 +313,8 @@ img {
     color: var(--lf-header-text);
 }
 
-.lf-site-header-wrap .lf-nav__link:focus-visible {
+.lf-site-header-wrap .lf-nav__link:focus-visible,
+.lf-site-nav-wrap .lf-nav__link:focus-visible {
     outline-color: var(--lf-header-text);
 }
 
@@ -2459,6 +2470,7 @@ a.lf-term-link:hover {
 
     .lf-skip-link,
     .lf-site-header-wrap,
+    .lf-site-nav-wrap,
     .lf-site-banner,
     .lf-site-footer,
     .lf-preview-banner,

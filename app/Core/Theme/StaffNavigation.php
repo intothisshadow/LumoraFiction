@@ -45,7 +45,7 @@ final class StaffNavigation
             return $items;
         }
 
-        $items[] = ['label' => 'Admin', 'url' => AdminUrl::to(), 'current' => false];
+        $items[] = ['label' => 'Admin', 'url' => AdminUrl::to(), 'current' => false, 'area' => 'account'];
 
         return $items;
     }
