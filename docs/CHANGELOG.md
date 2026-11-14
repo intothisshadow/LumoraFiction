@@ -1,7 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.4.0] — 2026-11-16
 
+- Visitor Stats opens on the last 7 days instead of the last 30.
 - Bulk actions on more screens. A story's **Chapters** page, **Awaiting approval**, **News**, **Pages**, **Users**, **Redirects**, **Notifications** and a series' or collection's own screen now have tick boxes and an action menu like the story list: publish, unpublish, trash or delete chapters; approve or send back several stories with one shared reason; publish, unpublish, pin or delete news posts; publish, place in the menu or footer, or delete pages; suspend, reinstate, change the role or publishing setting of, or send a password reset to several accounts (never your own account or the last administrator); delete redirects or make them permanent or temporary; mark messages read or delete them; take several stories out of a series or approve, turn down or remove several in a collection. **My stories** and **All stories** gain **Set the rating**, **Set where it stands**, **Add to a series**, **Add to a collection**, **Downloads**, and adding or removing a tag, fandom or character by name. Every item is changed one at a time exactly as the single action would, so each is checked and logged on its own; a refused item is skipped and the message says how many were done and why others were skipped; anything that cannot be undone asks first; and the list stays on the same page, sort and filter. The tick-all box is labelled and the count of ticked rows is announced to screen readers.
 
 - Quick chapter links on the story list. Each row of **My stories** and **All stories** now has **Chapters** and **Add a chapter** links under its title, named for the story for screen readers, so a chapter is one click away instead of two.

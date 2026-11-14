@@ -2,6 +2,409 @@
 
 Completed tickets are moved here from `TODO.md` at each Release.
 
+## Version 1.4.0 — 2026-11-16
+
+### LF-012. Feeds
+
+**Status:** Complete (6 of 6) — released in 1.4.0
+
+RSS is a first-class feature. Modelled on Lumora Press's feed service, copied rather than shared. Belongs to the public archive milestone (M3).
+
+- [x] Site-wide feed of recently published and recently updated stories
+- [x] Per-author, per-fandom, per-tag, and per-genre feeds
+- [x] Per-story feed of new chapters
+- [x] Each feed also available as a JSON Feed, with individual feed types switchable off in Settings
+- [x] Feeds respect visibility: drafts, unpublished stories, and stories awaiting approval never appear, and feeds expose the display name and slug, never the login name
+- [x] Tests for draft and unpublished exclusion and for conditional `304` responses
+
+Built 2026-11-09 and also covering the carried-over parts: the news feed (`/feed/news`), chapter end notes in a story feed (the story's own end note and a draft chapter's never), the cover thumbnail as the item picture (`StoryPresenter::cover()`), and the optional per-story comment feed (published comments only, off by default). The `ETag` is a hash of the body and no `Last-Modified` is sent, because a date taken from the newest entry cannot tell that an older entry was removed. An archive set to require sign-in serves no story feed (a feed reader cannot sign in); news stays open. The site and news feeds are advertised in the head of every public page by core (`FeedLinks`), so no theme changed. Per-page autodiscovery and visible feed links for an author, term or story feed moved to LF-089.
+
+### LF-013. Export
+
+**Status:** Complete (6 of 6) — released in 1.4.0
+
+Built 2026-11-11. Notes: `ExportService` (one request, one ZIP, removed once sent through `Response::file(..., temporary: true)`) with `manifest.json` and one JSON file per story, so a large archive is written to disk story by story and never held in memory; admin screen **Stories > Export** and an **Export the story** button on the story form (POST with a token only). An Author exports their own stories, drafts included; an Administrator also any author's and the archive; a user who may manage a story (an Editor too) can export that one story. Series and collections are in the file (the story's own membership, and the definitions listing only the exported stories). The format is `docs/EXPORT-FORMAT.md`, version 1.
+
+The plan treats portability as essential for an archive. Import is deliberately left for after the MVP; the manifest format should be designed so a later importer can read it. Modelled on Lumora Press's lossless export, copied rather than shared. M5 milestone.
+
+- [x] Export a single story with its chapters
+- [x] Export all stories belonging to one Author, available to that Author and to Administrators
+- [x] Export the whole archive (Administrator only) as a zip with a `manifest.json` and, optionally, cover images
+- [x] Include tags, fandoms, characters, relationships, ratings, warnings, status, dates, and chapter order
+- [x] A documented export format in `docs/`, with a format version number
+- [x] Tests that an Author cannot export another Author's drafts and that exported files never contain login names or password hashes
+
+From LF-064: the export includes each chapter's `end_notes` and each story's `end_notes`, and the documented format lists them. From LF-016: `AccountDataExporter` already produces a per-account export for privacy requests; this ticket's story export is a different, portable format and should not reuse its shape.
+
+### LF-014. Sitemap, robots and redirects
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+Built 2026-11-09. Notes: a story's slug (`{id}-{words}`) never changes after creation, so "when a story's slug changes" has nothing to trigger on; the automatic redirects are made for a changed static page address and a merged term, through `RedirectService::remember()`, and `docs/DEVELOPER-APIS.md` says how a plugin that renames something calls it. A redirect answers only where the site would answer 404 (`Kernel::redirectFor()`), so it never hides a live page. The sitemap is an index with parts of at most 10,000 addresses (`site-1`, `authors-N`, `terms-N`, `stories-N`) and leaves chapters out on purpose. Migration 0037 (`redirects`). Admin: Settings > Search engines, Settings > Redirects.
+
+Stories have URLs worth keeping, and an in-progress archive may want to stay out of search engines. M3 milestone.
+
+- [x] XML sitemap covering public stories, authors, and taxonomy pages only (and the news archive and published news posts once LF-034 exists)
+- [x] Virtual `robots.txt`, plus a "discourage search engines" setting that also adds a `noindex` meta tag
+- [x] Canonical URL on story and chapter pages
+- [x] Admin-managed redirects, with an automatic permanent redirect when a story's slug changes
+- [x] Tests that drafts and unpublished stories never appear in the sitemap and that redirects cannot loop
+
+From LF-062: the sitemap lists published static pages that are not marked `noindex` (`PageService::published()` returns them with `noindex` and `slug`; the address is `PublicUrl::page($slug)`), and the page's canonical address is already printed in its head.
+
+### LF-017. Page caching
+
+**Status:** Complete (6 of 6) — released in 1.4.0
+
+Built 2026-11-11 as `Core/Cache/PageCache` (headers, `304`, purge instructions), `PurgeRules`, `CacheExclusions`, `Services/CacheSettings` and the Settings > Cache screen. The decision is made in `Kernel::finishResponse()` from the matched route name; purges are driven by the audit log. The header test is a script that requests the page without credentials. Story and chapter pages are kept by the browser only while a plugin listens to `story_viewed`.
+
+Supports the shared-hosting and performance goals. Modelled on Lumora Press's cache headers and LiteSpeed integration, copied rather than shared. M5 milestone.
+
+Note from LF-077 and LF-078 (built 2026-11-08): a public page can differ by visitor. With **Let visitors choose their own theme** on, every page already carries `Vary: Cookie` (the choice is the `lf_theme` cookie or the account's), and while an Administrator previews a theme the page carries `Cache-Control: private, no-store`. A cache or a `304` must keep honouring both, and a cached page must still fire `story_viewed` as noted below.
+
+- [x] HTTP cache headers and conditional `304` responses on cacheable public pages
+- [x] Never cache anything for a signed-in user, any draft, preview, admin, or account page, or any response that sets a cookie
+- [x] Per-page-type switches and a never-cache path list in Settings
+- [x] LiteSpeed Cache purge integration (auto-detected, with a manual override), purging the affected story, author, and listing pages when content changes
+- [x] Built-in header test screen so an Administrator can confirm what is being sent
+- [x] Tests that a private draft is never served from cache or to a different user, and that publishing, unpublishing, and deleting a story purge the right pages
+
+A guest's cached story or chapter page, or a `304`, must still fire the `story_viewed` action (see `docs/DEVELOPER-APIS.md`), or the Visitor Stats plugin (LF-054) stops counting those views. Counting this way should stay the plugin's job: the cache layer only fires the action.
+
+### LF-018. Settings export and import
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+Built 2026-11-09 as `SettingsTransfer`, which wraps the settings service of each screen, so an import is checked and audited exactly as the screen does it. Groups: Archive (which holds the Reading switch), Security (without the proxy list and HTTPS header), Privacy (without the policy page number), Comments, Downloads, Feeds, News, Front page, Editor, Retention, Search engines and Theme. Not included, on purpose: spam protection (keys and the question's answer are secret), updates, maintenance mode and the site location. The format is `docs/SETTINGS-FILE.md`; theme options travel only for the theme already in use, because only that theme's own rules can check them.
+
+Copy one install's configuration to another. Modelled on Lumora Press's portable settings export, copied rather than shared. After the MVP.
+
+- [x] Export Archive, Reading, Security, Privacy, and theme settings as a versioned file
+- [x] Import into a different install with a before/after preview shown before anything is applied
+- [x] Never exported: site URL, administrator email, secret key, table prefix, database credentials, and any other install-specific or secret value
+- [x] Reject files from an unknown format version, and validate every value as the settings screen would
+- [x] Tests that secrets never appear in an export and that a tampered file cannot write an unknown setting
+
+### LF-019. Sweep cleanup plugin (bundled)
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+Built 2026-11-11 as `content/plugins/sweep/`. The application has no user trash, so never-confirmed accounts are anonymised through account deletion (see `DECISIONS.md`). The reminder is a weekly count taken from the dashboard. The bundled plugin starts at `Version: 1.0.0`.
+
+A database cleanup tool for long-running archives. Modelled on Lumora Press's Sweep plugin. Needs the plugin loader; see `DECISIONS.md`. After the MVP.
+
+- [x] Maintenance › Tools screen listing what can be cleaned and how much each would remove, with a preview before anything is deleted
+- [x] Old chapter revisions beyond a retention count, old trashed stories and chapters, and expired password-reset and confirmation tokens
+- [x] Never-confirmed accounts past a configurable age, moved to the user trash rather than deleted outright
+- [x] Unused tags and fandoms that no story references
+- [x] Reminder in the notifications inbox when cleanup candidates build up; tests that nothing a story still references is removed
+
+### LF-033. Classic Archive theme
+
+**Status:** Complete (10 of 10) — released in 1.4.0
+
+Built 2026-11-11. Notes: `content/themes/classic-archive/` is a copy of Storybook's templates and parts (same file list, checked by a test) restyled by its own `style.css`, with new `parts/story-card.php`, an optional picture band in `header.php`, and a side-column layout in `search.php`; `ThemeCatalog::BUNDLED` gained `classic-archive` (the only core change, so the updater and Appearance treat it as bundled). Rating and status squares only: a warning is shown as an outlined tag, not a square, because what a warning means is the site's own vocabulary and neither field may be inferred from the other. The header picture is a choice among three SVGs in the theme's `images/` folder (checkbox `show_header_image`, select `header_image`, both without a CSS variable) instead of an administrator-supplied URL, because Theme Options has no image or text field type and adding one is a core change. Browser-checked on the dev install: home, search (side column), story page, mobile width, dark scheme on search, picture band; NOT seen: chapter page, series, collection pages, print preview. Release prerequisites: the theme's `Version:` is 1.0.0 and `@since 1.4.0` assumes the next release is 1.4.0. `custom themes/` holds no theme, so nothing to propagate.
+
+The second theme from the plan, in a traditional fandom-archive style. Comes after the first release; depends on LF-028. Design mockup: `Resources/themes - mockups/classic-archive/classic-archive.html` (navy, parchment and brick palette with a dark set; compact boxed blurbs; sidebar filters; reader controls). It is the visual reference for the items below. Because LF-068 added series, the theme must also provide `series.php` and the `story-groupings` part ("Part N of M" with previous and next links), which the mockup only hints at.
+
+- [x] Compact story blurbs with metadata and tag lists, simple navigation, and a focus on discoverability
+- [x] Story blurb layout per the mockup: a column of at-a-glance signal squares (rating and completion status; warnings are an outlined tag), each with a text label and title so colour is never the only signal; then title and author, fandoms, a tag list (warnings, relationships and characters styled distinctly), summary, and a one-line stats list (language, words, chapters, comments, kudos, updated), with a single-column fallback on phones
+- [x] Browse and search pages with a results bar (count and sort control), a sidebar "Filter stories" form (type, fandom, rating, excluded warnings, included tags, word count, status) that honours the archive mode and disabled taxonomies, and numbered pagination
+- [x] Optional header image: a band under the site header, off by default and shown only when the administrator turns it on in Theme Options and picks one of the theme's bundled pictures, decorative, shorter on phones, left out of print, and never overriding the theme's own look when off (an administrator-supplied image would need a new Theme Options field type, a core change not made here)
+- [x] Reader controls bar on the chapter page (text size, jump to chapter, print) and a chapter navigation bar (previous, index, next), keyboard operable
+- [x] All styling in the theme stylesheet under `lf-` classes (no inline styles at all), with the dark set and print rules added with each component
+- [x] The same templates and template tags as Storybook, proving a second theme needs no core change
+- [x] Light and dark colours, reader controls, skip links, and a print layout equal to Storybook's
+- [x] Selectable under Appearance, independent of the reader's own light or dark choice
+- [x] Tests: renders every template, passes the same escaping and visibility tests as Storybook
+
+### LF-068. Series
+
+**Status:** Complete (9 of 9) — released in 1.4.0
+
+Built 2026-11-11. Notes: migration 0039; `SeriesService`, `GroupingSettings` (also holds the collections switches), admin `SeriesController` (**Stories > Series**), a Series choice and part number on the story form, public page `/series/{slug}` through `ArchiveController`, "Part N of M" with Previous and Next through the new `story-groupings` part, feed `/feed/series/{slug}`, sitemap part `series-N`, a `series` search filter, export membership. A series with no public story answers 404. Themes: `series.php` and the part in Storybook, Rosewine, Lavender Mist and the built-in theme; the `custom themes/` folder holds no theme, and there is no Classic Archive theme yet (LF-033 must add the part and templates). The view hierarchy falls back to `archive.php` for any theme without `series.php`.
+
+`Project Architecture.md` defers a series model until the core publishing and reading workflow is solid, and `Project Plan.md` lists it as an optional parent of a story. A **series** is an ordered sequence of stories by the same author (sequels, a shared universe told in order); it is part of how the author presents their own work. It is separate from collections (LF-069, curated groups that may hold other people's stories), from the reader's private reading list and bookmarks, and from taxonomy terms.
+
+- [x] Migration adding a `series` table (owner, title, slug, summary, status of the whole series, timestamps) and a `series_stories` link with a position, with a unique slug and a unique story per series so a story sits in at most one series; migration and rollback tested
+- [x] `SeriesService` (create, edit, delete, add, remove and reorder stories), enforcing that only the series owner or staff manage it and that an Author can add only their own stories; deleting a series leaves the stories untouched
+- [x] Author screens: create and manage a series under their stories, set a story's series and position from its form, and drag-free reordering with move up and down buttons that work from the keyboard
+- [x] Public series page (title, author, summary, ordered story list with each story's card, total words and chapters, completion status) and a "Part N of M in Series" line with previous and next story links on the story page, both using only stories the reader may see, so a draft, pending or unpublished story never appears in a series list or its counts
+- [x] Administrator setting to switch series on or off (off hides the interface and public pages without deleting data, as for taxonomy features)
+- [x] Templates, template tags and the `lf-` CSS classes in the Storybook stylesheet with dark-mode rules added together with each component, propagated to every theme under `custom themes/` in the same session (add missing rules only), plus the Classic Archive theme when LF-033 exists
+- [x] Feeds (LF-012) gain a per-series feed; the sitemap (LF-014) lists public series; exports (LF-013) include series membership; search can filter by series title; `docs/DEVELOPER-APIS.md` documents any new action or filter, for example when a story joins or leaves a series
+- [x] Story and account deletion are handled: deleting a story removes its series link only (the series and the other stories keep their order), and deleting an Author removes their series per the existing account-deletion rules
+- [x] Tests: ordering, one-series-per-story, ownership and permission checks (an Author cannot add another author's story to their series, or edit another's series, by hand-crafted POST); drafts and unpublished stories never leak into a public series, feed, count or "part of" line; switched off hides the screens and public routes; deleting a story or a series leaves the rest intact; the migration upgrades an install that already holds stories
+
+Not in scope: nested series, series that span several authors, co-authors (a separate deferred feature), comments or following a series (these wait for the comments and follows milestone), and automatic series suggestions. Update `README.md` (user-facing screens and settings), `docs/THEME-DEVELOPMENT.md` (new template tags and CSS classes), `docs/DEVELOPER-APIS.md` and `docs/CHANGELOG.md` when implemented.
+
+### LF-069. Collections
+
+**Status:** Complete (9 of 9) — released in 1.4.0
+
+Built 2026-11-11. Notes: migration 0040; `CollectionService`, admin `CollectionController` (**Stories > Collections**: the curator's collections, **Collections open to your stories**, **What you have offered**), public `/collections` and `/collections/{slug}`, feed `/feed/collection/{slug}`, sitemap part `collections-N`, export membership. A story goes in only by its own author (the curator's own stories go straight in), so a curator never adds someone else's work; a recommended-reading list of other people's stories is therefore not possible with this ticket. A private collection is seen only by its curator and by staff who may edit any story, takes no submissions, has no feed and is not in the sitemap. Creators setting `collections.creators`: administrator, editor or author. Same theme notes as LF-068.
+
+A **collection** is a curated group of stories that need not be in order and may hold other people's stories (an anthology, a challenge or event, a recommended-reading list); the person who curates it does not own the stories in it. It is separate from a series (LF-068, one author's ordered sequence), from the reader's private reading list and bookmarks, and from taxonomy terms. The two tickets are independent and can be built in either order; when LF-068 comes first, reuse its story-list partial and public-page templates.
+
+- [x] Migration adding `collections` (owner, title, slug, description, visibility of public or private, whether the owner must approve additions) and `collection_stories` (story, who added it, approval state, optional note); migration and rollback tested
+- [x] `CollectionService` with the same permission pattern: the owner and staff manage the collection and its approval queue; any signed-in Author may submit their own story to a public collection that accepts submissions, which is held until approved when the owner requires it; a story's author can always withdraw it; a collection never changes or exposes a story that its viewer could not already see
+- [x] Visibility follows the story, not the collection: a private, draft or unpublished story is never listed to anyone who cannot already open it, even inside a public collection, and a private collection is reachable only by its owner and staff
+- [x] Public collection index and page (description, curator, approved stories), and a "Part of these collections" list on the story page limited to public collections with the story approved
+- [x] Administrator setting to switch collections on or off (off hides the interface and public pages without deleting data, as for taxonomy features), and to limit who may create a collection (Administrators, Editors, Authors)
+- [x] Templates, template tags and the `lf-` CSS classes in the Storybook stylesheet with dark-mode rules added together with each component, propagated to every theme under `custom themes/` in the same session (add missing rules only), plus the Classic Archive theme when LF-033 exists
+- [x] Feeds (LF-012) gain a per-collection feed; the sitemap (LF-014) lists public collections; exports (LF-013) include collection membership; `docs/DEVELOPER-APIS.md` documents any new action or filter, for example when a story is added to or removed from a collection
+- [x] Account deletion and story deletion are handled: deleting a story removes its links only, deleting an Author removes their submissions (and their collections, per the existing account-deletion rules), and a collection survives the removal of stories in it
+- [x] Tests: ownership and permission checks (a hand-crafted POST cannot edit another person's collection, approve a submission, or add a story the person does not own); drafts and unpublished stories never leak into a public collection, feed, count or "part of" list; submission, approval, withdrawal and private visibility; switched off hides the screens and public routes; deleting a story or a collection leaves the rest intact; the migration upgrades an install that already holds stories
+
+Not in scope: nested collections, collection-specific themes or custom fields, challenge sign-ups, comments or following a collection (these wait for the comments and follows milestone), and automatic suggestions. Update `README.md` (user-facing screens and settings), `docs/THEME-DEVELOPMENT.md` (new template tags and CSS classes), `docs/DEVELOPER-APIS.md` and `docs/CHANGELOG.md` when implemented.
+
+### LF-088. Make rating mandatory
+
+**Status:** Complete (8 of 8) — released in 1.4.0
+
+Built 2026-11-09. Notes: the rule lives in `TaxonomyService::requiredTypes()`/`missingRequired()` and `StoryService::classify()` (a public or pending story may not lose its rating); the starter four are migration 0036 (the installer deletes them when a rating starter list is chosen); "Not Rated" stays a choosable value (starter lists and the migrated default), so an author who declines to rate has still defined it; "Not rated" is shown by `StoryPresenter` (cards and story page) as a rating group with no address, so no theme changed.
+
+Today the rating is only required by default: `taxonomy.required` starts as `['rating']`, an Administrator can untick it under Classification, and `TaxonomyService::missingRequired()` skips a required kind whose list is empty and that writers cannot add to (so a site with no ratings set up never asks). That makes the rating, which tells a reader who a story is suitable for, a preference rather than a rule. Make it mandatory for every story that is submitted or published, on every site, and keep it as a separate field from the archive warnings (a rating is never worked out from a warning, or the other way round).
+
+- [x] The rating can no longer be switched off: it is always in the required list, shown ticked and disabled on the required-kinds screen with a line saying why, other kinds stay optional as now, and a hand-made POST that leaves it out changes nothing (the stored list is rebuilt to include it)
+- [x] A story cannot be submitted for approval or published without exactly one rating, in the story form, the chapter publish action and any plugin or import path that publishes through the services (the rule lives in `StoryService`/`TaxonomyService`, not in a form); the refusal says "Choose a rating." and a draft can still be saved without one
+- [x] A site with no ratings yet is not locked out: when the list of ratings is empty, installing or applying a classification starter list is offered first, and a first-run default of the common ratings is added by the installer and by the update that ships this ticket (a migration or a one-off step that adds General, Teen, Mature and Explicit only when the list is empty and never touches an existing list or its order)
+- [x] Stories already published without a rating are not unpublished: they keep showing, the admin story list marks them "No rating" with a filter, the author sees a notice on the story's edit screen asking for one, and the next edit that submits or republishes them requires it; nothing is changed automatically
+- [x] Story cards and the story page show the rating on every story, and a story without one (an old one) shows "Not rated" instead of leaving the place empty, so a reader can tell the two apart
+- [x] A rating term cannot be deleted or merged away while stories use it without choosing a replacement (the existing merge path), and hiding the last visible rating is refused with a plain sentence
+- [x] Documented: `docs/ADMINISTRATION.md` (the rating is always required and the starter list), `docs/USER-GUIDE.md` for writers, `README.md` if the feature overview names required fields, `docs/THEME-DEVELOPMENT.md` for the "Not rated" text on the card and story data, and `docs/CHANGELOG.md`
+- [x] Tests: the required list always holds the rating, whatever is posted; submit and publish are refused without a rating and allowed with one, from the form and from the service; a draft saves without one; an empty ratings list gets the starter ratings once and a populated list is untouched; an old published story keeps showing and is marked; the card and story page show "Not rated"; deleting or hiding the last rating is refused; the migration applies on an install that already holds stories
+
+Not in scope: making any other kind mandatory (the existing required-kinds setting still covers fandoms, genres and the rest), a different rating system per fandom, age gates or content blocking by rating, and importing ratings from another archive (LF-083 maps eFiction ratings). Check against LF-061 (classification terms from a file) before building: it also adds terms in bulk, so reuse its preview and report components if it exists by then.
+
+### LF-089. Feed links on the pages they belong to
+
+**Status:** Complete (7 of 7) — released in 1.4.0
+
+Built 2026-11-09. The visible link is `lf_feed_link()` (answered through the new `lf_page_feed` filter) and sits right after the `h1` of the `archive`, `story`, `chapter`, `news-archive` and `news-single` templates of the four themes; `FeedLinks` also adds "Feed" and "News feed" to the footer list. Release prerequisite: bump the `Version:` of Storybook, Rosewine and Lavender Mist (templates and CSS changed) and the built-in theme.
+
+LF-012 advertises only the site-wide and news feeds, in the head of every page. A page should also point to its own feed: the page of fandom 1 gets the feed of fandom 1, an author's page that author's feed, a story page that story's chapter feed. The general (site-wide) feed link also shows in the footer of every page.
+
+- [x] Autodiscovery `<link rel="alternate">` in the head (RSS, and JSON Feed while it is on) for the page's own feed, written by core through `lf_head` like `FeedLinks`, so no theme needs to change for it. Covers an author page, a fandom, genre or tag page, a story page and a chapter page (the story's feed), the News page and each news post (the news feed), and a story's comment feed on those pages while it is offered
+- [x] The controllers tell core which feed the page being shown belongs to (the way `PagePresentation::showing()` is told), and nothing is advertised on a page that is not public, a 404, a preview, or a kind that is switched off or not offered (`FeedSettings::offered()`, which includes the closed-archive rule)
+- [x] A visible, keyboard-reachable feed link on those pages in Storybook, Rosewine, Lavender Mist and the built-in theme, through one template tag (for example `lf_feed_link()`) that returns nothing when the page has no feed on offer, with stable `lf-` classes, light and dark styling, and an accessible name such as "Feed for Skyfall"
+- [x] The general feed link in the footer of every public page: a visible "Feed" link to the site-wide feed (and the news feed while it is offered), added through the existing `lf_footer_items` filter or `lf_footer_links()` so every theme shows it without a template change, shown only while `FeedSettings::offered()` allows the site feed, and styled in the bundled themes
+- [x] Every theme under `custom themes/` gets the same addition in the same session (add only; ask before changing existing rules) — the folder holds no theme today, so there was nothing to add
+- [x] Documented: `docs/THEME-DEVELOPMENT.md` for the tag and its classes, `docs/USER-GUIDE.md` and `README.md` if the overview mentions it, and `docs/CHANGELOG.md`
+- [x] Tests: each page type, the News page included, advertises exactly its own feed and no other; fandom 1's page never carries fandom 2's address; nothing on a 404, a draft, a switched-off kind or while sign-in is required; the visible link appears and disappears with the same rule; the footer link is on every public page while the site feed is offered, and gone when it is switched off or sign-in is required
+
+Not in scope: a feed for search results, for a combination of terms, or for a reader's own updates.
+
+### LF-090. Anonymous install tracking (opt-in)
+
+**Status:** Complete (10 of 10) — released in 1.4.0
+
+Built 2026-11-11. The service takes a small `HttpPoster` (implemented by the updater's `HttpClient`, so TLS rules and timeouts live in one place) and is sent from `Kernel::sendInstallPing()`. The receiving server is `install-tracking-server/` at the project root. The Send a test ping button works only while the switch is on, so nothing leaves the site without opt-in.
+
+Lumora Press and Lumora Gallery each have an opt-in, off-by-default anonymous install ping (`InstallPingService`, Settings › Privacy in Press) that tells the maintainer roughly how many installs are active, which versions are still in use and when an older PHP version can be dropped. Lumora Fiction gets the same, built the same way so one operator dashboard can read all of them. It sends an install UUID, the Lumora Fiction version and the PHP version, and nothing else: no domain, site title, administrator details, content, configuration or visitor data. Nothing in Lumora Fiction depends on the endpoint being reachable, and the feature is entirely separate from the update check's release source.
+
+- [x] `InstallPingService` in `app/Services/` (modelled on Press's, namespaced `LumoraFiction\Services`, with the standard file header): `isEnabled()`, `getOrCreateUuid()` (random UUID v4, made once and kept across a disable and re-enable), `maybeSendPing()` (a cheap no-op unless enabled and the interval has passed) and `sendPing()` (throws on failure so the test button can report it); the payload is exactly `install_uuid`, `version` and `php_version`
+- [x] Off by default; stored as settings through `Configuration` (enabled flag, UUID, time of the last attempt); the endpoint, a 30-day interval and a 5-second timeout are constants, and the endpoint and the network transport are injectable for tests
+- [x] The install ID belongs to one site address: next to the ID the service keeps a hash of the configured site address, and just before a ping is sent the hash is compared with the current address; when they differ (a backup restored on another host, a copied folder, a moved domain) a new ID is made and the new hash stored, so two sites never share one ID. The hash stays on the site and is never sent, the payload still holds exactly three fields, and a restore on the same address keeps its ID (an address change counting as a new install is accepted for an anonymous counter)
+- [x] Fires once straight after the administrator turns it on, then at most about monthly; the attempt time is recorded whether it worked or not, so an unreachable endpoint is retried next month and not on every page; a failed automatic ping is swallowed and never shown, and a failed ping can never slow or break an admin page (short timeout, no retry loop)
+- [x] Triggered from the admin area only (never on a public page, so a visitor's request never waits on it); reuse whatever HTTP transport and TLS verification `UpdateChecker` already uses, so there is one place that decides how the site makes an outside request, and send a clear `Lumora Fiction/{version}` user agent with no site address in it
+- [x] An **Anonymous install ping** switch under Settings › Privacy (the existing `PrivacySettings` screen, audited like its other fields) that states plainly what is sent and what is not, shows the install ID, shows when the last ping was tried, and has a **Send a test ping now** button that reports success or the failure in a sentence; the wording never names a ticket, a class or an internal file
+- [x] The setting joins the settings file (LF-018) as part of the Privacy group, **but the enabled flag and the install ID are not exported or imported**: an import must never switch tracking on for another site or copy one site's ID onto another (add them to the list of install-specific values `docs/SETTINGS-FILE.md` names as left out)
+- [x] The receiving server is a separate project outside this repository, like the Press and Gallery ones: `install-tracking-server/` at the project root (outside `LumoraFiction/`, never shipped or committed by it) holding `ping.php` (accepts JSON or form fields, validates a UUID v4 and a version pattern, answers 204, or 400 for an invalid request), the one-row-per-install table `lumorafiction_install_pings` (`install_uuid` unique, `version`, `php_version`, `first_seen`, `last_seen`, `ping_count`; upsert on each ping), a login-protected `install-stats.php` (total and active installs in the last 60 days, version and PHP major.minor breakdowns, new installs by month), `config.example.php`, a README and a short plan document, so the tables of all the Lumora apps can share one database and one dashboard (add a `lumorafiction_install_pings` entry to that dashboard's `apps` array when it is deployed)
+- [x] Documented: the README's privacy section (off by default, exactly what is sent, what is never sent, how often, where to turn it off), `docs/ADMINISTRATION.md`, `docs/DEVELOPER-APIS.md` if the service or a filter is exposed, a `DECISIONS.md` entry (opt-in, off by default, why it stays out of the settings file, why the endpoint is separate from the update source), and `docs/CHANGELOG.md`
+- [x] Tests: disabled sends nothing; enabling sends once; a second call inside the interval sends nothing and one after it sends again; the payload holds exactly the three fields and no other; the UUID is made once and survives a disable and re-enable; an unchanged site address keeps the ID and a changed one makes a new ID, and the address hash is never part of the payload; a transport failure and a non-2xx answer are swallowed by `maybeSendPing()` and thrown by `sendPing()`, with the attempt time recorded either way; the Privacy screen saves the switch, audits it and shows the test result; a settings export leaves out the flag and the ID and an import cannot set them; no public page triggers a ping
+
+Not in scope: any tracking of visitors, readers or content, per-feature usage counts, crash or error reporting, a ping on a schedule that does not need an admin page load, and bundling the receiving server in the release ZIP. Check against LF-018 (settings export and import) and the update checker before building: both touch the Privacy and Updates settings and the outside-request code.
+
+### LF-091. Hide feed kinds the archive mode has switched off
+
+**Status:** Complete (4 of 4) — released in 1.4.0
+
+Built 2026-11-11. The one rule is `FeedSettings::available()` (archive mode through `ArchiveSettings::modeOf()`, which `TaxonomyService::enabledTypes()` uses too, and the series and collections switches), used by `kindEnabled()`, `offered()`, the settings screen and `validate()`.
+
+**Settings > Feeds** lists every kind of feed whatever the archive mode, so an original-fiction site still sees "Each fandom", "Each character" and "Each relationship" with tick boxes that do nothing: the term pages and feeds of a kind the mode switches off answer "not found" already. The Classification screens hide such kinds (`TaxonomyService::enabledTypes()`), and the feeds screen should follow them.
+
+- [x] The Feeds settings screen lists a term-based feed kind (fandom, character, relationship, genre, tag) only while `TaxonomyService::isEnabled()` says its kind is on in the archive mode, with a line saying which kinds are hidden by the archive mode (as the Classification screen does), and keeps what was saved for them
+- [x] A saved feed choice for a hidden kind is neither lost nor changed by saving the screen, so switching the archive mode back restores it exactly; a hand-made post that names a hidden kind changes nothing for it
+- [x] `FeedSettings::offered()` and the head and footer links already treat a hidden kind as not offered; check that the new rule lives in one place and that the settings screen, `FeedService` and `FeedLinks` all use it
+- [x] Tests: in original-fiction mode the screen lists no fandom, character or relationship box, in fanfiction mode no category box once LF-093 exists, saving keeps the hidden kinds' saved values, and switching back shows them again
+
+Update `docs/ADMINISTRATION.md` (Settings > Feeds) and `docs/CHANGELOG.md` when implemented.
+
+### LF-092. Relabel the fixed kinds of classification
+
+**Status:** Complete (7 of 7) — released in 1.4.0
+
+Built 2026-11-11. `ClassificationLabels` (read) and `ClassificationLabelSettings` (validate and save), reached through `TaxonomyService::labels()`; the form is the **Names of the lists** card on the Classification screen. The settings-file group is `classification` with one map, `labels`, of `{kind}_singular` and `{kind}_plural`.
+
+The kinds of term are a fixed list in the code (`TermType`), so a site that calls a relationship a "pairing", or a category a "trope", cannot say so: every screen, page and feed says "Relationship". Adding new kinds is not wanted (the list drives behaviour such as fandom parents, single-choice ratings and per-kind limits), but the words a site shows can be its own. This is display text only: addresses, stored values, feed addresses and the settings file keep the fixed names.
+
+- [x] Settings (under Classification or Archive) lets an Administrator give each kind a singular and a plural label, with the fixed label as the default and shown as the placeholder, validated like term names (length, no control characters, no markup) and reset by clearing the field
+- [x] One place supplies the label: `TermType::label()` and `pluralLabel()` stay the defaults, and a small service (for example `ClassificationLabels`) is asked by the admin screens, the story form, the public term and browse pages, story cards and pages, search filters, feeds' titles and descriptions, downloads, and the Classification list, so a relabelled kind reads the same everywhere
+- [x] Public addresses (`/relationship/…`, `/browse/…`, `/feed/relationship/…`) and the stored `type` values do not change, and nothing that parses a label (search syntax, imports, the settings file, tests) depends on the shown label
+- [x] The label is used as text only and is escaped wherever it is printed, including in feed titles and the `lf_feed_link()` accessible name
+- [x] Included in the settings export (LF-018) as part of a new `classification` group, validated as the screen does
+- [x] Documented: `docs/ADMINISTRATION.md`, `docs/THEME-DEVELOPMENT.md` (template data carries the shown label, never the fixed one, and `type` stays the fixed name), `docs/SETTINGS-FILE.md` and `docs/CHANGELOG.md`
+- [x] Tests: a relabelled kind shows its label on the story form, a term page, a story card, a feed title and the Classification screen, while addresses and `type` are unchanged; an empty value restores the default; markup in a label is escaped; the label survives an export and import
+
+Not in scope: adding new kinds, renaming a kind's address, per-fandom labels, and translating the interface into other languages.
+
+### LF-093. Feed for categories
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+Built 2026-11-11 with migration 0038, which ticks the new kind in a saved `feeds.kinds` list.
+
+Original-fiction sites use **categories** where fanfiction sites use fandoms, and categories have no feed today (feeds exist for fandom, character, relationship, genre and tag only), so an original-fiction archive has no feed for its main way of browsing.
+
+- [x] `/feed/category/{slug}` (and `.json`) lists the public stories of a category exactly as the fandom feed does, through `FeedService::term()` with `TermType::Category` added to `FeedService::termKinds()`, answering "not found" while the kind is off in the archive mode (fanfiction only) or switched off in the feed settings
+- [x] A category page (`/category/{slug}`) carries the head link and the visible "Feed for …" link, with the same offered and sign-in rules as the other kinds
+- [x] A **Each category** kind on the Feeds settings screen, on by default for a new site; a site that already saved its choices keeps them and ticks it (noted in the changelog), and it is hidden in fanfiction mode by LF-091
+- [x] Documented: `docs/ADMINISTRATION.md`, `docs/USER-GUIDE.md`, `docs/CHANGELOG.md`
+- [x] Tests: the feed lists only public stories, a switched-off kind and a fanfiction-only archive answer "not found", the category page advertises its own feed and no other, and the settings screen lists the kind
+
+Coordinate with LF-091 (which hides kinds the mode switches off) and LF-092 (the label shown for "category" in feed titles).
+
+------
+
+### LF-094. Group the Settings menu under headings
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+The Settings group of the admin sidebar lists sixteen screens in one flat list. Group them under non-clickable headings so it is easier to scan. Headings only: real collapsible sub-groups would need a second menu level and are not part of this ticket.
+
+- [x] Menu entries can be headings (a label, no address, no capability); a heading is shown only when at least one entry after it, before the next heading, is visible to the person
+- [x] Settings is grouped as: **General** (Archive, Front page, Editor, Series and collections), **Reading and discovery** (Feeds, Search engines, Redirects, Cache, Downloads), **Community** (Comments, News), **Safety and privacy** (Security, Spam protection, Privacy), **Data** (Retention, Export and import); every address stays the same
+- [x] The sidebar prints a heading as a plain label (not a link), styled in the admin stylesheet with light and dark colours, and it also reads sensibly in the narrow-screen layout
+- [x] `docs/DEVELOPER-APIS.md` explains the `heading` key for plugins that add to a group
+- [x] Tests: headings are kept in order, hidden when nothing follows them, never marked current, and a plugin's entry can still be attached after a heading; the existing menu tests follow the new order
+
+------
+
+### LF-095. Classic Archive: header pictures the administrator adds by FTP
+
+**Status:** Complete (6 of 6) — released in 1.4.0
+
+The Classic Archive picture band (LF-033) offers three bundled SVG pictures, hard-wired in the theme's option list and stylesheet. An administrator who uploads their own picture by FTP cannot use it without editing theme files, and the edit is lost on the next theme update. Let the Header picture dropdown also list pictures found in a folder updates never touch.
+
+- [x] Folder: `content/uploads/theme-headers/` (created on demand, outside the theme so updates leave it alone); the Header picture dropdown lists the three bundled pictures first, then each file there named `banner-*` with a `.jpg`, `.jpeg`, `.png`, `.webp` or `.svg` extension, labelled from the file name (`banner-sea-glass.jpg` becomes "Sea glass")
+- [x] Only the file name is stored as the option value, and it is checked against a fresh folder listing on every request, so a missing or renamed file falls back to the theme's own default instead of printing a broken picture; no path or traversal characters are ever accepted
+- [x] Delivery without inline styles: the chosen file's address reaches the stylesheet as a CSS custom property set in the theme's head output, which the project rule allows for a genuinely dynamic value; the bundled three keep their class rules
+- [x] Each file is checked before it is offered: the real image type must match a picture type (`getimagesize()`), and an SVG must contain no script, event attributes or external references; it is used only as a CSS background, never inlined
+- [x] The dropdown hint says where to upload, which formats work, and a suggested size (wide and short, around 1600 by 300 pixels), documented in the Classic Archive `README.md` and `docs/THEME-DEVELOPMENT.md` (the dynamic-choices pattern)
+- [x] Tests: the dropdown lists the bundled three plus valid uploaded files in order, an unsupported extension, a fake image and an SVG with a script are not offered, a stored name that no longer exists falls back, and the band renders with the chosen picture
+
+Built 2026-11-11. Decision on the open question: a `select` field takes a `pictures` setting (`['variable' => '--lf-header-picture', 'upload' => 'header_upload']`), and `ThemeOptions` adds the folder's pictures to its choices as `file:{name}` (a new `ThemePictures` service lists and checks them). The chosen picture's address is written to the generated options stylesheet (not the page head) as the named custom property, and the template prints the kind through the new `lf_option_class()` tag, so a stylesheet needs one rule per kind (`--file`, `--upload`). The listing is read once per request. A real upload field is LF-096.
+
+------
+
+### LF-096. Theme Options image upload field (admin-set header picture)
+
+**Status:** Complete (7 of 7) — released in 1.4.0
+
+Theme Options have three field types today (`color`, `select`, `checkbox`), so a theme cannot let the administrator upload a picture from the admin screen. Add an `image` field type that reuses the existing picture pipeline, then let Classic Archive use it for the picture band as the mockup showed (an admin-set image), alongside the bundled pictures. Complements LF-095 (pictures added by FTP); build whichever the administrator needs first, they share the band markup.
+
+- [x] `ThemeOptions::TYPES` gains `image` (the picture is resized to the one wide header size for now; a per-field `kind` was left out until a second use needs a different size), and the field type is documented in `docs/THEME-DEVELOPMENT.md` with the other types
+- [x] The theme options form becomes `multipart/form-data` only when the theme has an image field; the field shows the current picture, a file input, and a "Remove picture" checkbox
+- [x] Uploads go through `ImageStore` (real type check, JPEG, PNG or WebP only, re-encoded under a generated name, SVG refused), with a new picture kind for a wide header (for example 1600 pixels wide, capped height, with a smaller size for narrow screens); a failed upload shows the existing friendly error and keeps the old picture
+- [x] The stored value is the generated file name only; replacing or removing the picture, switching theme options off, or deleting the setting removes the old files so nothing is orphaned; the field has no default and prints nothing until a picture is set (the "theme's own choices beat core defaults" rule)
+- [x] Classic Archive: a "Header picture" choice **Uploaded picture** (shown only once one is set) beside Dusk, Ink and Meadow; the band uses the uploaded file as a CSS background through a custom property, with the same height, dark-mode and print rules as the bundled pictures; the mockup's behaviour is matched and the alt-less decorative treatment kept
+- [x] The picture is served from `content/uploads/`, covered by the same upload rules as story covers (no script execution, never listed or cached publicly beyond the file itself), and the server without GD or WebP support shows the same "cannot read this picture" message as the cover upload
+- [x] Tests: the field type validates and renders, a valid upload is stored and offered, SVG and fake images are refused, a failed upload keeps the previous picture, removing and replacing clean up files, the form is multipart only when needed, and the band renders the uploaded picture; the custom-themes and bundled-theme option tests follow the new type
+
+Built 2026-11-11. The file name is stored inside the theme's own options setting, next to the other options, and deleting a theme removes its pictures too. A settings export carries no picture and an import leaves them as they are. Whether Storybook, Rosewine and Lavender Mist should offer the same field later is open (they have no picture band today).
+
+### LF-097. Import your own stories from AO3 and other OTW-Archive sites
+
+**Status:** Complete (15 of 15) — released in 1.4.0
+
+Built 2026-11-14. Notes: core, not a plugin. `Core/Import/` (`OtwDownloadParser`, `OtwWork`, `OtwChapter`, `PlainText`, `RatingScale`, `UploadReader`, `ImportException`), `Services/ImportService` and `ImportSettings`, admin `ImportController` and `ImportSettingsController` (**Stories > Import**, **Settings > Import**), views `import`, `import-preview`, `import-report`, `import-undo` and `settings-import`, migration 0041 (`import_runs`, `story_imports`), hook `story_imported`, `docs/IMPORT-FORMAT.md`. The parser was checked against real downloads made by the local OTW-Archive development install (never kept as fixtures; the tests use invented files built to the same template by `Support/OtwDownload`). The core change the ticket foresaw: `StoryService::applyDates()` and `ChapterService::applyDates()`, plus `Request::uploads()`. The kept upload is a JSON plan in `storage/cache/imports` for up to two hours (removed on confirm, cancel and the next upload), which differs from "nothing is kept". A story is not wrapped in one transaction (the database layer cannot nest one around the services' own); a failed story is deleted again instead. Not built: the **Import a story** button on the dashboard. The EPUB download (LF-098) and resumable steps (LF-099) were built the same day. Release prerequisites: none for bundled themes or plugins; `@since 1.4.0` assumes the next release is 1.4.0.
+
+Writers moving from Archive of Our Own, Squidgeworld or any other site running the OTW's open-source Archive software (the "otwarchive" code base) want to bring their own stories across with everything the archive knew about them, not retype fandoms, characters and tags. This is a per-author tool, not a site migration (that is LF-083, which is administrator-only and reads a database). Every OTW-Archive site offers the same downloads on each work (HTML, EPUB, PDF, MOBI) and they carry the same metadata block, so one parser covers all of them, whatever the site's name. It is **part of core** (decided 2026-11-14): other story archives treat "new post" and "import" as sibling pages, and a writer arriving from another archive expects to find it beside **New story**, not behind a plugin an administrator has to find and switch on. It is a small, self-contained subsystem (an import service, a parser behind an interface, one controller, its own table) that writes only through the existing services, so imported stories obey the same sanitiser, rating rule (LF-088), approval flow and visibility as anything typed in. An Administrator can switch it off in Settings, which hides the screens and routes without deleting data.
+
+**Decision: files, never addresses.** The author uploads the file they downloaded from their own work; the server never fetches a URL. Fetching an AO3 address would be server-side URL fetching (the SSRF risk recorded in `DECISIONS.md`), is blocked or rate-limited by those sites, would reach restricted and locked works only by handling someone's login, and sidesteps the sites' terms. An uploaded file is also the only way to import a work the site no longer shows publicly. Pasting a work's address is therefore not offered.
+
+- [x] A core **Import** screen as a sibling of **New story**: a menu entry under **Stories** right after **New story**, and an **Import a story** button next to **Add a story** on the story list, for every signed-in user who may write stories (the existing story-creation permission, nothing new), with an Administrator setting under Settings (default on) that switches it off and hides the entry, buttons and routes; a user imports only into their own account, never for another person, and every import is one audit entry with the counts
+- [x] Upload accepts the **HTML download** of a work, several HTML files at once, or a ZIP of them (the **EPUB** download is LF-098, built); limits on file size, files per run and expanded ZIP size, UTF-8 or declared-charset text only, ZIP entries checked for traversal, symlinks and nested archives, and nothing is kept on disk after the run except the imported story itself
+- [x] A parser (`Core/Import/`, with the orchestration in an `ImportService`; the controller stays thin) behind a small interface so another format can be added later, that reads the work's metadata block rather than guessing from the host name: title, author byline (including pseuds), summary, work notes, end notes, rating, archive warnings, relationship categories (F/F, F/M, Gen, M/M, Multi, Other), fandoms, relationships, characters, additional tags, language, series name and part number, published and updated dates, word count, chapter count and "X of Y" completion, and per chapter: number, title, summary, start notes, text and end notes; the downloads label fields in English, and a file whose labels cannot be read is refused with a plain message, never half-imported
+- [x] **Ratings are mapped to this site's ratings.** AO3-style names (General Audiences, Teen And Up Audiences, Mature, Explicit, Not Rated) are matched to this site's rating terms by name and alias first, then offered as a suggested pairing by audience level (so the AO3-style preset and the minimal preset both land sensibly); the author sees and can change the pairing for each distinct rating in the file before anything is written; an Administrator fixes the site-wide pairing by adding the other site's rating as an alias of one of the site's ratings under Classification (the existing alias feature, so nothing new is invented, and the Import settings screen says so); a rating that cannot be matched leaves the story a **draft** with a clear note (the rating is mandatory), never a guessed value, and a rating is never inferred from a warning or the reverse
+- [x] Archive warnings map to this site's warning list the same way (by name and alias, then the author's choice), with "Creator Chose Not To Use Archive Warnings" and "No Archive Warnings Apply" matched to their equivalents where the site has them; categories map to the relationship-category list; and a kind the site has switched off by archive mode or setting is skipped and said so in the preview, never created
+- [x] Fandoms, relationships and characters are matched to existing terms (by name, alias and the hierarchy of fandom and its characters and relationships) through `TaxonomyService`, so every rule that applies to hand-added terms applies here; a term the author may propose here is created as **proposed**, and a term they may not is left out with the reason shown in the preview (an unknown term is never turned into a tag or mapped to another term; matching is by name and alias, so an administrator's aliases decide); additional tags follow the tag rules (writers may be barred from adding tags, in which case unknown tags are left out); nothing is created without appearing in the preview first
+- [x] **Series:** when several uploaded files name the same series, the author is offered to create one Lumora series (LF-068) with the parts in the order the files give, or to join an existing series of theirs, or to import without a series; a single work that says it is part 2 of a series is imported on its own with the series name and position kept in the report, never an empty series; series switched off by the administrator hides the choice, and nothing outside the author's own stories is ever added to a series
+- [x] **Collections:** the download does list the collections a work is in (they may belong to someone else), so the file's collection names are read; the screen offers, for each name, to put the story in one of the author's own collections (the one with the same title is suggested), to make a new collection with that name where the site lets the author start one, or to leave it out, through `CollectionService` and its rules; membership of someone else's collection is never copied.
+- [x] Preview before anything is written, and a separate confirm step: per file the title, chapter count, words, the mapped rating, warnings, fandoms, characters, relationships and tags with each marked **matches** / **new** / **needs a choice** / **dropped**, the status that will result (draft, or submitted or published by the site's own publishing rule for this author), and the problems found; the author picks, per story, **import as draft** or **import and submit** (a first publication still goes through the approval queue where the site requires it)
+- [x] Stories and chapters are written through `StoryService` and `ChapterService`: chapter text and notes go through the same sanitiser as the HTML editor (scripts, work skins and custom CSS, inline styles that the sanitiser does not allow, and external images are removed and counted in the report), chapter order and titles are kept, word counts are recalculated, original published and updated dates are kept as the story's and chapters' dates where the services allow a date to be supplied (otherwise the report says the dates are those of the import), and completion maps to the site's work-status values
+- [x] **Your own work only.** The upload screen asks the author to confirm they wrote the work or have the author's permission, stored with the import record; the byline is compared with the author's display name and any pseuds they enter and a mismatch is a warning, not a block (pseuds and orphaned or anonymous works are legitimate); an Administrator may switch the plugin to staff-only imports; and the screen does not claim the check proves authorship
+- [x] Duplicates and re-runs: the work's original address and id found in the file (or a hash of title, author and first chapter where there is none) are kept in a new `story_imports` table (a migration, tested with rollback and on an install that already holds stories) next to the new story id, so re-importing the same work warns and offers **skip** (the default) or **import as a new story** (adding only the missing chapters is not offered); the original address is shown to the author as an optional **originally published at** line in the story's notes only when they tick it, since it identifies another site
+Moved to LF-099 and built there: running an import in small resumable steps on a progress page.
+- [x] A report that stays on the screen and downloads as a plain text file: counts, every dropped or remapped term, every file that was refused and why, and every sanitiser removal; **Undo this import** deletes exactly the stories, chapters and links the run made (only while they are still unedited drafts, or after a confirmation that shows the numbers) and never the terms that already existed; the report holds no email address, login name or path
+- [x] Documented: `README.md` (the feature overview), a guide in `docs/USER-GUIDE.md` (how to download a work from AO3 or Squidgeworld, what is and is not carried over, ratings and warnings mapping, series and collections behaviour, the authorship note, how to undo), `docs/ADMINISTRATION.md` (the switch, the default rating pairing, the staff-only option), the supported-file notes in `docs/`, `docs/DEVELOPER-APIS.md` for any new hook (for example when a story is imported) and `docs/CHANGELOG.md`
+- [x] Tests (EPUB cases are LF-098), using **invented** small HTML files made to the OTW download shape (never a real author's story, never copied from a real site, nothing from `Resources/`): every metadata field is read; each AO3 rating lands on the right site rating under the AO3-style preset, the minimal preset and a custom list, and an unmappable rating leaves a draft; warnings and categories map and a switched-off kind is skipped; existing fandoms and characters are matched through aliases and unknown ones follow the proposal rules; a script tag, work skin and inline style in a chapter are removed and counted; a series of three files makes one ordered series and a lone part 2 makes none; collection choice is limited to the author's own; a ZIP with a traversal path, a symlink or a nested archive is refused; an oversized or non-UTF-8 file is refused; a second import of the same work warns; a failure in chapter three rolls the whole story back; **Undo** removes only what the run made; a user cannot import into another account or see another user's import report by hand-crafted request; switched off hides the menu entry, buttons and routes; the migration applies on an install that already holds stories; and the permission and switch settings are enforced on the server
+
+Not in scope: fetching from any address, logging into AO3 or any other site, scraping, importing other people's works, bookmarks, kudos, comments, hit counts, collections as read from a site, work skins and custom CSS, series descriptions beyond the name, importing a whole site (use LF-083 for eFiction; a whole-site OTW-Archive migration would be its own ticket), PDF and MOBI downloads (no reliable structure), and FanFiction.net or other non-OTW formats (the parser interface leaves room, each would be its own ticket). Check before building: LF-061 (classification terms from a file) and LF-083 (eFiction importer) share the ideas of a preview, a mapping step and a report, so reuse their preview and report components rather than writing a third pair; LF-088 makes the rating mandatory for any submitted or published story; LF-068 and LF-069 supply the series and collection services; and the story and chapter services must accept supplied dates, or this ticket adds that as a small core change with its own tests. Build the parser against a real downloaded sample on the developer's own machine to confirm the labels and markup before fixing the tests' invented shapes, since OTW releases may change the download template.
+
+**Reference install for the parser (development only, outside the repo, never shipped):** a local OTW-Archive development copy is at `/home/piia/Coding/otwarchive/otwarchive` and is meant to answer at `http://localhost:3000/`. It is a Ruby on Rails app run through its own `docker-compose.yml`, so it is separate from the PHP dev stack (Apache and the system MySQL that serve Lumora Fiction, Lumora Press and Lumora Gallery) and is started on its own. Use it only to create invented test works on a throwaway account and download them as HTML and EPUB for fixtures and for checking the labels and markup; never import real people's works into a fixture, and the importer itself never contacts it or any other site. It was not running when this was written (nothing answered on port 3000). Its compose file publishes a MariaDB on host port **3306**, which is the port the PHP dev stack's system MySQL already listens on at `127.0.0.1:3306`, so the two collide; the other published ports (Redis 6379, Elasticsearch 9200, 9300 and 9400, memcached 11211, the app on 3000, Selenium 4444, the test service 5100) are not in use by the PHP stack, though Elasticsearch needs a lot of memory. To avoid it, the `db` port mapping in the otwarchive compose file was changed on 2026-11-14 to `3308:3306` (the app container reaches the database by the service name `db`, so nothing else changes; it is a local edit to that checkout's `docker-compose.yml`, so keep it when pulling updates, and a tool on the host that wants that database must use port 3308). The same trick is already used for the PHP Test Suite's database on 3307. Confirmed 2026-11-14: with that change the OTW-Archive dev install and the PHP dev stack run at the same time.
+
+### LF-098. Import the EPUB download
+
+**Status:** Complete (4 of 4) — released in 1.4.0
+
+Built 2026-11-14. Notes: `Core/Import/EpubReader` joins the pages of the book in spine order into one HTML document and the same `OtwDownloadParser` reads it, so an EPUB gives exactly what the HTML of the same work gives. Checked against real downloads from the local OTW-Archive development install, including a work with three chapters, chapter summaries, notes, end notes and work end notes (made on that install for the purpose): the converter's spine is in reading order, the preface and every chapter are split over several pages with empty wrapper divs left behind, and the classes are renamed (`meta group` becomes `calibre1`, the chapter text block `userstuff2`) but the ids and the `h2.heading` survive. The parser therefore no longer relies on wrapper classes: chapters are found by their heading (the heading's own class tells it from a heading the author wrote in the text), and the preface, summary and notes are found by walking the preface in order. An EPUB inside a ZIP is refused ("upload it on its own") because opening it would need a temporary file.
+
+- [x] Upload accepts an EPUB on its own, opened in memory by `UploadReader` and `EpubReader` with the same size limits and name checks, reading `META-INF/container.xml` and the package's manifest and spine and never extracting to disk (an EPUB inside a ZIP is not opened)
+- [x] The pages are joined into the document the HTML parser expects, and the chapter boundaries are found without relying on the classes the converter drops or renames
+- [x] The preview, mapping, report and undo of LF-097 work unchanged for an EPUB, and the EPUB and the HTML of one work are noticed as the same work
+- [x] Tests with invented EPUB files built to the converter's layout (`Support/OtwEpub`): the result equals the HTML's for a work of one chapter, a chaptered work and one with several tags, an author's own "Chapter N" heading stays in the text, a path leaving the archive, damaged files and a file with no preface are refused
+
+### LF-099. Import in resumable steps
+
+**Status:** Complete (4 of 4) — released in 1.4.0
+
+Built 2026-11-14. Notes: migration 0042 (`state`, `job`, `locked_until` on `import_runs`). `ImportService::apply()` now only queues the run; `step()` writes the next stories for about eight seconds (at least one) and saves after each, `cancel()` and `progress()` complete it. A lock stops two requests working on one run, and the link row of a story is written as soon as the story exists, so a story whose writing was cut short is found and removed before it is made again. Pages: `/admin/import/run/{token}` (progress, `admin/assets/js/import-progress.js` sends the "Carry on" form by itself; the button does it by hand without scripts) and `…/stop`; **Stories > Import** lists a run that is not finished with **Carry on with this import**. The kept upload is touched at each step and is not expired while the run is going; a run left for more than two hours loses its upload and reports the rest as not imported. The audit entry `story.import` is now written when a run finishes.
+
+- [x] The confirmed import is stored as a run with the choices made and the works still to do, and each request imports a few stories within a time budget
+- [x] A progress page that continues until every story is written, can be reloaded and resumed after an interruption, and can be stopped (leaving what was written, undoable as now)
+- [x] The report and undo work for a run that was resumed or stopped, and a story is never written twice by a repeated request (undo refuses a run that is still going)
+- [x] Tests: a run split over several requests gives the same stories as one request, a repeated step writes nothing twice, a request that finds the run locked writes nothing and an old lock is taken over, a story cut short is removed and made again, a stopped run keeps what it had written and can be undone, another account cannot step or stop a run, and a lost upload fails its stories without losing the run
+
+### LF-100. Bulk actions on more screens
+
+**Status:** Complete (11 of 11) — released in 1.4.0
+
+Built 2026-11-14. Shared pieces: `Core/Admin/BulkResult` (done and skipped counts, each reason once, the 100-item limit), `Core/Admin/BulkBar` (an empty form beside the table, tick boxes and buttons joined to it with the `form` attribute, so tables that already hold row forms stay valid), `AdminController::bulkInput()` and `askBeforeBulk()`, the shared `bulk-confirm` view, and `bulk-select.js` (counters can now be named so two lists on one screen keep separate counts). Each service has a `bulk()` that calls the single action per item and writes a `…bulk` summary entry (`chapter.bulk`, `story.review_bulk`, `story.bulk`, `news.bulk`, `page.bulk`, `user.bulk`, `redirect.bulk`, `collection.bulk`, `series.bulk`); `StoryBulkService` holds the new story actions. Decisions: notification housekeeping writes no audit entry, because marking one message read does not either; removing stories from a series or collection does not ask first, because the stories are untouched; a placement change on a page never touches its address, so no redirect is made. Not seen in a browser: dark mode and phone width of the new bars, and every screen other than the story list and a chapter list.
+
+Bulk actions exist today on the story list (publish or send for approval, unpublish, trash, delete), the Classification term lists, the Comments screen, the Trash and the theme list, each with a tick box per row, an action menu, a confirmation page where the action is destructive, and a count of what was done and what was skipped. The rest of the admin makes people repeat the same click row by row. This ticket adds the same pattern to the screens where it saves real work, and widens the story actions. Every action is applied one item at a time through the service that owns it, so each item is permission-checked on its own, a refused item is skipped and counted and never stops the others, the audit log gets the same entries as the single action, and a hand-made request cannot do more than the screen offers. Reuse `admin/assets/js/bulk-select.js`, the confirmation views and the `done` and `skipped` result of `StoryService::bulk()`; a page of results holds at most 100 items, as now. Without JavaScript the screens still work (the tick boxes and the menu are plain form controls).
+
+- [x] **Chapters** (the chapter list of a story): tick chapters and **Publish**, **Unpublish**, **Move to the trash** or **Delete for good** (confirmation page), through `ChapterService` so the story's term counts, word count and chapter numbering are refreshed once per request and not once per chapter, and publishing a chapter in a story that is still a draft stays hidden from readers as now; the order buttons stay as they are
+- [x] **Stories**: more actions on the existing menu: **Set the rating** (needed to bring old stories up to the mandatory-rating rule), **Set where it stands** (ongoing, completed, on hiatus, abandoned, honouring the site's abandoned switch), **Add to series** and **Add to collection** (own stories only, existing rules), **Downloads: use my default, allow, refuse**, and **Add a tag, fandom or character** and **Remove a tag, fandom or character** by name through `TaxonomyService`, with the same proposal rules as the story form
+- [x] **Awaiting approval** (review queue): tick several and **Approve**, or **Send back** with one shared reason, through `approve()` and `reject()`, with the notification to each writer as for a single decision
+- [x] **News posts**: **Publish**, **Unpublish** (back to draft), **Pin**, **Unpin** and **Delete** (confirmation page), by those who may publish news
+- [x] **Pages**: **Publish**, **Unpublish**, **Show in the menu**, **Show in the footer**, **Remove from the menu or footer** and **Delete** (confirmation page), keeping the redirect and address rules of a single change
+- [x] **Users** (Administrators only): **Suspend**, **Reinstate**, **Change role**, **Change the publishing setting** (direct, held for review, or the site's rule) and **Send a password reset**, never applied to the person doing it, to the last Administrator, or to an account whose change the single screen would refuse; deleting accounts stays one at a time because of the data-privacy steps
+- [x] **Redirects**: **Delete**, and **Change kind** (permanent or temporary)
+- [x] **Series and collections**: on a collection's screen, **Approve**, **Turn down** and **Remove** several offered stories at once, and on a series' screen **Remove** several stories; the move buttons stay
+- [x] **Notifications**: **Mark as read** and **Delete** on chosen messages (**Mark all as read** exists)
+- [x] Every bulk form shows what the action will do to how many items before a destructive one runs, says afterwards "N done, M skipped" with the reasons for the skipped ones listed once, writes one audit entry per item as the single action does (plus a single `…bulk` summary entry with the action and the counts), fires the same actions and filters, and keeps the filter, sort and page the person was on; the pages are keyboard operable, the tick-all box has a label, and the selection count is announced to screen readers
+- [x] Tests: each action does what the single action does and writes its audit entries; an item the person may not change, or that the service refuses, is skipped and counted while the rest are done; a hand-crafted POST naming another person's story, chapter or account, an action the screen does not offer, more than 100 ids, or no token is refused; a destructive action does nothing without its confirmation; the last Administrator and the person's own account are never touched by a bulk user action; chapter numbering stays complete after a bulk trash or delete; term counts are right afterwards
+
+Not in scope: bulk editing the text of chapters, find and replace across stories, changing a story's owner, bulk export (LF-013 already exports a whole author) and bulk import. Check before building: LF-073 built the term bulk screen and the shared confirmation pattern, `StoryService::bulk()` caps at 100 and reports done and skipped, and `bulk-select.js` is shared with the Comments screen, so extend those instead of writing a second pattern. Update `README.md` if it names bulk actions, `docs/USER-GUIDE.md` and `docs/ADMINISTRATION.md` for each screen, `docs/DEVELOPER-APIS.md` for any new service method or action, and `docs/CHANGELOG.md` when implemented.
+
+### LF-101. Chapter links on the story list
+
+**Status:** Complete (5 of 5) — released in 1.4.0
+
+The story list (**Stories > My stories** and **All stories**) links each row only to the story's own screen, so reaching a story's chapters or starting a new chapter takes a click on the story first, then another to the chapter list. Writers who work chapter by chapter, and editors who correct one, do this all day. Give each row direct links to the story's chapter list and to a new chapter, using the screens that already exist (`/admin/stories/{id}/chapters` and `/admin/stories/{id}/chapters/new`).
+
+- [x] Each row gets a **Chapters** link to the chapter list (the existing "N of M published" count may itself be that link, so the table does not grow a column on a phone) and an **Add a chapter** link to the new-chapter form, both named for the story for screen readers ("Chapters of {title}", "Add a chapter to {title}") and reachable by keyboard in the row's tab order
+- [x] The links appear only where the person may use them: the same rule as the story itself, so an Editor or Administrator sees them on **All stories** and an Author only on their own, and a story in the trash gets neither (it is not in this list); the screens behind them still check the permission, so a hand-made address changes nothing
+- [x] The layout holds on a phone and in dark mode: the links wrap under the title rather than widening the table, with no new inline styles (the classes go in the admin stylesheet, e.g. `lf-row-actions`), and the print layout and sort headings are unchanged
+- [x] After saving a new chapter the person lands where they started from when they came from the list (the chapter list of that story, as now), and **Add a chapter** on the chapter list still works unchanged
+- [x] Tests: the links are on every row with the right addresses and accessible names, an Author's list shows them only for their own stories and an Editor's **All stories** shows them for every story, the links follow the active filter, sort and page without changing them, and a hand-crafted request to another author's chapter screens by an Author is still refused
+
+Not in scope: new columns, inline editing of a chapter from the list, and bulk chapter actions (LF-100 covers those). Check before building: `admin/views/stories-list.php` already builds the row and `ChapterController::index()`/`showCreate()` already check ownership; reuse them. Update `docs/USER-GUIDE.md` (the Stories description) and `docs/CHANGELOG.md` when implemented.
+
+Built 2026-11-14. The links are a `lf-row-actions` line under the title in `stories-list.php` (no new column); every listed story is one the person may manage, so the permission rule is the list's own, and the chapter screens still refuse anything else. The after-save redirect was left as it is.
+
 ## Version 1.3.0 — 2026-11-08
 
 ### LF-077. Let readers choose the theme they use
