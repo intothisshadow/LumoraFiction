@@ -233,6 +233,44 @@ final class CollectionController extends WriterController
     }
 
     /**
+     * Approves, turns down or removes the ticked stories of a collection the person runs. The stories themselves are
+     * untouched, and their authors can offer them again, so nothing is asked first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->open($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $collection = $this->collections->find($this->idFrom($params));
+
+        if ($collection === null || !$this->collections->canManage($user, $collection)) {
+            return $this->missing('That collection is not available.', self::PATH);
+        }
+
+        $back = AdminUrl::to(self::PATH . '/' . $collection->id);
+        $input = $this->bulkInput($request, self::TOKEN, CollectionService::BULK_ACTIONS, 'stories', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        try {
+            $result = $this->collections->bulk($user, $collection->id, $input['action'], $input['ids'], $request->ip());
+        } catch (GroupingException $exception) {
+            return $this->missing($exception->getMessage(), self::PATH);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary(['approve' => 'approved', 'turndown' => 'turned down', 'remove' => 'taken out of the collection'][$input['action']], 'story', 'stories'));
+
+        return Response::redirect($back, 303);
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function remove(array $params, Request $request): Response

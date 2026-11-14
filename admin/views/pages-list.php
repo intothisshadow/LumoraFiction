@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
@@ -35,6 +36,10 @@ use LumoraFiction\Models\PublicationState;
 /** @var string $listUrl */
 /** @var string $newUrl */
 /** @var string $pageUrl */
+/** @var string $bulkUrl */
+/** @var string $assetVersion */
+
+$bulkForm = 'lf-bulk-form';
 
 $kept = array_filter(['q' => $filters['search'], 'state' => $filters['state']], static fn (string $value): bool => $value !== '');
 $query = static function (int $number) use ($kept, $sort): string {
@@ -90,10 +95,14 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
 <?php else: ?>
     <p class="lf-hint"><?= (int) $total ?> found.</p>
 
-    <table class="lf-table">
+    <?= BulkBar::form($bulkForm, $bulkUrl, $starterToken, $kept + $sort->query() + ['page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'pages', ['publish' => 'Publish', 'unpublish' => 'Unpublish', 'menu' => 'Show in the menu', 'footer' => 'Show in the footer', 'remove' => 'Remove from menu and footer', 'delete' => 'Delete…']) ?>
+
+    <table class="lf-table lf-table--selectable">
         <caption class="lf-visually-hidden">Pages</caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('page_ids', $bulkForm, 'pages') ?>
                 <?= SortHeading::render($sort, 'title', 'Title', $listUrl, $kept) ?>
                 <th scope="col">Address</th>
                 <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
@@ -105,6 +114,7 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
         <tbody>
             <?php foreach ($pages as $row): ?>
                 <tr>
+                    <?= BulkBar::checkbox('page_ids', $bulkForm, $row->id, 'Select ' . $row->title) ?>
                     <th scope="row"><a href="<?= Html::e($pageUrl . '/' . $row->id) ?>"><?= Html::e($row->title) ?></a></th>
                     <td><code>/<?= Html::e($row->slug) ?></code></td>
                     <td><span class="lf-status<?= $row->isPublished() ? ' lf-status--ok' : '' ?>"><?= Html::e($row->state->label()) ?></span></td>
@@ -123,4 +133,6 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
             <?php if ($page < $pageCount): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

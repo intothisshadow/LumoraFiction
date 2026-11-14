@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Helpers\Html;
 
 /** @var list<array{id: int, source: string, target: string, status: int, automatic: bool, created_at: string}> $redirects */
@@ -28,6 +29,10 @@ use LumoraFiction\Helpers\Html;
 /** @var string $deleteBase */
 /** @var string $searchUrl */
 /** @var string $csrfToken */
+/** @var string $bulkUrl */
+/** @var string $assetVersion */
+
+$bulkForm = 'lf-bulk-form';
 ?>
 <?php if ($errors !== []): ?>
     <div class="lf-notice lf-notice--error" role="alert" id="lf-error-summary" tabindex="-1">
@@ -80,10 +85,14 @@ use LumoraFiction\Helpers\Html;
     <p class="lf-hint">There are no redirects yet.</p>
 <?php else: ?>
     <p class="lf-hint"><?= (int) $total ?> in all.</p>
-    <table class="lf-table">
+    <?= BulkBar::form($bulkForm, $bulkUrl, $csrfToken, ['page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'redirects', ['delete' => 'Delete…', 'permanent' => 'Make permanent', 'temporary' => 'Make temporary']) ?>
+
+    <table class="lf-table lf-table--selectable">
         <caption class="lf-visually-hidden">Redirects</caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('redirect_ids', $bulkForm, 'redirects') ?>
                 <th scope="col">From</th>
                 <th scope="col">To</th>
                 <th scope="col">Kind</th>
@@ -94,6 +103,7 @@ use LumoraFiction\Helpers\Html;
         <tbody>
             <?php foreach ($redirects as $redirect): ?>
                 <tr>
+                    <?= BulkBar::checkbox('redirect_ids', $bulkForm, $redirect['id'], 'Select the redirect from ' . $redirect['source']) ?>
                     <th scope="row"><code><?= Html::e($redirect['source']) ?></code></th>
                     <td><code><?= Html::e($redirect['target']) ?></code></td>
                     <td><?= Html::e($statuses[$redirect['status']] ?? (string) $redirect['status']) ?><?= $redirect['automatic'] ? ' <span class="lf-status">Automatic</span>' : '' ?></td>
@@ -116,4 +126,6 @@ use LumoraFiction\Helpers\Html;
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . '?page=' . ($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

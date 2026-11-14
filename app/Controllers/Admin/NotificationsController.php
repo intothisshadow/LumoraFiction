@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -74,6 +75,7 @@ final class NotificationsController extends WriterController
             'listUrl' => AdminUrl::to(self::PATH),
             'readUrl' => AdminUrl::to(self::PATH . '/read'),
             'readAllUrl' => AdminUrl::to(self::PATH . '/read-all'),
+            'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
         ], $user, 'Notifications', self::PATH, $this->flash->pull($request->cookies));
     }
 
@@ -96,6 +98,33 @@ final class NotificationsController extends WriterController
         }
 
         return Response::redirect(AdminUrl::to(self::PATH), 303);
+    }
+
+    /**
+     * Marks the ticked messages as read, or deletes them. Deleting a message only hides what was already read, so it does not ask first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $kept = BulkBar::kept($request, null, ['show' => $request->input('show') === 'unread' ? 'unread' : '']);
+        $back = BulkBar::listUrl(AdminUrl::to(self::PATH), $kept);
+        $input = $this->bulkInput($request, self::TOKEN_ACTION, NotificationService::BULK_ACTIONS, 'messages', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        $result = $this->notifications->bulk($user, $input['action'], $input['ids']);
+        $this->flash->add($result->flashType(), $result->summary($input['action'] === 'read' ? 'marked as read' : 'deleted', 'message'));
+
+        return Response::redirect($back, 303);
     }
 
     /**

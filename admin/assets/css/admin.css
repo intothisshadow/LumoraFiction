@@ -1075,6 +1075,16 @@ fieldset.lf-card legend {
     margin: 0.1rem 0;
 }
 
+/* Quick links under a row's title; they wrap under it so the table never widens on a phone. */
+.lf-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.9rem;
+    margin-top: 0.2rem;
+    font-size: 0.85rem;
+    font-weight: normal;
+}
+
 .lf-bulk {
     display: flex;
     flex-wrap: wrap;

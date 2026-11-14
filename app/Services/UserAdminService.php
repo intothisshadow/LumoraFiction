@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Services;
 
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
@@ -41,6 +42,7 @@ final class UserAdminService
         private readonly AuditLogService $audit,
         private readonly Configuration $config,
         private readonly ?HookManager $hooks = null,
+        private readonly ?AuthService $auth = null,
     ) {
     }
 
@@ -213,6 +215,80 @@ final class UserAdminService
         $this->hooks?->doAction('user_publishing_override_changed', $changed, $target->publishingOverride, $actor);
 
         return $changed;
+    }
+
+    /**
+     * Emails a password-reset link to the account's own address. The person chooses the new password; nobody else sees
+     * it. A link that was sent a moment ago is not sent again.
+     *
+     * @throws UserAdminException
+     */
+    public function sendPasswordReset(User $actor, int $userId, string $ipAddress = ''): void
+    {
+        $target = $this->target($actor, $userId);
+
+        if ($this->auth === null) {
+            throw new UserAdminException('Password reset emails are not available.');
+        }
+
+        if ($target->status === UserStatus::Suspended) {
+            throw new UserAdminException('A suspended account cannot reset its password. Reinstate it first.');
+        }
+
+        $this->auth->requestPasswordReset($target->email);
+        $this->audit->record($actor->id, 'user.password_reset_sent', 'user', (string) $target->id, [], $ipAddress);
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['suspend', 'reinstate', 'role', 'publishing', 'reset'];
+
+    /**
+     * Applies one action to several accounts, one at a time through the same methods as the single screen, so every
+     * rule of a single change holds for each: never one's own account, never the last administrator, never a deleted
+     * account. A refused account is skipped and counted and the rest go on. Deleting accounts is not offered here.
+     *
+     * @param list<int> $ids at most BulkResult::LIMIT are handled
+     * @param array{role?: UserRole, publishing?: ?PublishingOverride, reason?: string, unpublish?: bool} $options
+     * @throws UserAdminException when the person may not manage users, the action is unknown or a needed choice is missing
+     */
+    public function bulk(User $actor, string $action, array $ids, array $options = [], string $ipAddress = ''): BulkResult
+    {
+        if (!$actor->can(Capability::ManageUsers)) {
+            throw new UserAdminException('You may not do that.');
+        }
+
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new UserAdminException('Choose what to do with the selected accounts.');
+        }
+
+        if ($action === 'role' && !isset($options['role'])) {
+            throw new UserAdminException('Choose one of the roles listed.');
+        }
+
+        // The reason is shared, so a reason that is too long fails the whole request before anything changes.
+        $reason = $this->checkedReason($options['reason'] ?? '');
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($ids)), 0, BulkResult::LIMIT) as $id) {
+            try {
+                match ($action) {
+                    'suspend' => $this->suspend($actor, $id, (bool) ($options['unpublish'] ?? false), $reason, $ipAddress),
+                    'reinstate' => $this->reinstate($actor, $id, $reason, $ipAddress),
+                    'role' => $this->changeRole($actor, $id, $options['role'] ?? UserRole::Reader, $reason, $ipAddress),
+                    'publishing' => $this->setPublishingRights($actor, $id, $options['publishing'] ?? null, $ipAddress),
+                    'reset' => $this->sendPasswordReset($actor, $id, $ipAddress),
+                };
+                $result->done();
+            } catch (UserAdminException $exception) {
+                $result->skip($exception->getMessage());
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'user.bulk', 'user', '', ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

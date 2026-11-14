@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
@@ -33,6 +34,11 @@ use LumoraFiction\Models\UserStatus;
 /** @var string $listUrl */
 /** @var string $personUrl */
 /** @var int $selfId */
+/** @var string $bulkUrl */
+/** @var string $csrfToken */
+/** @var string $assetVersion */
+
+$bulkForm = 'lf-bulk-form';
 
 $kept = array_filter(['q' => $filters['search'], 'role' => $filters['role'], 'status' => $filters['status']], static fn (string $value): bool => $value !== '');
 $query = static function (int $number) use ($kept, $sort): string {
@@ -87,10 +93,14 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
 <?php else: ?>
     <p class="lf-hint"><?= number_format($total) ?> found.</p>
 
-    <table class="lf-table lf-users-list">
+    <?= BulkBar::form($bulkForm, $bulkUrl, $csrfToken, $kept + $sort->query() + ['page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'accounts', ['suspend' => 'Suspend…', 'reinstate' => 'Reinstate…', 'role' => 'Change role…', 'publishing' => 'Change publishing setting…', 'reset' => 'Send password reset…']) ?>
+
+    <table class="lf-table lf-users-list lf-table--selectable">
         <caption class="lf-visually-hidden">Accounts</caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('user_ids', $bulkForm, 'accounts') ?>
                 <?= SortHeading::render($sort, 'name', 'Name', $listUrl, $kept) ?>
                 <th scope="col">Login name</th>
                 <?= SortHeading::render($sort, 'email', 'Email address', $listUrl, $kept) ?>
@@ -102,6 +112,8 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
         <tbody>
             <?php foreach ($people as $person): ?>
                 <tr>
+                    <?php // Your own account has no tick box: a bulk action never changes the person doing it. ?>
+                    <?= $person->id === $selfId ? '<td></td>' : BulkBar::checkbox('user_ids', $bulkForm, $person->id, 'Select ' . $person->displayName) ?>
                     <th scope="row"><a href="<?= Html::e($personUrl . '/' . $person->id) ?>"><?= Html::e($person->displayName) ?></a><?= $person->id === $selfId ? ' <span class="lf-hint">(you)</span>' : '' ?></th>
                     <td><?= Html::e($person->loginName) ?></td>
                     <td><?= Html::e($person->email) ?></td>
@@ -120,4 +132,6 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
@@ -31,7 +32,9 @@ use LumoraFiction\Models\Story;
 /** @var string $storyUrl */
 /** @var string $reviewUrl */
 /** @var string $csrfToken */
+/** @var string $assetVersion */
 
+$bulkForm = 'lf-bulk-form';
 $query = static fn (int $number): string => ($parts = $sort->query() + ($number > 1 ? ['page' => (string) $number] : [])) === [] ? '' : '?' . http_build_query($parts);
 ?>
 <?php if ($stories === []): ?>
@@ -39,10 +42,14 @@ $query = static fn (int $number): string => ($parts = $sort->query() + ($number 
 <?php else: ?>
     <p class="lf-hint"><?= (int) $total ?> waiting<?= $sort->isDefault ? ', the one waiting longest first' : '' ?>.</p>
 
-    <table class="lf-table lf-review-queue">
+    <?= BulkBar::form($bulkForm, $reviewUrl . '/bulk', $csrfToken, $sort->query() + ['page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'stories', ['approve' => 'Approve', 'reject' => 'Send back…']) ?>
+
+    <table class="lf-table lf-review-queue lf-table--selectable">
         <caption class="lf-visually-hidden">Stories waiting for approval</caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('story_ids', $bulkForm, 'stories') ?>
                 <?= SortHeading::render($sort, 'title', 'Title', $listUrl, []) ?>
                 <?= SortHeading::render($sort, 'author', 'Author', $listUrl, []) ?>
                 <?= SortHeading::render($sort, 'chapters', 'Chapters', $listUrl, []) ?>
@@ -55,6 +62,7 @@ $query = static fn (int $number): string => ($parts = $sort->query() + ($number 
             <?php foreach ($stories as $story): ?>
                 <?php $counts = $chapterCounts[$story->id] ?? ['total' => 0, 'published' => 0]; ?>
                 <tr>
+                    <?= BulkBar::checkbox('story_ids', $bulkForm, $story->id, 'Select ' . $story->title) ?>
                     <th scope="row"><a href="<?= Html::e($storyUrl . '/' . $story->id . '/preview') ?>"><?= Html::e($story->title) ?></a></th>
                     <td><?= Html::e($owners[$story->ownerId] ?? 'Unknown') ?></td>
                     <td><?= (int) $counts['total'] ?></td>
@@ -79,4 +87,6 @@ $query = static fn (int $number): string => ($parts = $sort->query() + ($number 
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

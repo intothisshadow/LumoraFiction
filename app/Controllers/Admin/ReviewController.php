@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -85,6 +86,107 @@ final class ReviewController extends WriterController
             'reviewUrl' => AdminUrl::to(self::PATH),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
         ], $user, 'Awaiting approval', self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Approves the ticked stories, or sends them back with one shared reason (asked for on a page of its own).
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ModerateStories, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $action = $request->input('bulk_action') ?? '';
+        $posted = $request->inputList('ids');
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->bulkBack($request, 'error', self::STALE_FORM);
+        }
+
+        if ($action !== 'approve' && $action !== 'reject') {
+            return $this->bulkBack($request, 'error', 'Choose what to do with the selected stories.');
+        }
+
+        if (BulkResult::tooMany($posted)) {
+            return $this->bulkBack($request, 'error', 'Too many stories were selected at once.');
+        }
+
+        $ids = BulkResult::ids($posted);
+
+        if ($ids === []) {
+            return $this->bulkBack($request, 'error', 'Tick at least one story first.');
+        }
+
+        $reason = $request->input('reason');
+
+        if ($action === 'reject' && $reason === null) {
+            return $this->bulkRejectPage($request, $user, $ids, '', [], 200);
+        }
+
+        try {
+            $result = $this->stories->bulkReview($user, $action, $ids, $reason ?? '', $request->ip());
+        } catch (StoryValidationException $exception) {
+            return $this->bulkRejectPage($request, $user, $ids, $reason ?? '', $exception->errors, 422);
+        } catch (StoryPermissionException $exception) {
+            return $this->bulkBack($request, 'error', $exception->getMessage());
+        }
+
+        return $this->bulkBack($request, $result->flashType(), $result->summary($action === 'approve' ? 'approved and published' : 'sent back to their authors as drafts', 'story', 'stories'));
+    }
+
+    /**
+     * The sort and page the person was on, taken from the posted form and checked again, so a bulk action returns to the same view.
+     *
+     * @return array<string, string>
+     */
+    private function kept(Request $request): array
+    {
+        $page = preg_match('/^[1-9][0-9]{0,5}\z/', $request->input('page') ?? '') === 1 ? (int) $request->input('page') : 1;
+
+        return StoryService::pendingSort($request->input('sort'), $request->input('dir'))->query() + ($page > 1 ? ['page' => (string) $page] : []);
+    }
+
+    private function bulkBack(Request $request, string $kind, string $message): Response
+    {
+        $this->flash->add($kind, $message);
+        $kept = $this->kept($request);
+
+        return Response::redirect(AdminUrl::to(self::PATH) . ($kept === [] ? '' : '?' . http_build_query($kept)), 303);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param array<string, string> $errors
+     */
+    private function bulkRejectPage(Request $request, User $user, array $ids, string $reason, array $errors, int $status): Response
+    {
+        // Only stories that are waiting are listed, so the page confirms nothing about any other story.
+        $stories = [];
+
+        foreach ($ids as $id) {
+            $story = $this->stories->find($id);
+
+            if ($story !== null && $story->state === PublicationState::Pending) {
+                $stories[] = $story;
+            }
+        }
+
+        return $this->view->render('review-reject-bulk', [
+            'stories' => $stories,
+            'reason' => $reason,
+            'limit' => StoryService::REASON_MAX,
+            'errors' => $errors,
+            'errorSummary' => $this->errorSummary($errors),
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'action' => AdminUrl::to(self::PATH . '/bulk'),
+            'kept' => $this->kept($request),
+            'backUrl' => AdminUrl::to(self::PATH),
+        ], $user, 'Send stories back', self::PATH, $this->flash->pull($request->cookies), $status);
     }
 
     /**

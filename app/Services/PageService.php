@@ -19,6 +19,7 @@ namespace LumoraFiction\Services;
 
 use Closure;
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -232,6 +233,53 @@ final class PageService
 
         $this->published = null;
         $this->hooks?->doAction('page_deleted', $page->id);
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['publish', 'unpublish', 'menu', 'footer', 'remove', 'delete'];
+
+    /**
+     * Applies one action to several pages, one at a time through the same methods as the single actions, so each page is
+     * checked and audited on its own and the address and redirect rules of a single change apply (placement changes
+     * leave the address alone).
+     *
+     * @param list<int> $ids at most BulkResult::LIMIT are handled
+     * @throws PagePermissionException when the person may not manage pages
+     * @throws PageValidationException when the action is not one of BULK_ACTIONS
+     */
+    public function bulk(User $actor, string $action, array $ids, string $ipAddress = ''): BulkResult
+    {
+        $this->requireStaff($actor);
+
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new PageValidationException(['bulk_action' => 'Choose what to do with the selected pages.']);
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($ids)), 0, BulkResult::LIMIT) as $id) {
+            try {
+                match ($action) {
+                    'publish' => $this->publish($actor, $id, $ipAddress),
+                    'unpublish' => $this->unpublish($actor, $id, $ipAddress),
+                    'menu' => $this->update($actor, $id, ['in_menu' => true], $ipAddress),
+                    'footer' => $this->update($actor, $id, ['in_footer' => true], $ipAddress),
+                    'remove' => $this->update($actor, $id, ['in_menu' => false, 'in_footer' => false], $ipAddress),
+                    'delete' => $this->delete($actor, $id, $ipAddress),
+                };
+                $result->done();
+            } catch (PagePermissionException) {
+                $result->skip('Some of the pages could not be found.');
+            } catch (PageValidationException) {
+                $result->skip('Some of the pages could not be changed.');
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'page.bulk', 'page', '', ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

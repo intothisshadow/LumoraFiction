@@ -16,6 +16,7 @@
 declare(strict_types=1);
 
 use LumoraFiction\Core\Admin\AdminUrl;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Notification;
 
@@ -29,6 +30,10 @@ use LumoraFiction\Models\Notification;
 /** @var string $listUrl */
 /** @var string $readUrl */
 /** @var string $readAllUrl */
+/** @var string $bulkUrl */
+/** @var string $assetVersion */
+
+$bulkForm = 'lf-bulk-form';
 
 $query = static function (int $number) use ($unreadOnly): string {
     $parts = $unreadOnly ? ['show' => 'unread'] : [];
@@ -53,9 +58,17 @@ $query = static function (int $number) use ($unreadOnly): string {
 <?php if ($notifications === []): ?>
     <p class="lf-hint"><?= $unreadOnly ? 'Nothing unread.' : 'Nothing yet. Messages about your stories and reviews appear here.' ?></p>
 <?php else: ?>
+    <?= BulkBar::form($bulkForm, $bulkUrl, $csrfToken, ['show' => $unreadOnly ? 'unread' : '', 'page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'messages', ['read' => 'Mark as read', 'delete' => 'Delete']) ?>
+    <p class="lf-choice">
+        <input type="checkbox" id="lf-select-all-messages" data-lf-select-all="notification_ids" form="<?= Html::e($bulkForm) ?>" aria-label="Select all messages on this page" hidden>
+        <span class="lf-visually-hidden" data-lf-select-fallback>Tick the messages to change.</span>
+    </p>
+
     <ul class="lf-notification-list">
         <?php foreach ($notifications as $notification): ?>
             <li class="lf-notification<?= $notification->isRead() ? '' : ' lf-notification--unread' ?>">
+                <input type="checkbox" name="ids[]" value="<?= (int) $notification->id ?>" data-lf-select-item="notification_ids" form="<?= Html::e($bulkForm) ?>" aria-label="Select: <?= Html::e($notification->message) ?>">
                 <p class="lf-notification__message">
                     <?= $notification->isRead() ? '' : '<span class="lf-status lf-status--warning">New</span> ' ?>
                     <?= Html::e($notification->message) ?>
@@ -91,4 +104,6 @@ $query = static function (int $number) use ($unreadOnly): string {
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

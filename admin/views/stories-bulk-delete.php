@@ -21,6 +21,7 @@ use LumoraFiction\Models\Story;
 /** @var list<Story> $stories only stories the writer may change */
 /** @var string $csrfToken */
 /** @var string $action */
+/** @var array<string, string> $kept the list, filters, sort and page to come back to */
 /** @var string $backUrl */
 ?>
 <?php if ($stories === []): ?>
@@ -31,6 +32,9 @@ use LumoraFiction\Models\Story;
         <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
         <input type="hidden" name="bulk_action" value="delete">
         <input type="hidden" name="confirmed" value="1">
+        <?php foreach ($kept as $name => $value): ?>
+            <input type="hidden" name="<?= Html::e($name) ?>" value="<?= Html::e($value) ?>">
+        <?php endforeach; ?>
 
         <div class="lf-card">
             <h2>Delete <?= count($stories) === 1 ? 'this story' : 'these ' . count($stories) . ' stories' ?>?</h2>

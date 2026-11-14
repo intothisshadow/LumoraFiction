@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Series;
 use LumoraFiction\Models\Story;
@@ -33,6 +34,7 @@ use LumoraFiction\Models\WorkStatus;
 /** @var string $storyUrl */
 /** @var string $publicUrl */
 /** @var array{title: int, summary: int} $limits */
+/** @var string $assetVersion */
 
 $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class="lf-error" id="' . Html::e($name) . '_error">' . Html::e($errors[$name]) . '</p>' : '';
 $describe = static fn (string $name): string => ' aria-describedby="' . Html::e($name) . '_hint' . (isset($errors[$name]) ? ' ' . Html::e($name) . '_error' : '') . '"';
@@ -79,9 +81,13 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
         <?php if ($members === []): ?>
             <p class="lf-hint">No stories yet. Add the first one below.</p>
         <?php else: ?>
+            <?= BulkBar::form('lf-bulk-series', $baseUrl . '/' . $series->id . '/stories/bulk', $csrfToken) ?>
+            <?= BulkBar::bar('lf-bulk-series', 'stories', ['remove' => 'Take out of the series'], '') ?>
+            <?= BulkBar::selectAll('series_ids', 'lf-bulk-series', 'stories') ?>
             <ol class="lf-series-members">
                 <?php foreach ($members as $index => $story): ?>
                     <li class="lf-series-members__item">
+                        <?= BulkBar::input('series_ids', 'lf-bulk-series', $story->id, 'Select ' . $story->title) ?>
                         <a href="<?= Html::e($storyUrl . '/' . $story->id) ?>"><?= Html::e($story->title) ?></a>
                         <span class="lf-hint"><?= Html::e($story->state->label()) ?></span>
                         <span class="lf-series-members__actions">
@@ -102,6 +108,7 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
                     </li>
                 <?php endforeach; ?>
             </ol>
+            <?= BulkBar::script($assetVersion) ?>
         <?php endif; ?>
 
         <?php if ($available !== []): ?>

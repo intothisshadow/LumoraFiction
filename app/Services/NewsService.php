@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -166,6 +167,51 @@ final class NewsService
         });
 
         $this->hooks?->doAction('news_deleted', $post->id);
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['publish', 'unpublish', 'pin', 'unpin', 'delete'];
+
+    /**
+     * Applies one action to several posts, one at a time through the same methods as the single actions, so each post is
+     * checked, audited and announced on its own.
+     *
+     * @param list<int> $ids at most BulkResult::LIMIT are handled
+     * @throws NewsPermissionException when the person may not manage news
+     * @throws NewsValidationException when the action is not one of BULK_ACTIONS
+     */
+    public function bulk(User $actor, string $action, array $ids, string $ipAddress = ''): BulkResult
+    {
+        $this->requireStaff($actor);
+
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new NewsValidationException(['bulk_action' => 'Choose what to do with the selected news posts.']);
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($ids)), 0, BulkResult::LIMIT) as $id) {
+            try {
+                match ($action) {
+                    'publish' => $this->publish($actor, $id, $ipAddress),
+                    'unpublish' => $this->unpublish($actor, $id, $ipAddress),
+                    'pin' => $this->update($actor, $id, ['pinned' => true], $ipAddress),
+                    'unpin' => $this->update($actor, $id, ['pinned' => false], $ipAddress),
+                    'delete' => $this->delete($actor, $id, $ipAddress),
+                };
+                $result->done();
+            } catch (NewsPermissionException) {
+                $result->skip('Some of the news posts could not be found.');
+            } catch (NewsValidationException) {
+                $result->skip('Some of the news posts could not be changed.');
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'news.bulk', 'news_post', '', ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

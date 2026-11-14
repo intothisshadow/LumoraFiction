@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
@@ -113,6 +114,54 @@ final class RedirectsController extends AdminController
     }
 
     /**
+     * Deletes the ticked redirects (after asking) or makes them permanent or temporary.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $kept = BulkBar::kept($request);
+        $back = BulkBar::listUrl(AdminUrl::to(self::PATH), $kept);
+        $input = $this->bulkInput($request, self::TOKEN, RedirectService::BULK_ACTIONS, 'redirects', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        if ($input['action'] === 'delete' && !$request->checked('confirmed')) {
+            $items = [];
+
+            foreach ($input['ids'] as $id) {
+                $row = $this->redirects->findById($id);
+
+                if ($row !== null) {
+                    $items[] = ['id' => $id, 'label' => $row['source'] . ' → ' . $row['target']];
+                }
+            }
+
+            return $this->askBeforeBulk($request, $user, self::TOKEN, 'Delete ' . (count($items) === 1 ? 'this redirect' : 'these ' . count($items) . ' redirects') . '?', 'Visitors who use these old addresses will no longer be sent on, and will find nothing unless the site has a page there. This cannot be undone.', 'Delete', $items, ['bulk_action' => 'delete'] + $kept, AdminUrl::to(self::PATH . '/bulk'), $back, 'Back to the redirects', self::PATH);
+        }
+
+        try {
+            $result = $this->redirects->bulk($user, $input['action'], $input['ids'], $request->ip());
+        } catch (RedirectException $exception) {
+            $this->flash->add('error', $exception->getMessage());
+
+            return Response::redirect($back, 303);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary(['delete' => 'removed', 'permanent' => 'made permanent', 'temporary' => 'made temporary'][$input['action']], 'redirect'));
+
+        return Response::redirect($back, 303);
+    }
+
+    /**
      * @param array{source: string, target: string, status: string} $values
      * @param array<string, string> $errors
      */
@@ -132,6 +181,7 @@ final class RedirectsController extends AdminController
             'pages' => $pages,
             'listUrl' => AdminUrl::to(self::PATH),
             'deleteBase' => AdminUrl::to(self::PATH),
+            'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
             'searchUrl' => AdminUrl::to('settings/search'),
             'csrfToken' => Csrf::token(self::TOKEN),
         ], $user, 'Redirects', self::PATH, $this->flash->pull($request->cookies), $status);

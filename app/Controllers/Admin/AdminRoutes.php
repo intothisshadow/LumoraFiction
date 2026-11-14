@@ -93,6 +93,7 @@ final class AdminRoutes
         $router->post('/admin/trash/act', $trash->act(...), 'admin.trash.act');
         $router->get('/admin/notifications', $notifications->index(...), 'admin.notifications');
         $router->post('/admin/notifications/read', $notifications->read(...), 'admin.notifications.read');
+        $router->post('/admin/notifications/bulk', $notifications->bulk(...), 'admin.notifications.bulk');
         $router->post('/admin/notifications/read-all', $notifications->readAll(...), 'admin.notifications.read-all');
         $router->get('/admin/settings/retention', $retention->show(...), 'admin.settings.retention');
         $router->post('/admin/settings/retention', $retention->update(...));
@@ -132,6 +133,7 @@ final class AdminRoutes
         $router->get('/admin/series/{id}', $series->showEdit(...), 'admin.series.edit');
         $router->post('/admin/series/{id}', $series->update(...));
         $router->post('/admin/series/{id}/stories', $series->addStory(...), 'admin.series.add');
+        $router->post('/admin/series/{id}/stories/bulk', $series->bulk(...), 'admin.series.bulk');
         $router->post('/admin/series/{id}/stories/{story}/remove', $series->removeStory(...), 'admin.series.remove');
         $router->post('/admin/series/{id}/stories/{story}/move', $series->move(...), 'admin.series.move');
         $router->get('/admin/series/{id}/delete', $series->showDelete(...), 'admin.series.delete');
@@ -143,6 +145,7 @@ final class AdminRoutes
         $router->post('/admin/collections/{id}', $collections->update(...));
         $router->post('/admin/collections/{id}/submit', $collections->submit(...), 'admin.collections.submit');
         $router->post('/admin/collections/{id}/withdraw', $collections->withdraw(...), 'admin.collections.withdraw');
+        $router->post('/admin/collections/{id}/bulk', $collections->bulk(...), 'admin.collections.bulk');
         $router->post('/admin/collections/{id}/approve', $collections->approve(...), 'admin.collections.approve');
         $router->post('/admin/collections/{id}/remove', $collections->remove(...), 'admin.collections.remove');
         $router->get('/admin/collections/{id}/delete', $collections->showDelete(...), 'admin.collections.delete');
@@ -151,6 +154,7 @@ final class AdminRoutes
         $router->post('/admin/settings/search', $searchSettings->update(...));
         $router->get('/admin/settings/redirects', $redirects->index(...), 'admin.settings.redirects');
         $router->post('/admin/settings/redirects', $redirects->add(...));
+        $router->post('/admin/settings/redirects/bulk', $redirects->bulk(...));
         $router->post('/admin/settings/redirects/{id}/delete', $redirects->delete(...));
         $router->get('/admin/settings/transfer', $settingsTransfer->show(...), 'admin.settings.transfer');
         $router->post('/admin/settings/transfer/export', $settingsTransfer->export(...), 'admin.settings.transfer.export');
@@ -160,6 +164,7 @@ final class AdminRoutes
         $router->post('/admin/settings/news', $newsSettings->update(...));
         // The fixed word "new" comes before {id} so it is never read as a post number.
         $router->get('/admin/news', $news->index(...), 'admin.news');
+        $router->post('/admin/news/bulk', $news->bulk(...));
         $router->get('/admin/news/new', $news->showCreate(...), 'admin.news.new');
         $router->post('/admin/news/new', $news->create(...));
         $router->get('/admin/news/{id}', $news->showEdit(...), 'admin.news.edit');
@@ -180,6 +185,7 @@ final class AdminRoutes
         $router->get('/admin/pages/new', $pages->showCreate(...), 'admin.pages.new');
         $router->post('/admin/pages/new', $pages->create(...));
         $router->post('/admin/pages/starter', $pages->starter(...), 'admin.pages.starter');
+        $router->post('/admin/pages/bulk', $pages->bulk(...));
         $router->get('/admin/pages/{id}', $pages->showEdit(...), 'admin.pages.edit');
         $router->post('/admin/pages/{id}', $pages->update(...));
         $router->get('/admin/pages/{id}/delete', $pages->showDelete(...));
@@ -231,6 +237,7 @@ final class AdminRoutes
         $router->get('/admin/stories/{id}/preview', $stories->preview(...), 'admin.stories.preview');
         $router->get('/admin/stories/{id}/chapters', $chapters->index(...), 'admin.chapters');
         $router->post('/admin/stories/{id}/chapters/move', $chapters->move(...));
+        $router->post('/admin/stories/{id}/chapters/bulk', $chapters->bulk(...));
         $router->get('/admin/stories/{id}/chapters/new', $chapters->showCreate(...));
         $router->post('/admin/stories/{id}/chapters/new', $chapters->create(...));
         $router->get('/admin/chapters/{id}', $chapters->showEdit(...), 'admin.chapters.edit');
@@ -245,10 +252,12 @@ final class AdminRoutes
         $router->post('/admin/chapters/{id}/unpublish', $chapters->unpublish(...));
         $router->get('/admin/chapters/{id}/preview', $chapters->preview(...), 'admin.chapters.preview');
         $router->get('/admin/review', $review->index(...), 'admin.review');
+        $router->post('/admin/review/bulk', $review->bulk(...));
         $router->post('/admin/review/{id}/approve', $review->approve(...));
         $router->get('/admin/review/{id}/reject', $review->showReject(...));
         $router->post('/admin/review/{id}/reject', $review->reject(...));
         $router->get('/admin/users', $users->index(...), 'admin.users');
+        $router->post('/admin/users/bulk', $users->bulk(...));
         $router->get('/admin/users/{id}', $users->show(...), 'admin.users.show');
         $router->post('/admin/users/{id}/role', $users->changeRole(...));
         $router->post('/admin/users/{id}/publishing', $users->setPublishing(...));

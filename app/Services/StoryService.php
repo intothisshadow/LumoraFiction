@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
@@ -416,6 +417,50 @@ final class StoryService
         }
 
         return $this->transition($story, $target, $actor, 'story.reject', $ipAddress, $reason);
+    }
+
+    /**
+     * Approves, or sends back with one shared reason, several waiting stories. Each goes through approve() or reject(), so
+     * each is checked, audited and notified on its own and a story that cannot be handled is skipped and counted.
+     *
+     * @param list<int> $storyIds at most BulkResult::LIMIT are handled
+     * @param string $action "approve" or "reject"
+     * @throws StoryPermissionException when the caller may not review stories
+     * @throws StoryValidationException when the action is unknown or the reason for sending back is missing or too long
+     */
+    public function bulkReview(User $actor, string $action, array $storyIds, string $reason = '', string $ipAddress = ''): BulkResult
+    {
+        if (!$actor->can(Capability::ModerateStories)) {
+            throw new StoryPermissionException('You may not do that.');
+        }
+
+        if ($action !== 'approve' && $action !== 'reject') {
+            throw new StoryValidationException(['bulk_action' => 'Choose what to do with the selected stories.']);
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($storyIds)), 0, BulkResult::LIMIT) as $id) {
+            try {
+                $action === 'approve' ? $this->approve($actor, $id, $ipAddress) : $this->reject($actor, $id, $reason, $ipAddress);
+                $result->done();
+            } catch (StoryPermissionException) {
+                $result->skip('Some of the stories could not be found.');
+            } catch (StoryValidationException $exception) {
+                // The reason is shared, so a bad one fails the whole request before anything was changed.
+                if (isset($exception->errors['reason'])) {
+                    throw $exception;
+                }
+
+                $result->skip(isset($exception->errors['state']) ? 'Some of the stories were no longer waiting for approval.' : 'Some of the stories still lack the classification the site requires.');
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'story.review_bulk', 'story', '', ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

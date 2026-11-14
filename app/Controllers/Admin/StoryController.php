@@ -19,6 +19,8 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
@@ -45,6 +47,7 @@ use LumoraFiction\Services\GroupingException;
 use LumoraFiction\Services\GroupingSettings;
 use LumoraFiction\Services\ImportSettings;
 use LumoraFiction\Services\SeriesService;
+use LumoraFiction\Services\StoryBulkService;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
 use LumoraFiction\Services\StoryService;
@@ -86,6 +89,7 @@ final class StoryController extends WriterController
         private readonly ?Configuration $config = null,
         private readonly ?CommentService $comments = null,
         private readonly ?SeriesService $series = null,
+        private readonly ?StoryBulkService $bulkService = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -438,27 +442,40 @@ final class StoryController extends WriterController
 
         $action = $request->input('bulk_action') ?? '';
         $ids = $this->postedIds($request);
+        $kept = $this->keptForBulk($request, $user);
+        $back = BulkBar::listUrl(AdminUrl::to($kept['scope'] === 'all' ? self::PATH . '/all' : self::PATH), array_diff_key($kept, ['scope' => true]));
+        $named = $this->bulkService !== null && in_array($action, StoryBulkService::ACTIONS, true);
 
         if (!$this->validToken($request, self::TOKEN_ACTION)) {
             $this->flash->add('error', self::STALE_FORM);
 
-            return Response::redirect(AdminUrl::to(self::PATH), 303);
+            return Response::redirect($back, 303);
         }
 
-        if (!in_array($action, ['publish', 'unpublish', 'trash', 'delete'], true)) {
+        if (!$named && !in_array($action, ['publish', 'unpublish', 'trash', 'delete'], true)) {
             $this->flash->add('error', 'Choose what to do with the selected stories.');
 
-            return Response::redirect(AdminUrl::to(self::PATH), 303);
+            return Response::redirect($back, 303);
+        }
+
+        if (BulkResult::tooMany($request->inputList('ids'))) {
+            $this->flash->add('error', 'Too many stories were selected at once.');
+
+            return Response::redirect($back, 303);
         }
 
         if ($ids === []) {
             $this->flash->add('error', 'Tick at least one story first.');
 
-            return Response::redirect(AdminUrl::to(self::PATH), 303);
+            return Response::redirect($back, 303);
+        }
+
+        if ($named) {
+            return $this->bulkDetails($request, $user, $action, $ids, $kept, $back);
         }
 
         if ($action === 'delete' && !$request->checked('confirmed')) {
-            return $this->bulkDeletePage($request, $user, $ids);
+            return $this->bulkDeletePage($request, $user, $ids, $kept);
         }
 
         try {
@@ -466,7 +483,7 @@ final class StoryController extends WriterController
         } catch (StoryValidationException $exception) {
             $this->flash->add('error', implode(' ', $exception->errors));
 
-            return Response::redirect(AdminUrl::to(self::PATH), 303);
+            return Response::redirect($back, 303);
         }
 
         $this->flash->add(
@@ -475,7 +492,138 @@ final class StoryController extends WriterController
             . ($result['skipped'] > 0 ? ' ' . $result['skipped'] . ' could not be changed (it may not be yours, or it still lacks required classification).' : ''),
         );
 
-        return Response::redirect(AdminUrl::to(self::PATH), 303);
+        return Response::redirect($back, 303);
+    }
+
+    /**
+     * The bulk actions beyond publish and delete that this site offers, with the words for the menu. A kind of
+     * classification is named as the administrator named it.
+     *
+     * @return array<string, string> action => menu text
+     */
+    private function bulkMore(): array
+    {
+        if ($this->bulkService === null) {
+            return [];
+        }
+
+        $labels = $this->taxonomy->labels();
+        $menu = [
+            'rating' => 'Set the rating…',
+            'status' => 'Set where it stands…',
+            'series' => 'Add to a series…',
+            'collection' => 'Add to a collection…',
+            'downloads' => 'Downloads…',
+            'tag_add' => 'Add a ' . $labels->lower(TermType::Tag) . '…',
+            'tag_remove' => 'Remove a ' . $labels->lower(TermType::Tag) . '…',
+            'fandom_add' => 'Add a ' . $labels->lower(TermType::Fandom) . '…',
+            'fandom_remove' => 'Remove a ' . $labels->lower(TermType::Fandom) . '…',
+            'character_add' => 'Add a ' . $labels->lower(TermType::Character) . '…',
+            'character_remove' => 'Remove a ' . $labels->lower(TermType::Character) . '…',
+        ];
+
+        return array_filter($menu, fn (string $text, string $action): bool => $this->bulkService->offers($action), ARRAY_FILTER_USE_BOTH);
+    }
+
+    /**
+     * The sort, filters and page the person was on, and which list it was, so a bulk action comes back to the same view.
+     *
+     * @return array<string, string>
+     */
+    private function keptForBulk(Request $request, User $user): array
+    {
+        $kept = BulkBar::kept($request, StoryService::writerSort($request->input('sort'), $request->input('dir')), [
+            'q' => mb_substr($request->input('q') ?? '', 0, 100),
+            'state' => PublicationState::tryFrom($request->input('state') ?? '')?->value ?? '',
+            'rating' => $request->input('rating') === 'none' ? 'none' : '',
+        ]);
+
+        // Only a person who may edit every story has the list of every story to come back to.
+        return $kept + ['scope' => $request->input('scope') === 'all' && $user->can(Capability::EditAnyStory) ? 'all' : 'mine'];
+    }
+
+    /**
+     * Rating, where the story stands, series, collection, downloads and tags by name: each needs a choice, which is asked for
+     * on a page that names the stories, and then applied story by story.
+     *
+     * @param list<int> $ids
+     * @param array<string, string> $kept
+     */
+    private function bulkDetails(Request $request, User $user, string $action, array $ids, array $kept, string $back): Response
+    {
+        if ($this->bulkService === null || !$this->bulkService->offers($action)) {
+            $this->flash->add('error', 'That is not available on this site.');
+
+            return Response::redirect($back, 303);
+        }
+
+        if (!$request->checked('confirmed')) {
+            return $this->bulkDetailsPage($request, $user, $action, $ids, $kept, $back, [], 200);
+        }
+
+        try {
+            $result = $this->bulkService->apply($user, $action, $ids, [
+                'rating' => (int) ($request->input('rating_choice') ?? 0),
+                'status' => $request->input('status_choice') ?? '',
+                'series' => (int) ($request->input('series_choice') ?? 0),
+                'collection' => (int) ($request->input('collection_choice') ?? 0),
+                'choice' => $request->input('downloads_choice') ?? '',
+                'name' => $request->input('name') ?? '',
+            ], $request->ip());
+        } catch (StoryValidationException $exception) {
+            return $this->bulkDetailsPage($request, $user, $action, $ids, $kept, $back, $exception->errors, 422);
+        }
+
+        $what = match ($action) {
+            'rating' => 'given the rating',
+            'status' => 'updated with where they stand',
+            'series' => 'added to the series',
+            'collection' => 'added to the collection or offered to its curator',
+            'downloads' => 'updated with the download choice',
+            default => str_ends_with($action, '_add') ? 'given the ' . strtok($action, '_') : 'taken off the ' . strtok($action, '_'),
+        };
+
+        $this->flash->add($result->flashType(), $result->summary($what, 'story', 'stories'));
+
+        return Response::redirect($back, 303);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param array<string, string> $kept
+     * @param array<string, string> $errors
+     */
+    private function bulkDetailsPage(Request $request, User $user, string $action, array $ids, array $kept, string $back, array $errors, int $status): Response
+    {
+        // Only stories the person may change are listed, so the page never confirms that anyone else's exist.
+        $items = [];
+
+        foreach ($ids as $id) {
+            try {
+                $story = $this->stories->manageable($user, $id);
+                $items[] = ['id' => $story->id, 'label' => $story->title];
+            } catch (StoryPermissionException) {
+                continue;
+            }
+        }
+
+        $kind = explode('_', $action)[0];
+        $type = TermType::tryFrom($kind);
+        $nameLabel = $type === null || !str_contains($action, '_') ? '' : ucfirst($this->taxonomy->labels()->lower($type)) . (str_ends_with($action, '_add') ? ' to add' : ' to remove');
+
+        return $this->view->render('stories-bulk', [
+            'action' => $action,
+            'items' => $items,
+            'choices' => $this->bulkService?->choices($user) ?? [],
+            'nameLabel' => $nameLabel,
+            'values' => ['name' => $request->input('name') ?? ''],
+            'errors' => $errors,
+            'errorSummary' => $this->errorSummary($errors),
+            'fields' => ['bulk_action' => $action] + $kept,
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'formUrl' => AdminUrl::to(self::PATH . '/bulk'),
+            'backUrl' => $back,
+        ], $user, 'Change several stories', self::PATH, $this->flash->pull($request->cookies), $status);
     }
 
     /**
@@ -556,6 +704,7 @@ final class StoryController extends WriterController
             'importUrl' => $this->config !== null && ImportSettings::mayImport($this->config, $user) ? AdminUrl::to('import') : '',
             'storyUrl' => AdminUrl::to(self::PATH),
             'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
+            'bulkMore' => $this->bulkMore(),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
         ], $user, $scope === 'all' ? 'All stories' : 'My stories', $path, $this->flash->pull($request->cookies));
     }
@@ -768,8 +917,9 @@ final class StoryController extends WriterController
 
     /**
      * @param list<int> $ids
+     * @param array<string, string> $kept
      */
-    private function bulkDeletePage(Request $request, User $user, array $ids): Response
+    private function bulkDeletePage(Request $request, User $user, array $ids, array $kept = []): Response
     {
         // Only stories the caller may change are listed, so the page never confirms that anyone else's exist.
         $stories = [];
@@ -786,7 +936,8 @@ final class StoryController extends WriterController
             'stories' => $stories,
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
             'action' => AdminUrl::to(self::PATH . '/bulk'),
-            'backUrl' => AdminUrl::to(self::PATH),
+            'kept' => $kept,
+            'backUrl' => BulkBar::listUrl(AdminUrl::to(($kept['scope'] ?? '') === 'all' ? self::PATH . '/all' : self::PATH), array_diff_key($kept, ['scope' => true])),
         ], $user, 'Delete stories', self::PATH, $this->flash->pull($request->cookies));
     }
 

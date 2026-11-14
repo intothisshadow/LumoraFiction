@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
@@ -100,7 +101,109 @@ final class UsersController extends WriterController
             'listUrl' => AdminUrl::to(self::PATH),
             'personUrl' => AdminUrl::to(self::PATH),
             'selfId' => $user->id,
+            'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
+            'csrfToken' => Csrf::token(self::TOKEN),
         ], $user, 'Users', self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Suspends, reinstates, changes the role or publishing setting of, or sends a password reset to, the ticked accounts.
+     * Every one of them asks first on a page that names the accounts and takes the shared reason or choice.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageUsers, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $kept = BulkBar::kept($request, UserAdminService::sortFrom($request->input('sort'), $request->input('dir')), [
+            'q' => mb_substr(trim($request->input('q') ?? ''), 0, 100),
+            'role' => UserRole::tryFrom($request->input('role') ?? '')?->value ?? '',
+            'status' => UserStatus::tryFrom($request->input('status') ?? '')?->value ?? '',
+        ]);
+        $back = BulkBar::listUrl(AdminUrl::to(self::PATH), $kept);
+        $input = $this->bulkInput($request, self::TOKEN, UserAdminService::BULK_ACTIONS, 'accounts', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        $action = $input['action'];
+        $role = UserRole::tryFrom($request->input('role_choice') ?? '');
+        $choice = $request->input('publishing') ?? '';
+        $override = PublishingOverride::tryFrom($choice);
+        $errors = [];
+
+        if ($action === 'role' && $role === null && $request->checked('confirmed')) {
+            $errors['role_choice'] = 'Choose one of the roles listed.';
+        }
+
+        if ($action === 'publishing' && $choice !== '' && $override === null) {
+            $errors['publishing'] = 'Choose one of the options listed.';
+        }
+
+        if (!$request->checked('confirmed') || $errors !== []) {
+            return $this->bulkPage($request, $user, $action, $input['ids'], $kept, $request->input('reason') ?? '', $errors, $errors === [] ? 200 : 422);
+        }
+
+        $options = ['publishing' => $override, 'reason' => $request->input('reason') ?? '', 'unpublish' => $request->checked('unpublish')];
+
+        if ($role !== null) {
+            $options['role'] = $role;
+        }
+
+        try {
+            $result = $this->admin->bulk($user, $action, $input['ids'], $options, $request->ip());
+        } catch (UserAdminException $exception) {
+            return $this->bulkPage($request, $user, $action, $input['ids'], $kept, $request->input('reason') ?? '', ['reason' => $exception->getMessage()], 422);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary([
+            'suspend' => 'suspended and signed out',
+            'reinstate' => 'reinstated',
+            'role' => 'given the new role',
+            'publishing' => 'given the new publishing setting',
+            'reset' => 'sent a password reset link',
+        ][$action], 'account'));
+
+        return Response::redirect($back, 303);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param array<string, string> $kept
+     * @param array<string, string> $errors
+     */
+    private function bulkPage(Request $request, User $user, string $action, array $ids, array $kept, string $reason, array $errors, int $status): Response
+    {
+        // Only accounts that exist and are not the person's own are listed, so the page never names anything else.
+        $items = [];
+
+        foreach ($ids as $id) {
+            $person = $id === $user->id ? null : $this->users->findById($id);
+
+            if ($person !== null && $person->status !== UserStatus::Deleted) {
+                $items[] = ['id' => $person->id, 'label' => $person->displayName . ' (' . $person->loginName . ')'];
+            }
+        }
+
+        return $this->view->render('users-bulk', [
+            'action' => $action,
+            'items' => $items,
+            'roles' => UserRole::cases(),
+            'reason' => $reason,
+            'limit' => StoryService::REASON_MAX,
+            'errors' => $errors,
+            'errorSummary' => $this->errorSummary($errors),
+            'fields' => ['bulk_action' => $action] + $kept,
+            'csrfToken' => Csrf::token(self::TOKEN),
+            'formUrl' => AdminUrl::to(self::PATH . '/bulk'),
+            'backUrl' => BulkBar::listUrl(AdminUrl::to(self::PATH), $kept),
+        ], $user, 'Change several accounts', self::PATH, $this->flash->pull($request->cookies), $status);
     }
 
     /**

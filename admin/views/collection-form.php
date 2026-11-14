@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Collection;
 use LumoraFiction\Models\Story;
@@ -32,6 +33,7 @@ use LumoraFiction\Models\Story;
 /** @var string $storyUrl */
 /** @var string $publicUrl */
 /** @var array{title: int, description: int, note: int} $limits */
+/** @var string $assetVersion */
 
 $problem = static fn (string $name): string => isset($errors[$name]) ? '<p class="lf-error" id="' . Html::e($name) . '_error">' . Html::e($errors[$name]) . '</p>' : '';
 $describe = static fn (string $name): string => ' aria-describedby="' . Html::e($name) . '_hint' . (isset($errors[$name]) ? ' ' . Html::e($name) . '_error' : '') . '"';
@@ -91,9 +93,13 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
     <?php if ($pending !== []): ?>
         <section class="lf-card" aria-labelledby="collection-pending-heading">
             <h2 id="collection-pending-heading">Waiting for your approval</h2>
+            <?= BulkBar::form('lf-bulk-pending', $baseUrl . '/' . $collection->id . '/bulk', $csrfToken) ?>
+            <?= BulkBar::bar('lf-bulk-pending', 'offered stories', ['approve' => 'Approve', 'turndown' => 'Turn down'], '', 'pending_ids') ?>
+            <?= BulkBar::selectAll('pending_ids', 'lf-bulk-pending', 'offered stories') ?>
             <ul class="lf-collection-members">
                 <?php foreach ($pending as $member): ?>
                     <li class="lf-collection-members__item">
+                        <?= BulkBar::input('pending_ids', 'lf-bulk-pending', $member['story']->id, 'Select ' . $member['story']->title) ?>
                         <strong><?= Html::e($member['story']->title) ?></strong>
                         <?php if ($member['note'] !== ''): ?><span class="lf-hint">Note: <?= Html::e($member['note']) ?></span><?php endif; ?>
                         <?php foreach (['approve' => 'Approve', 'remove' => 'Turn down'] as $step => $label): ?>
@@ -114,9 +120,13 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
         <?php if ($approved === []): ?>
             <p class="lf-hint">No stories yet.</p>
         <?php else: ?>
+            <?= BulkBar::form('lf-bulk-approved', $baseUrl . '/' . $collection->id . '/bulk', $csrfToken) ?>
+            <?= BulkBar::bar('lf-bulk-approved', 'stories', ['remove' => 'Take out of the collection'], '', 'approved_ids') ?>
+            <?= BulkBar::selectAll('approved_ids', 'lf-bulk-approved', 'stories') ?>
             <ul class="lf-collection-members">
                 <?php foreach ($approved as $member): ?>
                     <li class="lf-collection-members__item">
+                        <?= BulkBar::input('approved_ids', 'lf-bulk-approved', $member['story']->id, 'Select ' . $member['story']->title) ?>
                         <?= Html::e($member['story']->title) ?>
                         <span class="lf-hint"><?= Html::e($member['story']->state->label()) ?></span>
                         <form method="post" action="<?= Html::e($baseUrl . '/' . $collection->id . '/remove') ?>" class="lf-inline-form">
@@ -150,4 +160,6 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
         <?php if ($publicUrl !== ''): ?><a href="<?= Html::e($publicUrl) ?>">View it on the site</a> &middot;<?php endif; ?>
         <a href="<?= Html::e($baseUrl . '/' . $collection->id . '/delete') ?>">Delete this collection</a>
     </p>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

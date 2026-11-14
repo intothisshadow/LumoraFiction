@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ContentEditor;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\PublicUrl;
@@ -99,7 +100,61 @@ final class PageController extends WriterController
             'listUrl' => AdminUrl::to(self::PATH),
             'newUrl' => AdminUrl::to(self::PATH . '/new'),
             'pageUrl' => AdminUrl::to(self::PATH),
+            'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
         ], $user, 'Pages', self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Publishes, unpublishes, places in the menu or footer, takes out of both, or deletes the ticked pages. Deleting asks first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->staff($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $kept = BulkBar::kept($request, PageService::sortFrom($request->input('sort'), $request->input('dir')), [
+            'state' => PublicationState::tryFrom($request->input('state') ?? '')?->value ?? '',
+            'q' => mb_substr($request->input('q') ?? '', 0, 100),
+        ]);
+        $back = BulkBar::listUrl(AdminUrl::to(self::PATH), $kept);
+        $input = $this->bulkInput($request, self::TOKEN, PageService::BULK_ACTIONS, 'pages', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        if ($input['action'] === 'delete' && !$request->checked('confirmed')) {
+            $items = [];
+
+            foreach ($input['ids'] as $id) {
+                $page = $this->pages->find($id);
+
+                if ($page !== null) {
+                    $items[] = ['id' => $page->id, 'label' => $page->title];
+                }
+            }
+
+            return $this->askBeforeBulk($request, $user, self::TOKEN, 'Delete ' . (count($items) === 1 ? 'this page' : 'these ' . count($items) . ' pages') . '?', 'The pages are removed for good, and they leave the menu and footer. Visitors who open their addresses will no longer find them. This cannot be undone. To only hide them, unpublish them instead.', 'Delete', $items, ['bulk_action' => 'delete'] + $kept, AdminUrl::to(self::PATH . '/bulk'), $back, 'Back to the pages', self::PATH);
+        }
+
+        try {
+            $result = $this->pages->bulk($user, $input['action'], $input['ids'], $request->ip());
+        } catch (PagePermissionException $exception) {
+            return $this->missing($exception->getMessage(), self::PATH);
+        } catch (PageValidationException $exception) {
+            $this->flash->add('error', implode(' ', $exception->errors));
+
+            return Response::redirect($back, 303);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary(['publish' => 'published', 'unpublish' => 'made drafts again', 'menu' => 'added to the menu', 'footer' => 'added to the footer', 'remove' => 'taken out of the menu and footer', 'delete' => 'deleted'][$input['action']], 'page'));
+
+        return Response::redirect($back, 303);
     }
 
     /**

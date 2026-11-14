@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Services;
 
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
@@ -92,6 +93,16 @@ final class RedirectService
         ], $rows);
     }
 
+    /**
+     * @return array{source: string, target: string, status: int}|null
+     */
+    public function findById(int $id): ?array
+    {
+        $row = $this->database->fetchOne('SELECT source, target, status FROM {prefix}redirects WHERE id = :id', ['id' => $id]);
+
+        return $row === null ? null : ['source' => (string) $row['source'], 'target' => (string) $row['target'], 'status' => (int) $row['status']];
+    }
+
     public function count(): int
     {
         return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}redirects');
@@ -150,6 +161,71 @@ final class RedirectService
         });
 
         return true;
+    }
+
+    /**
+     * Makes a redirect permanent or temporary. The address it answers and the one it sends to stay as they are.
+     *
+     * @return bool false when the person may not change redirects, the kind is not offered or the redirect is not there
+     */
+    public function changeStatus(User $actor, int $id, int $status, string $ipAddress = ''): bool
+    {
+        if (!$actor->can(Capability::ManageSite) || !isset(self::STATUSES[$status])) {
+            return false;
+        }
+
+        $row = $this->database->fetchOne('SELECT source, target, status FROM {prefix}redirects WHERE id = :id', ['id' => $id]);
+
+        if ($row === null) {
+            return false;
+        }
+
+        if ((int) $row['status'] !== $status) {
+            $this->database->transaction(function () use ($actor, $id, $row, $status, $ipAddress): void {
+                $this->database->execute('UPDATE {prefix}redirects SET status = :status WHERE id = :id', ['status' => $status, 'id' => $id]);
+                $this->audit->record($actor->id, 'redirect.status', 'redirect', (string) $id, ['from' => (string) $row['source'], 'status' => ['from' => (int) $row['status'], 'to' => $status]], $ipAddress);
+            });
+        }
+
+        return true;
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['delete', 'permanent', 'temporary'];
+
+    /**
+     * Deletes several redirects, or makes them all permanent or all temporary, one at a time through the single actions.
+     *
+     * @param list<int> $ids at most BulkResult::LIMIT are handled
+     * @throws RedirectException when the person may not change redirects or the action is not one of BULK_ACTIONS
+     */
+    public function bulk(User $actor, string $action, array $ids, string $ipAddress = ''): BulkResult
+    {
+        if (!$actor->can(Capability::ManageSite)) {
+            throw new RedirectException('You may not change redirects.');
+        }
+
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new RedirectException('Choose what to do with the selected redirects.', 'bulk_action');
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($ids)), 0, BulkResult::LIMIT) as $id) {
+            $changed = match ($action) {
+                'delete' => $this->delete($actor, $id, $ipAddress),
+                'permanent' => $this->changeStatus($actor, $id, 301, $ipAddress),
+                'temporary' => $this->changeStatus($actor, $id, 302, $ipAddress),
+            };
+
+            $changed ? $result->done() : $result->skip('Some of the redirects are no longer there.');
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'redirect.bulk', 'redirect', '', ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

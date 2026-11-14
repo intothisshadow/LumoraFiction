@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ContentEditor;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
@@ -128,6 +129,99 @@ final class ChapterController extends WriterController
         $this->flash->add('success', 'Chapter order saved.');
 
         return $back;
+    }
+
+    /**
+     * Publishes, unpublishes, trashes or deletes the ticked chapters of a story. Deleting for good asks first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->writer($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $story = $this->storyFrom($user, $params);
+
+        if ($story === null) {
+            return $this->missing('That story is not available.');
+        }
+
+        $back = Response::redirect(AdminUrl::to(self::PATH . '/' . $story->id . '/chapters'), 303);
+        $action = $request->input('bulk_action') ?? '';
+        $posted = $request->inputList('ids');
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return $back;
+        }
+
+        if (!in_array($action, ChapterService::BULK_ACTIONS, true)) {
+            $this->flash->add('error', 'Choose what to do with the selected chapters.');
+
+            return $back;
+        }
+
+        if (BulkResult::tooMany($posted)) {
+            $this->flash->add('error', 'Too many chapters were selected at once.');
+
+            return $back;
+        }
+
+        $ids = BulkResult::ids($posted);
+
+        if ($ids === []) {
+            $this->flash->add('error', 'Tick at least one chapter first.');
+
+            return $back;
+        }
+
+        if ($action === 'delete' && !$request->checked('confirmed')) {
+            return $this->bulkDeletePage($request, $user, $story, $ids);
+        }
+
+        try {
+            $result = $this->chapters->bulk($user, $story->id, $action, $ids, $request->ip());
+        } catch (StoryPermissionException $exception) {
+            return $this->missing($exception->getMessage());
+        } catch (StoryValidationException $exception) {
+            $this->flash->add('error', implode(' ', $exception->errors));
+
+            return $back;
+        }
+
+        $this->flash->add($result->flashType(), $result->summary(['publish' => 'published', 'unpublish' => 'unpublished', 'trash' => 'moved to the trash', 'delete' => 'deleted'][$action], 'chapter'));
+
+        return $back;
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function bulkDeletePage(Request $request, User $user, Story $story, array $ids): Response
+    {
+        // Only chapters of this story are listed, so the page never confirms that any other chapter exists.
+        $chapters = [];
+
+        foreach ($ids as $id) {
+            $chapter = $this->chapters->find($id);
+
+            if ($chapter !== null && $chapter->storyId === $story->id && !$chapter->isTrashed()) {
+                $chapters[] = $chapter;
+            }
+        }
+
+        return $this->view->render('chapters-bulk-delete', [
+            'story' => $story,
+            'chapters' => $chapters,
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'action' => AdminUrl::to(self::PATH . '/' . $story->id . '/chapters/bulk'),
+            'backUrl' => AdminUrl::to(self::PATH . '/' . $story->id . '/chapters'),
+        ], $user, 'Delete chapters', self::PATH, $this->flash->pull($request->cookies));
     }
 
     /**
@@ -668,6 +762,7 @@ final class ChapterController extends WriterController
                 'story' => $base,
                 'new' => $base . '/chapters/new',
                 'move' => $base . '/chapters/move',
+                'bulk' => $base . '/chapters/bulk',
                 'chapter' => AdminUrl::to('chapters'),
             ],
         ], $user, 'Chapters of ' . $story->title, self::PATH, $this->flash->pull($request->cookies), $status);

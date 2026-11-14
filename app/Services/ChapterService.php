@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Helpers\WordCounter;
@@ -52,6 +53,17 @@ final class ChapterService
 
     /** A trashed chapter is parked at a number far outside the story's own 1 to n, which is also past the renumbering offset. */
     private const TRASH_NUMBER_BASE = 2000000;
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['publish', 'unpublish', 'trash', 'delete'];
+
+    /**
+     * While a bulk action runs, the stories whose word total and term counts still need refreshing, so that is done
+     * once per story at the end and not once per chapter. Null outside a bulk action.
+     *
+     * @var array<int, true>|null
+     */
+    private ?array $deferredRefresh = null;
 
     public function __construct(
         private readonly Database $database,
@@ -294,6 +306,83 @@ final class ChapterService
     }
 
     /**
+     * Applies one action to several chapters of one story, one at a time through the same methods as the single
+     * actions, so each chapter is checked and audited on its own and numbering is complete after every one. The
+     * story's word total and term counts are refreshed once at the end.
+     *
+     * @param list<int> $chapterIds at most BulkResult::LIMIT are handled
+     * @throws StoryPermissionException when the story is not one the actor may manage
+     * @throws StoryValidationException when the action is not one of BULK_ACTIONS
+     */
+    public function bulk(User $actor, int $storyId, string $action, array $chapterIds, string $ipAddress = ''): BulkResult
+    {
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new StoryValidationException(['bulk_action' => 'Choose what to do with the selected chapters.']);
+        }
+
+        $story = $this->stories->manageable($actor, $storyId);
+        $result = new BulkResult();
+        $this->deferredRefresh = [];
+
+        try {
+            foreach (array_slice(array_values(array_unique($chapterIds)), 0, BulkResult::LIMIT) as $id) {
+                $chapter = $this->find($id);
+
+                // A chapter of another story is skipped here, so a story's address cannot be used to change it.
+                if ($chapter === null || $chapter->storyId !== $story->id || $chapter->isTrashed()) {
+                    $result->skip('Some of the chapters are not part of this story.');
+
+                    continue;
+                }
+
+                try {
+                    match ($action) {
+                        'publish' => $this->publish($actor, $id, $ipAddress),
+                        'unpublish' => $this->unpublish($actor, $id, $ipAddress),
+                        'trash' => $this->trash($actor, $id, $ipAddress),
+                        'delete' => $this->delete($actor, $id, $ipAddress),
+                    };
+                    $result->done();
+                } catch (StoryPermissionException) {
+                    $result->skip('Some of the chapters could not be changed by you.');
+                }
+            }
+        } finally {
+            $stories = array_keys($this->deferredRefresh);
+            $this->deferredRefresh = null;
+
+            foreach ($stories as $id) {
+                $this->refreshStory($id, true);
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'chapter.bulk', 'story', (string) $story->id, ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Brings a story's word total and term counts back in step, or, during a bulk action, notes that it must be done once
+     * the whole batch is through.
+     */
+    private function refreshStory(int $storyId, bool $wordCount): void
+    {
+        if ($this->deferredRefresh !== null) {
+            $this->deferredRefresh[$storyId] = true;
+
+            return;
+        }
+
+        if ($wordCount) {
+            $this->stories->refreshWordCount($storyId);
+        }
+
+        $this->stories->refreshTermCounts($storyId);
+    }
+
+    /**
      * Later chapters move up so numbering stays complete.
      *
      * @throws StoryPermissionException
@@ -329,8 +418,7 @@ final class ChapterService
                 'UPDATE {prefix}chapters SET number = number - 1 WHERE story_id = :story AND number > :number AND trashed_at IS NULL ORDER BY number ASC',
                 ['story' => $chapter->storyId, 'number' => $chapter->number],
             );
-            $this->stories->refreshWordCount($chapter->storyId);
-            $this->stories->refreshTermCounts($chapter->storyId);
+            $this->refreshStory($chapter->storyId, true);
             $this->audit->record($actor->id, 'chapter.trash', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
         });
 
@@ -564,8 +652,7 @@ final class ChapterService
                 );
             }
 
-            $this->stories->refreshWordCount($chapter->storyId);
-            $this->stories->refreshTermCounts($chapter->storyId);
+            $this->refreshStory($chapter->storyId, true);
             $this->audit->record($actor?->id, $actor === null ? 'chapter.purge' : 'chapter.delete', 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'number' => $chapter->number], $ipAddress);
         });
     }
@@ -813,7 +900,7 @@ final class ChapterService
                 ],
             );
             $this->touchStory($chapter->storyId);
-            $this->stories->refreshTermCounts($chapter->storyId);
+            $this->refreshStory($chapter->storyId, false);
             $this->audit->record($actor->id, $auditAction, 'chapter', (string) $chapter->id, ['story' => $chapter->storyId, 'from' => $chapter->state->value, 'to' => $to->value], $ipAddress);
         });
 

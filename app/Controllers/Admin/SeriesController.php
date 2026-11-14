@@ -191,6 +191,43 @@ final class SeriesController extends WriterController
     }
 
     /**
+     * Takes the ticked stories out of the series. The stories themselves are untouched, so nothing is asked first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->open($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $series = $this->owned($user, $params);
+
+        if ($series === null) {
+            return $this->missing('That series is not available.', self::PATH);
+        }
+
+        $back = AdminUrl::to(self::PATH . '/' . $series->id);
+        $input = $this->bulkInput($request, self::TOKEN, ['remove'], 'stories', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        try {
+            $result = $this->series->removeStories($user, $series->id, $input['ids'], $request->ip());
+        } catch (GroupingException $exception) {
+            return $this->missing($exception->getMessage(), self::PATH);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary('taken out of the series', 'story', 'stories'));
+
+        return Response::redirect($back, 303);
+    }
+
+    /**
      * @param array<string, string> $params
      */
     public function removeStory(array $params, Request $request): Response

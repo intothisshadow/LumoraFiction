@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
@@ -369,6 +370,51 @@ final class CollectionService
         $collection = $this->manageable($actor, $collectionId);
 
         $this->detach($actor, $collection, $storyId, 'collection.remove', $ipAddress);
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['approve', 'turndown', 'remove'];
+
+    /**
+     * Approves, turns down or removes several stories of a collection the person runs, one at a time through the single
+     * actions. Turning down only applies to a story that is waiting and removing only to one that is already in.
+     *
+     * @param list<int> $storyIds at most BulkResult::LIMIT are handled
+     * @throws GroupingException when the person does not run the collection or the action is unknown
+     */
+    public function bulk(User $actor, int $collectionId, string $action, array $storyIds, string $ipAddress = ''): BulkResult
+    {
+        $collection = $this->manageable($actor, $collectionId);
+
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new GroupingException('Choose what to do with the selected stories.');
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($storyIds)), 0, BulkResult::LIMIT) as $id) {
+            $state = $this->state($collection->id, $id);
+
+            try {
+                if ($action === 'approve') {
+                    $this->approve($actor, $collection->id, $id, $ipAddress);
+                } elseif ($state !== ($action === 'turndown' ? self::PENDING : self::APPROVED)) {
+                    throw new GroupingException($action === 'turndown' ? 'Some of the stories are no longer waiting for approval.' : 'Some of the stories are not in the collection.');
+                } else {
+                    $this->remove($actor, $collection->id, $id, $ipAddress);
+                }
+
+                $result->done();
+            } catch (GroupingException $exception) {
+                $result->skip($exception->getMessage());
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'collection.bulk', 'collection', (string) $collection->id, ['action' => $action, 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

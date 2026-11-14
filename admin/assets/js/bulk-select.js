@@ -8,7 +8,12 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-lf-select-all]'), function (all) {
         var group = all.getAttribute('data-lf-select-all');
         var items = Array.prototype.slice.call(document.querySelectorAll('[data-lf-select-item="' + group + '"]'));
-        var counters = Array.prototype.slice.call(document.querySelectorAll('[data-lf-selected-count]'));
+        // A counter with a group name belongs to that list alone, so two lists on one screen keep separate counts.
+        var counters = Array.prototype.slice.call(document.querySelectorAll('[data-lf-selected-count]')).filter(function (counter) {
+            var named = counter.getAttribute('data-lf-selected-count');
+
+            return named === '' || named === group;
+        });
         var fallback = document.querySelector('[data-lf-select-fallback]');
 
         if (items.length === 0) {

@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
@@ -33,6 +34,11 @@ use LumoraFiction\Models\PublicationState;
 /** @var string $newUrl */
 /** @var string $postUrl */
 /** @var string $settingsUrl */
+/** @var string $bulkUrl */
+/** @var string $csrfToken */
+/** @var string $assetVersion */
+
+$bulkForm = 'lf-bulk-form';
 
 $kept = array_filter(['q' => $filters['search'], 'state' => $filters['state']], static fn (string $value): bool => $value !== '');
 $query = static function (int $number) use ($kept, $sort): string {
@@ -78,10 +84,14 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
 <?php else: ?>
     <p class="lf-hint"><?= (int) $total ?> found.</p>
 
-    <table class="lf-table">
+    <?= BulkBar::form($bulkForm, $bulkUrl, $csrfToken, $kept + $sort->query() + ['page' => $page > 1 ? (string) $page : '']) ?>
+    <?= BulkBar::bar($bulkForm, 'news posts', ['publish' => 'Publish', 'unpublish' => 'Unpublish', 'pin' => 'Pin', 'unpin' => 'Unpin', 'delete' => 'Delete…']) ?>
+
+    <table class="lf-table lf-table--selectable">
         <caption class="lf-visually-hidden">News posts</caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('news_ids', $bulkForm, 'news posts') ?>
                 <?= SortHeading::render($sort, 'title', 'Title', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'published', 'Published', $listUrl, $kept) ?>
@@ -91,6 +101,7 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
         <tbody>
             <?php foreach ($posts as $post): ?>
                 <tr>
+                    <?= BulkBar::checkbox('news_ids', $bulkForm, $post->id, 'Select ' . $post->title) ?>
                     <th scope="row">
                         <a href="<?= Html::e($postUrl . '/' . $post->id) ?>"><?= Html::e($post->title) ?></a>
                         <?php if ($post->pinned): ?><span class="lf-status">Pinned</span><?php endif; ?>
@@ -110,4 +121,6 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

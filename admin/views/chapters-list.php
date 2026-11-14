@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Chapter;
 use LumoraFiction\Models\PublicationState;
@@ -25,9 +26,11 @@ use LumoraFiction\Models\Story;
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
 /** @var string $csrfToken */
-/** @var array{story: string, new: string, move: string, chapter: string} $urls */
+/** @var array{story: string, new: string, move: string, bulk: string, chapter: string} $urls */
+/** @var string $assetVersion */
 
 $last = count($chapters) - 1;
+$bulkForm = 'lf-bulk-form';
 ?>
 <?= $errorSummary ?>
 
@@ -38,10 +41,13 @@ $last = count($chapters) - 1;
     <p class="lf-hint">This story has no chapters yet.</p>
 <?php else: ?>
     <p class="lf-hint">Use the Move buttons to change the order; the numbers update by themselves.</p>
-    <table class="lf-table lf-chapter-table">
+    <?= BulkBar::form($bulkForm, $urls['bulk'], $csrfToken) ?>
+    <?= BulkBar::bar($bulkForm, 'chapters', ['publish' => 'Publish', 'unpublish' => 'Unpublish', 'trash' => 'Move to the trash', 'delete' => 'Delete for good…']) ?>
+    <table class="lf-table lf-chapter-table lf-table--selectable">
         <caption class="lf-visually-hidden">Chapters of <?= Html::e($story->title) ?></caption>
         <thead>
             <tr>
+                <?= BulkBar::selectAllHeader('chapter_ids', $bulkForm, 'chapters') ?>
                 <th scope="col">No.</th>
                 <th scope="col">Title</th>
                 <th scope="col">Status</th>
@@ -55,6 +61,7 @@ $last = count($chapters) - 1;
             <?php foreach ($chapters as $index => $chapter): ?>
                 <?php $name = $chapter->title !== '' ? $chapter->title : 'Chapter ' . $chapter->number; ?>
                 <tr>
+                    <?= BulkBar::checkbox('chapter_ids', $bulkForm, $chapter->id, 'Select ' . $name) ?>
                     <td><?= (int) $chapter->number ?></td>
                     <th scope="row"><a href="<?= Html::e($urls['chapter'] . '/' . $chapter->id) ?>"><?= Html::e($name) ?></a></th>
                     <td><span class="lf-status<?= $chapter->state === PublicationState::Published ? ' lf-status--ok' : '' ?>"><?= Html::e($chapter->state->label()) ?></span></td>
@@ -83,4 +90,5 @@ $last = count($chapters) - 1;
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

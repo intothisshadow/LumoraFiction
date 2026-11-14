@@ -19,6 +19,7 @@ namespace LumoraFiction\Controllers\Admin;
 
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Admin\AdminView;
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ContentEditor;
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
@@ -99,7 +100,62 @@ final class NewsController extends WriterController
             'newUrl' => AdminUrl::to(self::PATH . '/new'),
             'postUrl' => AdminUrl::to(self::PATH),
             'settingsUrl' => AdminUrl::to('settings/news'),
+            'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
+            'csrfToken' => Csrf::token(self::TOKEN),
         ], $user, 'News', self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * Publishes, unpublishes, pins, unpins or deletes the ticked posts. Deleting asks first.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulk(array $params, Request $request): Response
+    {
+        $user = $this->staff($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $kept = BulkBar::kept($request, NewsService::sortFrom($request->input('sort'), $request->input('dir')), [
+            'state' => PublicationState::tryFrom($request->input('state') ?? '')?->value ?? '',
+            'q' => mb_substr($request->input('q') ?? '', 0, 100),
+        ]);
+        $back = BulkBar::listUrl(AdminUrl::to(self::PATH), $kept);
+        $input = $this->bulkInput($request, self::TOKEN, NewsService::BULK_ACTIONS, 'news posts', $back);
+
+        if ($input instanceof Response) {
+            return $input;
+        }
+
+        if ($input['action'] === 'delete' && !$request->checked('confirmed')) {
+            $items = [];
+
+            foreach ($input['ids'] as $id) {
+                $post = $this->news->find($id);
+
+                if ($post !== null) {
+                    $items[] = ['id' => $post->id, 'label' => $post->title];
+                }
+            }
+
+            return $this->askBeforeBulk($request, $user, self::TOKEN, 'Delete ' . (count($items) === 1 ? 'this news post' : 'these ' . count($items) . ' news posts') . '?', 'The news posts are removed for good, and readers can no longer open any that were published. This cannot be undone. To only hide them, unpublish them instead.', 'Delete', $items, ['bulk_action' => 'delete'] + $kept, AdminUrl::to(self::PATH . '/bulk'), $back, 'Back to the news posts', self::PATH);
+        }
+
+        try {
+            $result = $this->news->bulk($user, $input['action'], $input['ids'], $request->ip());
+        } catch (NewsPermissionException $exception) {
+            return $this->missing($exception->getMessage(), self::PATH);
+        } catch (NewsValidationException $exception) {
+            $this->flash->add('error', implode(' ', $exception->errors));
+
+            return Response::redirect($back, 303);
+        }
+
+        $this->flash->add($result->flashType(), $result->summary(['publish' => 'published', 'unpublish' => 'made drafts again', 'pin' => 'pinned', 'unpin' => 'unpinned', 'delete' => 'deleted'][$input['action']], 'news post'));
+
+        return Response::redirect($back, 303);
     }
 
     /**

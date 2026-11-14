@@ -18,6 +18,8 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\Notification;
@@ -114,6 +116,44 @@ final class NotificationService
             'UPDATE {prefix}notifications SET read_at = :now WHERE id = :id AND user_id = :user AND read_at IS NULL',
             ['now' => date('Y-m-d H:i:s'), 'id' => $id, 'user' => $user->id],
         ) > 0;
+    }
+
+    /**
+     * Removes one of the person's own notifications; another person's id changes nothing.
+     */
+    public function delete(User $user, int $id): bool
+    {
+        if (!$this->mayHaveInbox($user)) {
+            return false;
+        }
+
+        return $this->database->execute('DELETE FROM {prefix}notifications WHERE id = :id AND user_id = :user', ['id' => $id, 'user' => $user->id]) > 0;
+    }
+
+    /** The actions bulk() accepts. */
+    public const BULK_ACTIONS = ['read', 'delete'];
+
+    /**
+     * Marks chosen notifications as read, or deletes them. Housekeeping on a person's own inbox is not audited, as marking
+     * one message read is not.
+     *
+     * @param list<int> $ids at most BulkResult::LIMIT are handled
+     * @throws InvalidArgumentException when the action is not one of BULK_ACTIONS
+     */
+    public function bulk(User $user, string $action, array $ids): BulkResult
+    {
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw new InvalidArgumentException('Unknown bulk action.');
+        }
+
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($ids)), 0, BulkResult::LIMIT) as $id) {
+            $changed = $action === 'read' ? $this->markRead($user, $id) : $this->delete($user, $id);
+            $changed ? $result->done() : $result->skip($action === 'read' ? 'Some of the messages were already read or are not yours.' : 'Some of the messages were already gone or are not yours.');
+        }
+
+        return $result;
     }
 
     public function markAllRead(User $user): int

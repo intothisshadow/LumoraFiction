@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
 use LumoraFiction\Helpers\Html;
@@ -37,6 +38,8 @@ use LumoraFiction\Models\Story;
 /** @var string $importUrl */
 /** @var string $storyUrl */
 /** @var string $bulkUrl */
+/** @var array<string, string> $bulkMore menu text of the bulk actions that change a story's details, by action */
+/** @var string $assetVersion */
 /** @var string $csrfToken */
 
 $kept = array_filter(['q' => $filters['search'], 'state' => $filters['state'], 'rating' => $filters['rating']], static fn (string $value): bool => $value !== '');
@@ -98,12 +101,20 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
 
     <form method="post" action="<?= Html::e($bulkUrl) ?>" class="lf-form">
         <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+        <?php // The list the person is on comes back after the action, with the same filter, sort and page. ?>
+        <input type="hidden" name="scope" value="<?= Html::e($scope) ?>">
+        <?php foreach ($kept + $sort->query() + ($page > 1 ? ['page' => (string) $page] : []) as $name => $value): ?>
+            <input type="hidden" name="<?= Html::e($name) ?>" value="<?= Html::e($value) ?>">
+        <?php endforeach; ?>
 
         <table class="lf-table lf-table--selectable">
             <caption class="lf-visually-hidden"><?= $scope === 'all' ? 'All stories' : 'Your stories' ?></caption>
             <thead>
                 <tr>
-                    <th scope="col"><span class="lf-visually-hidden">Select</span></th>
+                    <th scope="col">
+                        <input type="checkbox" data-lf-select-all="story_ids" aria-label="Select all stories on this page" hidden>
+                        <span class="lf-visually-hidden" data-lf-select-fallback>Select</span>
+                    </th>
                     <?= SortHeading::render($sort, 'title', 'Title', $listUrl, $kept) ?>
                     <?php if ($scope === 'all'): ?><?= SortHeading::render($sort, 'author', 'Author', $listUrl, $kept) ?><?php endif; ?>
                     <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
@@ -116,8 +127,14 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
                 <?php foreach ($stories as $story): ?>
                     <?php $counts = $chapterCounts[$story->id] ?? ['total' => 0, 'published' => 0]; ?>
                     <tr>
-                        <td><input type="checkbox" name="ids[]" value="<?= (int) $story->id ?>" id="select_<?= (int) $story->id ?>" aria-label="Select <?= Html::e($story->title) ?>"></td>
-                        <th scope="row"><a href="<?= Html::e($storyUrl . '/' . $story->id) ?>"><?= Html::e($story->title) ?></a></th>
+                        <td><input type="checkbox" name="ids[]" value="<?= (int) $story->id ?>" id="select_<?= (int) $story->id ?>" data-lf-select-item="story_ids" aria-label="Select <?= Html::e($story->title) ?>"></td>
+                        <th scope="row"><a href="<?= Html::e($storyUrl . '/' . $story->id) ?>"><?= Html::e($story->title) ?></a>
+                            <?php // Every listed story is one this person may manage, which is the same rule the chapter screens check again. ?>
+                            <span class="lf-row-actions">
+                                <a href="<?= Html::e($storyUrl . '/' . $story->id . '/chapters') ?>" aria-label="Chapters of <?= Html::e($story->title) ?>">Chapters</a>
+                                <a href="<?= Html::e($storyUrl . '/' . $story->id . '/chapters/new') ?>" aria-label="Add a chapter to <?= Html::e($story->title) ?>">Add a chapter</a>
+                            </span>
+                        </th>
                         <?php if ($scope === 'all'): ?><td><?= Html::e($owners[$story->ownerId] ?? 'Unknown') ?></td><?php endif; ?>
                         <td>
                             <span class="lf-status<?= $statusClass($story->state) ?>"><?= Html::e($story->state->label()) ?></span>
@@ -140,8 +157,16 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
                 <option value="unpublish">Unpublish</option>
                 <option value="trash">Move to the trash</option>
                 <option value="delete">Delete for good&hellip;</option>
+                <?php if ($bulkMore !== []): ?>
+                    <optgroup label="Change their details">
+                        <?php foreach ($bulkMore as $value => $text): ?>
+                            <option value="<?= Html::e($value) ?>"><?= Html::e($text) ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                <?php endif; ?>
             </select>
             <button type="submit" class="lf-button lf-button--secondary">Apply</button>
+            <span class="lf-bulk__count" data-lf-selected-count role="status" aria-live="polite" hidden>None selected</span>
         </div>
     </form>
 
@@ -152,4 +177,6 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
             <?php if ($page < $pages): ?><a href="<?= Html::e($listUrl . $query($page + 1)) ?>" rel="next">Next</a><?php endif; ?>
         </nav>
     <?php endif; ?>
+
+    <?= BulkBar::script($assetVersion) ?>
 <?php endif; ?>

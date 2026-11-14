@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Services;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Helpers\Slug;
@@ -289,6 +290,34 @@ final class SeriesService
         });
 
         $this->hooks?->doAction('story_removed_from_series', $storyId, $series->id);
+    }
+
+    /**
+     * Takes several stories out of a series, one at a time through removeStory(), so each is checked and audited on its
+     * own and one that is not in the series is skipped. The order of the rest is kept.
+     *
+     * @param list<int> $storyIds at most BulkResult::LIMIT are handled
+     * @throws GroupingException when the person may not change the series
+     */
+    public function removeStories(User $actor, int $seriesId, array $storyIds, string $ipAddress = ''): BulkResult
+    {
+        $series = $this->manageable($actor, $seriesId);
+        $result = new BulkResult();
+
+        foreach (array_slice(array_values(array_unique($storyIds)), 0, BulkResult::LIMIT) as $id) {
+            try {
+                $this->removeStory($actor, $series->id, $id, $ipAddress);
+                $result->done();
+            } catch (GroupingException) {
+                $result->skip('Some of the stories are not in this series.');
+            }
+        }
+
+        if ($result->doneCount() > 0) {
+            $this->audit->record($actor->id, 'series.bulk', 'series', (string) $series->id, ['action' => 'remove', 'done' => $result->doneCount(), 'skipped' => $result->skippedCount()], $ipAddress);
+        }
+
+        return $result;
     }
 
     /**

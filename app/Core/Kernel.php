@@ -68,6 +68,7 @@ use LumoraFiction\Services\PendingMigrations;
 use LumoraFiction\Services\DownloadCounter;
 use LumoraFiction\Services\DownloadPresenter;
 use LumoraFiction\Services\DownloadSettings;
+use LumoraFiction\Services\StoryBulkService;
 use LumoraFiction\Services\StoryDocumentFactory;
 use LumoraFiction\Services\StoryDownloads;
 use LumoraFiction\Controllers\NewsController;
@@ -778,10 +779,10 @@ final class Kernel
             new TermSuggestController($kernel->auth, $taxonomy),
             new AuthorProfileController($kernel->auth, $view, $flash, $authorProfiles, $editor, $kernel->downloadAccess, $kernel->config),
             new TaxonomyController($kernel->auth, $view, $flash, $taxonomy, new ClassificationLabelSettings($kernel->config, $kernel->database, $kernel->audit)),
-            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config, $kernel->comments, $kernel->series),
+            new StoryController($kernel->auth, $view, $flash, $stories, $chapters, $taxonomy, $kernel->users, $kernel->themes, $presenter, $kernel->downloadAccess, $kernel->config, $kernel->comments, $kernel->series, new StoryBulkService($stories, $taxonomy, $kernel->audit, $kernel->config, $kernel->series, $kernel->collections, $kernel->downloadAccess)),
             new ChapterController($kernel->auth, $view, $flash, $stories, $chapters, $editor, $renderer, $kernel->users, $kernel->themes, $presenter, $kernel->comments),
             new ReviewController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users),
-            new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks), $kernel->users, $stories, $kernel->config, $authorProfiles),
+            new UsersController($kernel->auth, $view, $flash, new UserAdminService($kernel->database, $kernel->users, $stories, $kernel->audit, $kernel->config, $kernel->hooks, $kernel->auth), $kernel->users, $stories, $kernel->config, $authorProfiles),
             new AppearanceController($kernel->auth, $view, $flash, $kernel->themes, $themeSettings, $themeOptions, new ThemeManager(
                 new ThemeInstaller($root . '/content/themes', new ThemeArchive($version), $themeCatalog),
                 $themeCatalog,
