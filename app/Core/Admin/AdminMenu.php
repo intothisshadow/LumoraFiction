@@ -61,6 +61,7 @@ final class AdminMenu
                 'children' => [
                     ['slug' => 'stories-mine', 'label' => 'My stories', 'path' => 'stories', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-new', 'label' => 'Add a story', 'path' => 'stories/new', 'capability' => Capability::WriteStories],
+                    ['slug' => 'stories-import', 'label' => 'Import', 'path' => 'import', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-series', 'label' => 'Series', 'path' => 'series', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-collections', 'label' => 'Collections', 'path' => 'collections', 'capability' => Capability::WriteStories],
                     ['slug' => 'stories-all', 'label' => 'All stories', 'path' => 'stories/all', 'capability' => Capability::EditAnyStory],
@@ -148,6 +149,7 @@ final class AdminMenu
                     ['slug' => 'settings-archive', 'label' => 'Archive', 'path' => 'settings/archive', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-front-page', 'label' => 'Front page', 'path' => 'settings/front-page', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-editor', 'label' => 'Editor', 'path' => 'settings/editor', 'capability' => Capability::ManageSite],
+                    ['slug' => 'settings-import', 'label' => 'Import', 'path' => 'settings/import', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-groupings', 'label' => 'Series and collections', 'path' => 'settings/series-collections', 'capability' => Capability::ManageSite],
                     ['slug' => 'settings-heading-reading', 'label' => 'Reading and discovery', 'path' => '', 'capability' => null, 'heading' => true],
                     ['slug' => 'settings-feeds', 'label' => 'Feeds', 'path' => 'settings/feeds', 'capability' => Capability::ManageSite],

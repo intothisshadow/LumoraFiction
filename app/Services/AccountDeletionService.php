@@ -91,6 +91,10 @@ final class AccountDeletionService
             $this->database->execute('DELETE FROM {prefix}collections WHERE owner_id = :id', ['id' => $subject->id]);
             $this->database->execute('DELETE FROM {prefix}collection_stories WHERE added_by = :id', ['id' => $subject->id]);
 
+            // Import reports name the person's own stories and the archive they came from, so they go with the account.
+            $this->database->execute('DELETE FROM {prefix}story_imports WHERE user_id = :id', ['id' => $subject->id]);
+            $this->database->execute('DELETE FROM {prefix}import_runs WHERE user_id = :id', ['id' => $subject->id]);
+
             // What the person created stays, but no longer points at them.
             $this->database->execute('UPDATE {prefix}terms SET created_by = NULL WHERE created_by = :id', ['id' => $subject->id]);
             $this->database->execute('UPDATE {prefix}chapter_revisions SET created_by = NULL WHERE created_by = :id', ['id' => $subject->id]);

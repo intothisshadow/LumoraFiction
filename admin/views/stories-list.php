@@ -34,6 +34,7 @@ use LumoraFiction\Models\Story;
 /** @var int $pages */
 /** @var string $listUrl */
 /** @var string $newUrl */
+/** @var string $importUrl */
 /** @var string $storyUrl */
 /** @var string $bulkUrl */
 /** @var string $csrfToken */
@@ -56,7 +57,12 @@ $statusClass = static fn (PublicationState $state): string => match ($state) {
     default => '',
 };
 ?>
-<p><a href="<?= Html::e($newUrl) ?>" class="lf-button">Add a story</a></p>
+<p>
+    <a href="<?= Html::e($newUrl) ?>" class="lf-button">Add a story</a>
+    <?php if ($importUrl !== ''): ?>
+        <a href="<?= Html::e($importUrl) ?>" class="lf-button lf-button--secondary">Import a story</a>
+    <?php endif; ?>
+</p>
 
 <form method="get" action="<?= Html::e($listUrl) ?>" class="lf-form lf-filter" role="search">
     <div class="lf-field">

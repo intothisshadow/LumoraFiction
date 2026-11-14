@@ -69,6 +69,8 @@ final class AdminRoutes
         SeriesController $series,
         CollectionController $collections,
         GroupingSettingsController $groupingSettings,
+        ImportController $import,
+        ImportSettingsController $importSettings,
         ExportController $export,
         CacheSettingsController $cacheSettings,
     ): void {
@@ -104,6 +106,20 @@ final class AdminRoutes
         $router->post('/admin/settings/feeds', $feedSettings->update(...));
         $router->get('/admin/settings/series-collections', $groupingSettings->show(...), 'admin.settings.groupings');
         $router->post('/admin/settings/series-collections', $groupingSettings->update(...));
+        $router->get('/admin/settings/import', $importSettings->show(...), 'admin.settings.import');
+        $router->post('/admin/settings/import', $importSettings->update(...));
+        $router->get('/admin/import', $import->show(...), 'admin.import');
+        $router->post('/admin/import', $import->upload(...), 'admin.import.upload');
+        $router->get('/admin/import/preview/{token}', $import->preview(...), 'admin.import.preview');
+        $router->post('/admin/import/preview/{token}', $import->apply(...), 'admin.import.apply');
+        $router->post('/admin/import/preview/{token}/cancel', $import->cancel(...), 'admin.import.cancel');
+        $router->get('/admin/import/run/{token}', $import->progress(...), 'admin.import.run');
+        $router->post('/admin/import/run/{token}', $import->step(...), 'admin.import.step');
+        $router->post('/admin/import/run/{token}/stop', $import->stop(...), 'admin.import.stop');
+        $router->get('/admin/import/report/{token}', $import->report(...), 'admin.import.report');
+        $router->get('/admin/import/report/{token}/download', $import->download(...), 'admin.import.download');
+        $router->get('/admin/import/report/{token}/undo', $import->showUndo(...), 'admin.import.undo');
+        $router->post('/admin/import/report/{token}/undo', $import->undo(...));
         // The fixed word "new" comes before {id} so it is never read as a number.
         $router->get('/admin/export', $export->show(...), 'admin.export');
         // An export is only ever a POST with a token, so it cannot be fetched by a link.

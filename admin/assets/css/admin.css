@@ -598,6 +598,35 @@ fieldset.lf-card legend {
     color: var(--error);
 }
 
+/* Import from another archive: one card per story, with the terms found and what will happen to each. */
+
+.lf-import-work__title {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.lf-import-terms {
+    margin: 0.2rem 0 0.8rem;
+    padding-left: 1.2rem;
+}
+
+.lf-import-terms__status {
+    color: var(--muted);
+}
+
+.lf-import-progress__list {
+    margin: 0.6rem 0;
+    padding-left: 1.2rem;
+}
+
+.lf-import-result--failed {
+    border-left: 4px solid var(--error);
+}
+
+.lf-import-result--skipped {
+    border-left: 4px solid var(--warning);
+}
+
 /* Forms and buttons */
 
 .lf-field {

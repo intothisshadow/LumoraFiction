@@ -267,6 +267,31 @@ final class StoryService
     }
 
     /**
+     * Sets the dates a story carries, for work that was written and published somewhere else first. The
+     * published date is changed only when the story already has one, so this never publishes anything.
+     *
+     * @throws StoryPermissionException
+     */
+    public function applyDates(User $actor, int $storyId, ?DateTimeImmutable $created, ?DateTimeImmutable $updated, ?DateTimeImmutable $published): void
+    {
+        $story = $this->manageable($actor, $storyId);
+        $now = new DateTimeImmutable();
+        $created = $created === null || $created > $now ? null : $created;
+        $updated = $updated === null || $updated > $now ? null : $updated;
+        $published = $story->publishedAt === null || $published === null || $published > $now ? null : $published;
+
+        $this->database->execute(
+            'UPDATE {prefix}stories SET created_at = :created, updated_at = :updated, published_at = :published WHERE id = :id',
+            [
+                'created' => ($created ?? $story->createdAt)->format('Y-m-d H:i:s'),
+                'updated' => ($updated ?? $created ?? $story->updatedAt)->format('Y-m-d H:i:s'),
+                'published' => ($published ?? $story->publishedAt)?->format('Y-m-d H:i:s'),
+                'id' => $story->id,
+            ],
+        );
+    }
+
+    /**
      * Brings the public story counts of the story's terms back in step. The chapter service calls this
      * when a chapter being published or removed changes whether the story is public.
      */
@@ -717,6 +742,8 @@ final class StoryService
 
         $this->database->execute('DELETE FROM {prefix}series_stories WHERE story_id = :id', ['id' => $storyId]);
         $this->database->execute('DELETE FROM {prefix}collection_stories WHERE story_id = :id', ['id' => $storyId]);
+        // The note of where an imported story came from goes with it; the import report keeps its own text.
+        $this->database->execute('DELETE FROM {prefix}story_imports WHERE story_id = :id', ['id' => $storyId]);
 
         if ($seriesId === null || $seriesId === false) {
             return;

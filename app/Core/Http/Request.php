@@ -72,6 +72,42 @@ final readonly class Request
         return new UploadedFile($path, $entry['error'], is_int($entry['size'] ?? null) ? $entry['size'] : 0);
     }
 
+    /**
+     * Every file sent under one field name, for a form that lets the person choose several (name="work[]").
+     * Each entry passes the same checks as upload(), and entries nobody chose are left out.
+     *
+     * @return list<UploadedFile>
+     */
+    public function uploads(string $name): array
+    {
+        $entry = $this->files[$name] ?? null;
+
+        if (!is_array($entry) || !is_array($entry['tmp_name'] ?? null) || !is_array($entry['error'] ?? null)) {
+            $single = $this->upload($name);
+
+            return $single !== null && $single->wasSent() ? [$single] : [];
+        }
+
+        $found = [];
+
+        foreach ($entry['tmp_name'] as $index => $path) {
+            $error = $entry['error'][$index] ?? null;
+
+            if (!is_string($path) || !is_int($error) || $error === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+
+            if ($error === UPLOAD_ERR_OK && !$this->uploadsTrusted && !is_uploaded_file($path)) {
+                continue;
+            }
+
+            $size = $entry['size'][$index] ?? 0;
+            $found[] = new UploadedFile($path, $error, is_int($size) ? $size : 0);
+        }
+
+        return $found;
+    }
+
     public function isPost(): bool
     {
         return $this->method === 'POST';

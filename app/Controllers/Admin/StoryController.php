@@ -43,6 +43,7 @@ use LumoraFiction\Services\DownloadSettings;
 use LumoraFiction\Services\ExportService;
 use LumoraFiction\Services\GroupingException;
 use LumoraFiction\Services\GroupingSettings;
+use LumoraFiction\Services\ImportSettings;
 use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\StoryPermissionException;
 use LumoraFiction\Services\StoryPresenter;
@@ -552,6 +553,7 @@ final class StoryController extends WriterController
             'pages' => $pages,
             'listUrl' => AdminUrl::to($path),
             'newUrl' => AdminUrl::to(self::PATH . '/new'),
+            'importUrl' => $this->config !== null && ImportSettings::mayImport($this->config, $user) ? AdminUrl::to('import') : '',
             'storyUrl' => AdminUrl::to(self::PATH),
             'bulkUrl' => AdminUrl::to(self::PATH . '/bulk'),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),

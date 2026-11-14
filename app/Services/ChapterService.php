@@ -124,6 +124,32 @@ final class ChapterService
     }
 
     /**
+     * Sets the dates of a chapter that was written and published somewhere else first. The published date is
+     * changed only when the chapter is already published, so this never publishes anything, and a date in the
+     * future is ignored.
+     *
+     * @throws StoryPermissionException
+     */
+    public function applyDates(User $actor, int $chapterId, ?DateTimeImmutable $created, ?DateTimeImmutable $updated, ?DateTimeImmutable $published): void
+    {
+        $chapter = $this->manageable($actor, $chapterId);
+        $now = new DateTimeImmutable();
+        $created = $created === null || $created > $now ? null : $created;
+        $updated = $updated === null || $updated > $now ? null : $updated;
+        $published = $chapter->publishedAt === null || $published === null || $published > $now ? null : $published;
+
+        $this->database->execute(
+            'UPDATE {prefix}chapters SET created_at = :created, updated_at = :updated, published_at = :published WHERE id = :id',
+            [
+                'created' => ($created ?? $chapter->createdAt)->format('Y-m-d H:i:s'),
+                'updated' => ($updated ?? $created ?? $chapter->updatedAt)->format('Y-m-d H:i:s'),
+                'published' => ($published ?? $chapter->publishedAt)?->format('Y-m-d H:i:s'),
+                'id' => $chapter->id,
+            ],
+        );
+    }
+
+    /**
      * Puts the chapters in the given order and renumbers them 1 to n. The list must name every chapter
      * of the story exactly once; anything else is rejected so a stale form cannot silently drop one.
      *

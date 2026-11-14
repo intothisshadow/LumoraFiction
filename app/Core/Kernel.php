@@ -47,6 +47,8 @@ use LumoraFiction\Controllers\Admin\CollectionController;
 use LumoraFiction\Controllers\Admin\ExportController;
 use LumoraFiction\Controllers\Admin\FeedSettingsController;
 use LumoraFiction\Controllers\Admin\GroupingSettingsController;
+use LumoraFiction\Controllers\Admin\ImportController;
+use LumoraFiction\Controllers\Admin\ImportSettingsController;
 use LumoraFiction\Controllers\Admin\SeriesController;
 use LumoraFiction\Core\Theme\FeedLinks;
 use LumoraFiction\Core\Theme\SearchHead;
@@ -118,6 +120,8 @@ use LumoraFiction\Controllers\Admin\TermSuggestController;
 use LumoraFiction\Controllers\Admin\UsersController;
 use LumoraFiction\Services\UserAdminService;
 use LumoraFiction\Core\Content\HtmlSanitizer;
+use LumoraFiction\Core\Import\OtwDownloadParser;
+use LumoraFiction\Core\Import\UploadReader;
 use LumoraFiction\Core\Content\MarkdownParser;
 use LumoraFiction\Controllers\Admin\AuthController;
 use LumoraFiction\Controllers\Admin\AuthorProfileController;
@@ -201,6 +205,8 @@ use LumoraFiction\Services\ClassificationLabelSettings;
 use LumoraFiction\Services\CollectionService;
 use LumoraFiction\Services\ExportService;
 use LumoraFiction\Services\GroupingSettings;
+use LumoraFiction\Services\ImportService;
+use LumoraFiction\Services\ImportSettings;
 use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\ClassificationPresets;
 use LumoraFiction\Services\NotificationService;
@@ -287,6 +293,8 @@ final class Kernel
     public ?SeriesService $series = null;
 
     public ?CollectionService $collections = null;
+
+    public ?ImportService $imports = null;
 
     public ?PagePresentation $pagePresentation = null;
 
@@ -490,6 +498,8 @@ final class Kernel
         $kernel->series = new SeriesService($database, $audit, $stories, $hooks);
         $kernel->collections = new CollectionService($database, $config, $audit, $stories, $hooks);
         GroupingSettings::hideFromMenu($hooks, $config);
+        ImportSettings::hideFromMenu($hooks, $config);
+        $kernel->imports = new ImportService($database, $config, $audit, $stories, $chapters, $taxonomy, $kernel->series, $kernel->collections, new HtmlSanitizer(), new OtwDownloadParser(), new UploadReader(), $root . '/storage/cache/imports', $hooks);
 
         $kernel->privacy = new PrivacySettings($config, $database, $audit, $kernel->pages);
         $kernel->pageCache = new PageCache(
@@ -830,6 +840,8 @@ final class Kernel
             new SeriesController($kernel->auth, $view, $flash, $kernel->series ?? throw new \LogicException('Built at boot.'), $stories, $kernel->config),
             new CollectionController($kernel->auth, $view, $flash, $kernel->collections ?? throw new \LogicException('Built at boot.'), $stories, $kernel->config),
             new GroupingSettingsController($kernel->auth, $view, $flash, new GroupingSettings($kernel->config, $kernel->database, $kernel->audit)),
+            new ImportController($kernel->auth, $view, $flash, $kernel->imports ?? throw new \LogicException('Built at boot.'), $kernel->config),
+            new ImportSettingsController($kernel->auth, $view, $flash, new ImportSettings($kernel->config, $kernel->database, $kernel->audit)),
             new ExportController($kernel->auth, $view, $flash, new ExportService(
                 $kernel->database,
                 $kernel->config,
