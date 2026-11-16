@@ -280,6 +280,12 @@ final class ThemeContext
         $this->hooks->doAction('lf_footer', $this->view);
     }
 
+    /** The place inside the footer element where a feature adds its own markup, such as a webring's navigation. */
+    public function footerArea(): void
+    {
+        $this->hooks->doAction('lf_footer_area', $this->view);
+    }
+
     public function bodyClass(): string
     {
         $classes = ['lf-view-' . $this->view];

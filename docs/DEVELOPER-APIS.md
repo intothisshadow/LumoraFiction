@@ -85,6 +85,7 @@ Lower priorities run first, and callbacks with the same priority run in the orde
 | `lf_head` | `string $view` | While a public page prints its `<head>`, after the stylesheets. Print markup the page needs there. |
 | `lf_body_open` | `string $view` | Right after the opening `<body>` of a public page. |
 | `lf_footer` | `string $view` | Just before the closing `</body>` of a public page, after queued scripts. |
+| `lf_footer_area` | `string $view` | Inside the footer element of a public page, after the footer links and footer text. Print markup that belongs in the footer, such as a webring's navigation; `lf_footer` fires after the footer element has closed. |
 
 ## Filters
 

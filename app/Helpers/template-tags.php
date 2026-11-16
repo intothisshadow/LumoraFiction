@@ -47,6 +47,14 @@ if (!function_exists('lf_footer')) {
     }
 }
 
+if (!function_exists('lf_footer_area')) {
+    /** Fires the hook for markup that belongs inside the footer element. Call it in the footer, after lf_footer_text(). */
+    function lf_footer_area(): void
+    {
+        ThemeContext::current()?->footerArea();
+    }
+}
+
 if (!function_exists('lf_body_class')) {
     /** Prints the classes for the body element. */
     function lf_body_class(): void
