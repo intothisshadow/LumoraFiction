@@ -27,9 +27,10 @@ $chapters = lf_items('whole.chapters');
         <h1 class="lf-story__title"><?php lf_field('story.title'); ?></h1>
         <?php lf_feed_link(); ?>
         <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
-        <p class="lf-whole__back"><a href="<?php lf_field('whole.back_url'); ?>">Back to chapter by chapter</a></p>
-        <?php lf_part('bookmark-buttons'); ?>
-        <?php lf_part('follow-button'); ?>
+        <div class="lf-story__tools">
+            <?php lf_part('bookmark-buttons'); ?>
+            <?php lf_part('follow-button'); ?>
+        </div>
         <?php lf_downloads(); ?>
     </header>
 

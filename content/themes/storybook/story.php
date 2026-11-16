@@ -30,15 +30,24 @@ $groups = lf_items('term_groups');
         <?php lf_feed_link(); ?>
         <p class="lf-story__byline">by <?php if (lf_has('story.author_url')): ?><a href="<?php lf_field('story.author_url'); ?>"><?php lf_field('story.author'); ?></a><?php else: ?><?php lf_field('story.author'); ?><?php endif; ?></p>
         <?php lf_part('story-groupings'); ?>
-        <?php if ($chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html')): ?>
-            <p class="lf-story__actions"><a class="lf-button" href="<?= lf_e($chapters[0]['url']) ?>">Start reading</a></p>
+        <?php $canStart = $chapters !== [] && isset($chapters[0]['url']) && !lf_has('chapter.html'); ?>
+        <?php if ($canStart || lf_has('continue.url') || lf_has('whole_link.url')): ?>
+            <div class="lf-story__actions">
+                <?php if ($canStart): ?>
+                    <a class="lf-button" href="<?= lf_e($chapters[0]['url']) ?>">Start reading</a>
+                <?php endif; ?>
+                <?php if (lf_has('continue.url')): ?>
+                    <a class="lf-button" href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a>
+                <?php endif; ?>
+                <?php if (lf_has('whole_link.url')): ?>
+                    <a class="lf-reader-controls__view-link" href="<?php lf_field('whole_link.url'); ?>">Entire work<span class="lf-screen-reader-text">: read the whole story on one page</span></a>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
-        <?php if (lf_has('continue.url')): ?>
-            <p class="lf-story__actions"><a class="lf-button" href="<?php lf_field('continue.url'); ?>">Continue reading: <?php lf_field('continue.title'); ?></a></p>
-        <?php endif; ?>
-        <?php lf_whole_story_link(); ?>
-        <?php lf_part('bookmark-buttons'); ?>
-        <?php lf_part('follow-button'); ?>
+        <div class="lf-story__tools">
+            <?php lf_part('bookmark-buttons'); ?>
+            <?php lf_part('follow-button'); ?>
+        </div>
         <?php lf_downloads(); ?>
     </header>
 

@@ -48,7 +48,7 @@ $meta = array_filter([
                     <div class="lf-story-card__term-group lf-story-card__term-group--<?= lf_e($group['type'] ?? '') ?>">
                         <dt class="lf-story-card__term-label"><?= lf_e($group['label'] ?? '') ?></dt>
                         <dd class="lf-story-card__term-list">
-                            <?php foreach (is_array($group['terms'] ?? null) ? $group['terms'] : [] as $index => $term): ?><?= $index > 0 ? ', ' : '' ?><?php if (($term['url'] ?? '') !== ''): ?><a class="lf-story-card__term" href="<?= lf_e($term['url']) ?>"><?= lf_e($term['name'] ?? '') ?></a><?php else: ?><span class="lf-story-card__term"><?= lf_e($term['name'] ?? '') ?></span><?php endif; ?><?php endforeach; ?>
+                            <?php foreach (is_array($group['terms'] ?? null) ? $group['terms'] : [] as $term): ?><?php if (($term['url'] ?? '') !== ''): ?><a class="lf-term-link lf-story-card__term" href="<?= lf_e($term['url']) ?>"><?= lf_e($term['name'] ?? '') ?></a><?php else: ?><span class="lf-term-link lf-story-card__term"><?= lf_e($term['name'] ?? '') ?></span><?php endif; ?><?php endforeach; ?>
                             <?php if ((int) ($group['more'] ?? 0) > 0): ?><span class="lf-story-card__term-more">and <?= (int) $group['more'] ?> more</span><?php endif; ?>
                         </dd>
                     </div>

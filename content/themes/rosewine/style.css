@@ -1156,8 +1156,9 @@ img {
 .lf-story-card__term-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 0 0.5rem;
-    margin: 0 0 0.15rem;
+    align-items: center;
+    gap: 0.2rem 0.5rem;
+    margin: 0 0 0.3rem;
 }
 
 .lf-story-card__term-label {
@@ -1171,7 +1172,11 @@ img {
 }
 
 .lf-story-card__term-list {
+    display: flex;
     flex: 1 1 12rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.4rem;
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
@@ -1179,6 +1184,18 @@ img {
 
 .lf-story-card__term-more {
     color: var(--lf-muted);
+}
+
+/* The terms of a card are the same pills as on the story page (lf-term-link), a little smaller to keep cards compact. */
+.lf-story-card__term-list .lf-term-link {
+    font-size: 0.85rem;
+}
+
+.lf-story-card__term-group--rating .lf-term-link,
+.lf-story-card__term-group--warning .lf-term-link {
+    background: var(--lf-surface-strong);
+    border-color: var(--lf-control-border);
+    font-weight: 600;
 }
 
 .lf-story-card__summary {
@@ -1398,6 +1415,9 @@ img {
 }
 
 .lf-story__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
     margin: 1.25rem 0 0;
 }
 
@@ -1709,8 +1729,11 @@ a.lf-term-link:hover {
    only on a page that has the reader-mode button, so a page without a way out is never left bare. */
 
 .lf-reader-mode {
+    display: flex;
     flex-basis: 100%;
-    text-align: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 0.75rem;
 }
 
 .lf-reader-bar {
@@ -1732,22 +1755,58 @@ html[data-lf-reader-mode="on"] .lf-reader-bar:focus-within {
     opacity: 1;
 }
 
-.lf-reader-bar__button {
-    padding: 0.35rem 0.8rem;
+/* The reader buttons and the link to the other way of reading the story share one look. The corner radius is the
+   theme's own, enlarged, so a soft theme gets rounded buttons and a square one stays square. */
+.lf-reader-bar__button,
+.lf-reader-controls__view-link {
+    display: inline-block;
+    padding: 0.4rem 1.1rem;
     background: var(--lf-surface);
     color: var(--lf-text);
     border: 1px solid var(--lf-control-border);
-    border-radius: var(--lf-radius);
+    border-radius: calc(var(--lf-radius) * 3);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--lf-text) 14%, transparent);
     font: inherit;
     font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    text-decoration: none;
     cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.lf-reader-bar__button:hover {
+.lf-reader-bar__button:hover,
+.lf-reader-controls__view-link:hover {
     background: var(--lf-surface-strong);
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--lf-text) 18%, transparent);
+    transform: translateY(-1px);
 }
 
-html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) :is(.lf-site-header-wrap, .lf-site-footer, .lf-preview-banner, .lf-feed-link, .lf-bookmarks, .lf-follow, .lf-downloads, .lf-comments, .lf-whole-link, .lf-reader-controls) {
+.lf-reader-bar__button:active,
+.lf-reader-controls__view-link:active {
+    box-shadow: none;
+    transform: none;
+}
+
+.lf-reader-bar__button[aria-pressed="true"] {
+    background: var(--lf-surface-strong);
+    box-shadow: inset 0 0 0 1px var(--lf-control-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lf-reader-bar__button,
+    .lf-reader-controls__view-link {
+        transition: none;
+    }
+
+    .lf-reader-bar__button:hover,
+    .lf-reader-controls__view-link:hover {
+        transform: none;
+    }
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) :is(.lf-site-header-wrap, .lf-site-footer, .lf-preview-banner, .lf-feed-link, .lf-story__tools, .lf-bookmarks, .lf-follow, .lf-downloads, .lf-comments, .lf-whole-link, .lf-reader-controls) {
     display: none;
 }
 
@@ -1780,7 +1839,8 @@ html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-chapter__text p {
 }
 
 @media (forced-colors: active) {
-    .lf-reader-bar__button {
+    .lf-reader-bar__button,
+    .lf-reader-controls__view-link {
         border-color: ButtonText;
     }
 }
@@ -2205,6 +2265,19 @@ html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-chapter__text p {
 
 .lf-follow {
     margin: 0.75rem 0 0;
+}
+
+/* Bookmark and follow buttons share a row on a story page; the bottom edge lines the buttons up under the tick box. */
+.lf-story__tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem 0.75rem;
+    margin: 1rem 0 0;
+}
+
+.lf-story__tools :is(.lf-bookmarks, .lf-follow) {
+    margin: 0;
 }
 
 /* Story downloads: a button that opens a short list of formats. It is a details element, so it works without scripts and from the keyboard. */

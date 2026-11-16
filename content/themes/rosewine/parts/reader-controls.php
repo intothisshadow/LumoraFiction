@@ -35,6 +35,11 @@ declare(strict_types=1);
         </select>
     </div>
     <div class="lf-reader-mode">
+        <?php if (lf_has('whole_link.url')): ?>
+            <a class="lf-reader-controls__view-link" href="<?php lf_field('whole_link.url'); ?>">Entire work<span class="lf-screen-reader-text">: read the whole story on one page</span></a>
+        <?php elseif (lf_has('whole.back_url')): ?>
+            <a class="lf-reader-controls__view-link" href="<?php lf_field('whole.back_url'); ?>">By chapter<span class="lf-screen-reader-text">: back to reading chapter by chapter</span></a>
+        <?php endif; ?>
         <button type="button" class="lf-reader-bar__button" data-lf-reader-toggle aria-pressed="false" aria-keyshortcuts="r">Reader mode<span class="lf-screen-reader-text" data-lf-reader-hint> (off). Press to turn it on.</span></button>
         <span class="lf-screen-reader-text" role="status" data-lf-reader-status></span>
     </div>
