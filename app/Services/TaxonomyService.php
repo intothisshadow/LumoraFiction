@@ -874,6 +874,89 @@ final class TaxonomyService
     }
 
     /**
+     * Merges every other term in $ids into $targetId, one `merge()` after another in a single transaction. The kept
+     * term must be one of the ticked ones, so a typo can never name a term the person did not see. A term that is gone
+     * or belongs to a different fandom is skipped and counted; anything unexpected rolls the whole merge back.
+     *
+     * @param list<int> $ids the ticked terms, including the one to keep
+     * @return array{merged: int, skipped: array<string, int>, target: Term}
+     * @throws TaxonomyException
+     */
+    public function mergeMany(User $actor, TermType $type, array $ids, int $targetId, string $ipAddress = ''): array
+    {
+        $this->requireCurator($actor);
+
+        $ids = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+
+        if (count($ids) < 2) {
+            throw new TaxonomyException('Tick at least two terms to merge.');
+        }
+
+        if (count($ids) > self::BULK_LIMIT) {
+            throw new TaxonomyException('At most ' . self::BULK_LIMIT . ' terms can be changed at once. Narrow the list with the search or the status filter.');
+        }
+
+        if (!in_array($targetId, $ids, true)) {
+            throw new TaxonomyException('Choose which of the ticked terms to keep.');
+        }
+
+        $merged = [];
+
+        $result = $this->database->transaction(function () use ($actor, $type, $ids, $targetId, $ipAddress, &$merged): array {
+            [$marks, $params] = $this->placeholders($ids, 'merge_');
+            $found = [];
+
+            // Locked together, so a second administrator cannot change or merge the same terms between the checks and the writes.
+            foreach ($this->hydrateAll($this->database->fetchAll('SELECT * FROM {prefix}terms WHERE type = :type AND id IN (' . $marks . ') FOR UPDATE', $params + ['type' => $type->value])) as $term) {
+                $found[$term->id] = $term;
+            }
+
+            $target = $found[$targetId] ?? null;
+
+            if ($target === null) {
+                throw new TaxonomyException('The term to keep is no longer in this list.');
+            }
+
+            $skipped = [];
+
+            foreach ($ids as $id) {
+                if ($id === $targetId) {
+                    continue;
+                }
+
+                $source = $found[$id] ?? null;
+
+                if ($source === null) {
+                    $skipped[self::SKIP_MISSING] = ($skipped[self::SKIP_MISSING] ?? 0) + 1;
+
+                    continue;
+                }
+
+                if ($source->parentId !== $target->parentId) {
+                    $skipped[self::SKIP_OTHER_FANDOM] = ($skipped[self::SKIP_OTHER_FANDOM] ?? 0) + 1;
+
+                    continue;
+                }
+
+                $this->absorb($source, $target);
+                $this->audit->record($actor->id, 'term.merge', 'term', (string) $target->id, ['from' => $source->name, 'into' => $target->name, 'type' => $type->value, 'bulk' => true], $ipAddress);
+                $merged[] = $source;
+            }
+
+            return ['merged' => count($merged), 'skipped' => $skipped];
+        });
+
+        $survivor = $this->mustFind($targetId);
+
+        // After the commit, so a redirect is never made for a merge that was rolled back.
+        foreach ($merged as $source) {
+            $this->hooks?->doAction('term_merged', $source, $survivor);
+        }
+
+        return $result + ['target' => $survivor];
+    }
+
+    /**
      * Only a term nothing uses can be deleted; otherwise it has to be merged so no story loses its classification.
      *
      * @throws TaxonomyException
@@ -903,6 +986,8 @@ final class TaxonomyService
     public const SKIP_IN_USE = 'still used by stories';
 
     public const SKIP_HAS_CHILDREN = 'still has characters or relationships';
+
+    public const SKIP_OTHER_FANDOM = 'belongs to a different fandom';
 
     /**
      * Approves, unapproves or deletes several terms of one kind in a single transaction. A term that does not belong to

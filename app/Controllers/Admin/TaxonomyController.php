@@ -223,8 +223,15 @@ final class TaxonomyController extends AdminController
         $everything = $request->checked('all_matching');
         $confirmed = $request->checked('confirmed');
 
-        if (!in_array($action, ['approve', 'unapprove', 'delete'], true)) {
+        if (!in_array($action, ['approve', 'unapprove', 'delete', 'merge'], true)) {
             $this->flash->add('error', 'Choose what to do with the selected terms.');
+
+            return $back;
+        }
+
+        // Merging needs a deliberate choice of survivor among terms the person ticked, so it never takes a whole filter.
+        if ($action === 'merge' && $everything) {
+            $this->flash->add('error', 'Merging works on the terms you tick one by one. Untick "apply to all matching", tick the terms to merge and try again.');
 
             return $back;
         }
@@ -258,6 +265,36 @@ final class TaxonomyController extends AdminController
 
         if ($ids === []) {
             $this->flash->add('error', $everything ? 'Nothing matches the current list.' : 'Tick at least one term first.');
+
+            return $back;
+        }
+
+        if ($action === 'merge') {
+            if (count($ids) < 2) {
+                $this->flash->add('error', 'Tick at least two terms to merge.');
+
+                return $back;
+            }
+
+            if (!$confirmed) {
+                return $this->bulkMergePage($request, $user, $type, $ids, $search, $status, $page, null);
+            }
+
+            $keep = $request->input('target_id') ?? '';
+
+            if (preg_match('/^[1-9][0-9]{0,9}\z/', $keep) !== 1 || !in_array((int) $keep, $ids, true)) {
+                return $this->bulkMergePage($request, $user, $type, $ids, $search, $status, $page, 'Choose which of the ticked terms to keep.', 422);
+            }
+
+            try {
+                $result = $this->taxonomy->mergeMany($user, $type, $ids, (int) $keep, $request->ip());
+            } catch (TaxonomyException $exception) {
+                $this->flash->add('error', $exception->getMessage());
+
+                return $back;
+            }
+
+            $this->flash->add($result['merged'] > 0 ? 'success' : 'warning', $this->mergeMessage($result));
 
             return $back;
         }
@@ -729,6 +766,65 @@ final class TaxonomyController extends AdminController
             'formAction' => AdminUrl::to(self::PATH . '/' . $type->value . '/bulk'),
             'backUrl' => AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page),
         ], $user, 'Confirm: ' . $this->taxonomy->labels()->lowerPlural($type), self::PATH, $this->flash->pull($request->cookies));
+    }
+
+    /**
+     * The ticked terms, each as a choice of the one to keep. A hand-made list of ids is cut down to terms of this kind
+     * that exist, so the page never offers one that a merge would refuse.
+     *
+     * @param list<int> $ids
+     */
+    private function bulkMergePage(Request $request, User $user, TermType $type, array $ids, string $search, string $status, int $page, ?string $error, int $httpStatus = 200): Response
+    {
+        $terms = [];
+
+        foreach ($ids as $id) {
+            $term = $this->taxonomy->find($id);
+
+            if ($term !== null && $term->type === $type) {
+                $terms[] = $term;
+            }
+        }
+
+        if (count($terms) < 2) {
+            $this->flash->add('error', 'Tick at least two terms to merge.');
+
+            return Response::redirect(AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page), 303);
+        }
+
+        return $this->view->render('taxonomy-bulk-merge', [
+            'labels' => $this->taxonomy->labels(),
+            'type' => $type,
+            'terms' => $terms,
+            'parents' => $this->taxonomy->namesFor(array_map(static fn (Term $term): int => $term->parentId, $terms)),
+            'error' => $error,
+            'search' => $search,
+            'status' => $status,
+            'page' => $page,
+            'csrfToken' => Csrf::token(self::TOKEN_ACTION),
+            'formAction' => AdminUrl::to(self::PATH . '/' . $type->value . '/bulk'),
+            'backUrl' => AdminUrl::to(self::PATH . '/' . $type->value) . $this->listQuery($search, $status, $page),
+        ], $user, 'Merge ' . $this->taxonomy->labels()->lowerPlural($type), self::PATH, $this->flash->pull($request->cookies), $httpStatus);
+    }
+
+    /**
+     * @param array{merged: int, skipped: array<string, int>, target: Term} $result
+     */
+    private function mergeMessage(array $result): string
+    {
+        $noun = static fn (int $count): string => $count . ($count === 1 ? ' term' : ' terms');
+        $parts = [$result['merged'] > 0 ? $noun($result['merged']) . ($result['merged'] === 1 ? ' was' : ' were') . ' merged into "' . $result['target']->name . '".' : 'No term was merged.'];
+        $skipped = [];
+
+        foreach ($result['skipped'] as $reason => $count) {
+            $skipped[] = $noun($count) . ' skipped: ' . $reason;
+        }
+
+        if ($skipped !== []) {
+            $parts[] = implode('; ', $skipped) . '.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

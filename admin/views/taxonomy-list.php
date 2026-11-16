@@ -106,6 +106,7 @@ $bulkForm = 'lf-bulk-form';
             <span class="lf-bulk__count" data-lf-selected-count hidden>None selected</span>
             <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="approve" class="lf-button lf-button--secondary">Approve</button>
             <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="unapprove" class="lf-button lf-button--secondary">Mark as unapproved</button>
+            <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="merge" class="lf-button lf-button--secondary">Merge&hellip;</button>
             <button type="submit" form="<?= Html::e($bulkForm) ?>" name="bulk_action" value="delete" class="lf-button lf-button--secondary">Delete&hellip;</button>
         </div>
     <?php };

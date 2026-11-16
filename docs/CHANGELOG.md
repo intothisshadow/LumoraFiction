@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Merge several classification terms at once. The Classification lists have a new **Merge** action beside Approve, Mark as unapproved and Delete: tick the duplicates and the term to keep, choose **Merge**, and pick which ticked term to keep on the confirmation screen. Every story that used one of the others now uses the one you kept, each merged name stays as an alias of it, and the old pages are redirected, exactly as when merging one term at a time. A character or relationship that belongs to a different fandom than the one you keep is left alone and the message says so, and the merge never applies to **Apply to all matching**.
+
 ## [1.4.0] — 2026-11-16
 
 - Visitor Stats opens on the last 7 days instead of the last 30.
