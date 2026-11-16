@@ -22,6 +22,7 @@ use LumoraFiction\Core\Admin\BulkResult;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
+use LumoraFiction\Core\Http\UploadedFile;
 use LumoraFiction\Helpers\Slug;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\ContentFormat;
@@ -52,6 +53,7 @@ final class NewsService
         private readonly Database $database,
         private readonly AuditLogService $audit,
         private readonly ?HookManager $hooks = null,
+        private readonly ?NewsImageService $images = null,
     ) {
     }
 
@@ -166,7 +168,108 @@ final class NewsService
             $this->audit->record($actor->id, 'news.delete', 'news_post', (string) $post->id, ['state' => $post->state->value], $ipAddress);
         });
 
+        // The picture goes with the last post that showed it; one that other posts still use stays.
+        $this->images?->releaseIfUnused($post->imageId);
+
         $this->hooks?->doAction('news_deleted', $post->id);
+    }
+
+    /**
+     * Sets, replaces, describes or removes the post's featured picture in one step, so the form saves it with the rest.
+     * The picture is a new upload, or one of the person's earlier uploads (by number), or the one it already has.
+     * A picture needs its text alternative unless it is marked decorative, whoever sends it. The file a post lets go of is
+     * deleted only when no other post shows it. Nothing changes when anything fails.
+     *
+     * @throws NewsPermissionException when the person may not manage news or the post does not exist
+     * @throws NewsValidationException keyed "image", "image_choice" or "image_alt"
+     */
+    public function applyImage(User $actor, int $postId, ?UploadedFile $upload, int $chosenId, string $alt, bool $decorative, bool $remove, string $ipAddress = ''): NewsPost
+    {
+        $post = $this->manageable($actor, $postId);
+        $uploading = $upload !== null && $upload->wasSent();
+
+        if ($remove && !$uploading && $chosenId === 0) {
+            return $post->hasImage() ? $this->storeImage($actor, $post, null, '', false, 'remove', $ipAddress) : $post;
+        }
+
+        if (!$uploading && $chosenId === 0 && !$post->hasImage()) {
+            return $post;
+        }
+
+        $errors = [];
+        $alt = trim((string) preg_replace('/\s+/u', ' ', $alt));
+
+        if ($decorative) {
+            $alt = '';
+        } elseif ($alt === '') {
+            $errors['image_alt'] = 'Describe the picture for readers who cannot see it, or tick "This picture is decoration".';
+        } elseif (!mb_check_encoding($alt, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $alt) === 1) {
+            $errors['image_alt'] = 'The description contains characters that are not allowed.';
+        } elseif (mb_strlen($alt, 'UTF-8') > NewsImageService::ALT_MAX) {
+            $errors['image_alt'] = 'Keep the description to ' . NewsImageService::ALT_MAX . ' characters or fewer.';
+        }
+
+        if (($uploading || $chosenId > 0) && $this->images === null) {
+            $errors['image'] = 'Pictures are not available on this site.';
+        }
+
+        $image = null;
+
+        if ($errors === [] && $this->images !== null) {
+            if ($uploading) {
+                $image = $this->images->add($actor, $upload, $ipAddress);
+            } elseif ($chosenId > 0 && $chosenId !== $post->imageId) {
+                $image = $this->images->usableBy($actor, $chosenId) ?? throw new NewsValidationException(['image_choice' => 'That picture is not available. Choose another or upload a new one.']);
+            }
+        }
+
+        if ($errors !== []) {
+            throw new NewsValidationException($errors);
+        }
+
+        $imageId = $image?->id ?? $post->imageId;
+
+        if ($imageId === $post->imageId && $alt === $post->imageAlt && $decorative === $post->imageDecorative) {
+            return $post;
+        }
+
+        try {
+            return $this->storeImage($actor, $post, $imageId, $alt, $decorative, $image === null ? 'describe' : ($post->hasImage() ? 'replace' : 'set'), $ipAddress);
+        } catch (\Throwable $exception) {
+            // An upload nothing shows is released, so a failed save leaves no stray file behind.
+            if ($image !== null && $uploading) {
+                $this->images?->releaseIfUnused($image->id);
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * The posts that show a picture, for the screens that tell a person what removing it would affect.
+     *
+     * @return list<NewsPost>
+     */
+    public function postsUsingImage(int $imageId): array
+    {
+        return array_map($this->hydrate(...), $this->database->fetchAll('SELECT * FROM {prefix}news_posts WHERE image_id = :id ORDER BY updated_at DESC, id DESC', ['id' => $imageId]));
+    }
+
+    private function storeImage(User $actor, NewsPost $post, ?int $imageId, string $alt, bool $decorative, string $action, string $ipAddress): NewsPost
+    {
+        $this->database->transaction(function () use ($actor, $post, $imageId, $alt, $decorative, $action, $ipAddress): void {
+            $this->database->execute(
+                'UPDATE {prefix}news_posts SET image_id = :image, image_alt = :alt, image_decorative = :decorative, updated_at = :updated WHERE id = :id',
+                ['image' => $imageId, 'alt' => $alt, 'decorative' => $decorative ? 1 : 0, 'updated' => date('Y-m-d H:i:s'), 'id' => $post->id],
+            );
+            $this->audit->record($actor->id, 'news.image', 'news_post', (string) $post->id, ['action' => $action], $ipAddress);
+        });
+
+        if ($post->imageId !== null && $post->imageId !== $imageId) {
+            $this->images?->releaseIfUnused($post->imageId);
+        }
+
+        return $this->mustFind($post->id);
     }
 
     /** The actions bulk() accepts. */
@@ -469,6 +572,9 @@ final class NewsService
             publishedAt: is_string($row['published_at']) && $row['published_at'] !== '' ? new DateTimeImmutable($row['published_at']) : null,
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
+            imageId: isset($row['image_id']) ? (int) $row['image_id'] : null,
+            imageAlt: (string) ($row['image_alt'] ?? ''),
+            imageDecorative: (int) ($row['image_decorative'] ?? 0) === 1,
         );
     }
 }

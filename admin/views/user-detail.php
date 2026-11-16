@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\PublishingOverride;
@@ -61,6 +62,7 @@ $statusClass = match ($person->status) {
         <tbody>
             <tr><th scope="row">Login name</th><td><?= Html::e($person->loginName) ?></td></tr>
             <tr><th scope="row">Role</th><td><?= Html::e($person->role->label()) ?></td></tr>
+            <tr><th scope="row">Publishing</th><td><?= PublishingPolicy::allowsWriting($person->role) ? 'Can publish' : 'Reader only' ?><?= $person->role === UserRole::Author && !PublishingPolicy::allowsWriting($person->role) ? ' <span class="lf-hint">(the site lets only staff publish, so this account has a Reader&rsquo;s abilities for now)</span>' : '' ?></td></tr>
             <tr><th scope="row">Status</th><td><span class="lf-status<?= Html::e($statusClass) ?>"><?= Html::e(ucfirst($person->status->value)) ?></span></td></tr>
             <tr><th scope="row">Joined</th><td><?= Html::e($person->createdAt->format('Y-m-d')) ?></td></tr>
             <tr><th scope="row">Email address</th><td><?= Html::e($person->email) ?> (<?= $person->emailVerifiedAt === null ? 'not confirmed' : 'confirmed' ?>)</td></tr>
@@ -120,7 +122,7 @@ $statusClass = match ($person->status) {
                         <option value="<?= Html::e($role->value) ?>"<?= $person->role === $role ? ' selected' : '' ?>><?= Html::e($role->label()) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <p class="lf-hint" id="role_hint"><?= Html::e(implode(' ', array_map(static fn (UserRole $role): string => $role->label() . ': ' . $roleHints[$role->value], $roles))) ?> The site always keeps at least one active administrator.</p>
+                <p class="lf-hint" id="role_hint"><?= Html::e(implode(' ', array_map(static fn (UserRole $role): string => $role->label() . ': ' . $roleHints[$role->value], $roles))) ?> The site always keeps at least one active administrator.<?= PublishingPolicy::mode() === PublishingPolicy::STAFF ? ' Because only staff can publish on this site, an Author stays reader-only until that setting changes.' : (PublishingPolicy::mode() === PublishingPolicy::APPROVED ? ' This site lets only Authors an administrator has approved publish, so giving the Author role is that approval.' : '') ?></p>
             </div>
             <div class="lf-field">
                 <label for="role_reason">Reason (optional)</label>
@@ -149,7 +151,7 @@ $statusClass = match ($person->status) {
                         <?= $siteHoldsFirst ? 'their first story waits for approval, and later ones publish directly once one of theirs has been published.' : 'their stories publish directly.' ?>
                         <strong>Publishes without review</strong>: every story they send goes live at once.
                         <strong>Every story is reviewed</strong>: every story they send waits for an editor, however many they have published.
-                        This applies from their next submission; stories already published stay published.
+                        This applies from their next submission; stories already published stay published.<?= PublishingPolicy::mode() === PublishingPolicy::STAFF ? ' It has no effect while the site lets only staff publish.' : '' ?>
                     </p>
                 </div>
                 <p><button type="submit" class="lf-button">Save publishing rights</button></p>

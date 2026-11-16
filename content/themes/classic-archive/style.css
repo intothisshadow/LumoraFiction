@@ -1457,6 +1457,36 @@ a.lf-tag__link:hover {
     font-weight: 600;
 }
 
+/* The featured picture of a news post: small in lists, full width above the text on the post. */
+.lf-news-image {
+    margin: 0 0 1rem;
+}
+
+.lf-news-image--card {
+    margin-bottom: 0.6rem;
+}
+
+.lf-news-image--single {
+    margin-bottom: 1.5rem;
+}
+
+.lf-news-image__img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--lf-border, rgb(0 0 0 / 0.2));
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-lf-scheme="light"]) .lf-news-image__img {
+        border-color: rgb(255 255 255 / 0.2);
+    }
+}
+
+:root[data-lf-scheme="dark"] .lf-news-image__img {
+    border-color: rgb(255 255 255 / 0.2);
+}
+
 .lf-news-post__body {
     font-family: var(--lf-font-story);
     font-size: 1.125rem;

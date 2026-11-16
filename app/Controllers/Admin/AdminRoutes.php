@@ -73,6 +73,7 @@ final class AdminRoutes
         ImportSettingsController $importSettings,
         ExportController $export,
         CacheSettingsController $cacheSettings,
+        MediaController $media,
     ): void {
         $router->get('/admin', $dashboard->index(...), 'admin.dashboard');
         $router->get('/admin/login', $auth->showLogin(...), 'admin.login');
@@ -169,6 +170,12 @@ final class AdminRoutes
         $router->post('/admin/news/bulk', $news->bulk(...));
         $router->get('/admin/news/new', $news->showCreate(...), 'admin.news.new');
         $router->post('/admin/news/new', $news->create(...));
+        $router->post('/admin/news/images/{id}/delete', $news->deleteImage(...));
+        $router->get('/admin/media', $media->index(...), 'admin.media');
+        $router->post('/admin/media/upload', $media->upload(...));
+        $router->post('/admin/media/delete', $media->delete(...));
+        $router->get('/admin/media/{id}', $media->used(...));
+        $router->get('/admin/media/{id}/delete', $media->showDelete(...));
         $router->get('/admin/news/{id}', $news->showEdit(...), 'admin.news.edit');
         $router->post('/admin/news/{id}', $news->update(...));
         $router->get('/admin/news/{id}/delete', $news->showDelete(...));
@@ -213,6 +220,8 @@ final class AdminRoutes
         $router->get('/admin/taxonomy/term/{id}', $taxonomy->showEdit(...), 'admin.taxonomy.term');
         $router->post('/admin/taxonomy/term/{id}', $taxonomy->update(...));
         $router->post('/admin/taxonomy/term/{id}/aliases', $taxonomy->addAlias(...));
+        $router->post('/admin/taxonomy/term/{id}/characters', $taxonomy->addCharacters(...));
+        $router->post('/admin/taxonomy/term/{id}/characters/move', $taxonomy->moveCharacterIn(...));
         $router->post('/admin/taxonomy/term/{id}/move', $taxonomy->move(...), 'admin.taxonomy.move');
         $router->post('/admin/stories/{id}/trash', $stories->trash(...), 'admin.stories.trash');
         $router->post('/admin/stories/{id}/duplicate', $stories->duplicate(...), 'admin.stories.duplicate');

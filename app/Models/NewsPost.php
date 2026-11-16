@@ -33,7 +33,15 @@ final readonly class NewsPost
         public ?DateTimeImmutable $publishedAt,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?int $imageId = null,
+        public string $imageAlt = '',
+        public bool $imageDecorative = false,
     ) {
+    }
+
+    public function hasImage(): bool
+    {
+        return $this->imageId !== null;
     }
 
     public function isPublished(): bool

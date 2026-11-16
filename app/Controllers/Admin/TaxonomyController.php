@@ -42,9 +42,14 @@ final class TaxonomyController extends AdminController
 
     private const PER_PAGE = 50;
 
+    private const FANDOM_CHARACTERS_SHOWN = 200;
+
     private const TOKEN_ACTION = 'admin_taxonomy';
 
     private const STALE_FORM = 'Your session expired, so nothing was saved. Please check the form and send it again.';
+
+    /** Names the form field a failure belongs to when it is not the one the action was started for. */
+    private ?string $errorOverride = null;
 
     public function __construct(
         AuthService $auth,
@@ -392,6 +397,22 @@ final class TaxonomyController extends AdminController
     {
         return $this->act($params, $request, 'name', function (User $user, Term $term, Request $request): string {
             $this->taxonomy->rename($user, $term->id, $request->input('name') ?? '', $request->ip());
+            $message = 'Saved.';
+
+            // A form without the field (an older page, a script) leaves the fandom alone instead of clearing it.
+            if ($term->type->belongsToFandom() && $request->input('fandom') !== null) {
+                $this->errorOverride = 'fandom';
+                $parentId = $this->fandomId($term->type, $request->input('fandom') ?? '');
+
+                if ($parentId !== $term->parentId) {
+                    $moved = $this->taxonomy->moveToFandom($user, $term->id, $parentId, $request->ip());
+                    $name = $this->taxonomy->namesFor([$moved->parentId])[$moved->parentId] ?? '';
+                    $message = $name === '' ? 'Saved. It no longer belongs to a fandom.' : 'Saved. It now belongs to "' . $name . '".';
+                }
+
+                $this->errorOverride = null;
+            }
+
             $this->taxonomy->setReviewed($user, $term->id, $request->checked('reviewed'), $request->ip());
 
             // Only the short lists have these fields, so a form for an open list must not blank them.
@@ -400,8 +421,94 @@ final class TaxonomyController extends AdminController
                 $this->taxonomy->setHidden($user, $term->id, $request->checked('hidden'), $request->ip());
             }
 
-            return 'Saved.';
+            return $message;
         });
+    }
+
+    /**
+     * Adds the characters typed on the fandom's screen, one name per line.
+     *
+     * @param array<string, string> $params
+     */
+    public function addCharacters(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $term = $this->term($params);
+
+        if ($term === null || $term->type !== TermType::Fandom || !$this->taxonomy->isEnabled(TermType::Character)) {
+            return $this->missing('That fandom no longer exists.');
+        }
+
+        $text = $request->input('characters') ?? '';
+        $values = ['name' => $term->name, 'alias' => '', 'characters' => $text];
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->editPage($request, $user, $term, $values, ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $result = $this->taxonomy->addManyToFandom($user, TermType::Character, $term->id, $text, $request->ip());
+        } catch (TaxonomyException $exception) {
+            return $this->editPage($request, $user, $term, $values, ['characters' => $exception->getMessage()], 422);
+        }
+
+        $reasons = array_map(static fn (array $row): string => '"' . $row['name'] . '": ' . $row['reason'], array_slice($result['skipped'], 0, 8));
+        $more = count($result['skipped']) - count($reasons);
+        $skippedText = $reasons === [] ? '' : ' Not added: ' . implode(' ', $reasons) . ($more > 0 ? ' And ' . $more . ' more.' : '');
+
+        if ($result['created'] === []) {
+            // Nothing was added, so the form is shown again with the lines that failed, ready to correct.
+            $values['characters'] = implode("\n", array_column($result['skipped'], 'name'));
+
+            return $this->editPage($request, $user, $term, $values, ['characters' => trim($skippedText)], 422);
+        }
+
+        $count = count($result['created']);
+        $this->flash->add($result['skipped'] === [] ? 'success' : 'warning', $count . ($count === 1 ? ' character was' : ' characters were') . ' added to "' . $term->name . '".' . $skippedText);
+
+        return Response::redirect(AdminUrl::to(self::PATH . '/term/' . $term->id), 303);
+    }
+
+    /**
+     * Moves an existing character, named on the fandom's screen, into the fandom.
+     *
+     * @param array<string, string> $params
+     */
+    public function moveCharacterIn(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $term = $this->term($params);
+
+        if ($term === null || $term->type !== TermType::Fandom || !$this->taxonomy->isEnabled(TermType::Character)) {
+            return $this->missing('That fandom no longer exists.');
+        }
+
+        $name = $request->input('move_character') ?? '';
+        $values = ['name' => $term->name, 'alias' => '', 'move' => $name];
+
+        if (!$this->validToken($request, self::TOKEN_ACTION)) {
+            return $this->editPage($request, $user, $term, $values, ['form' => self::STALE_FORM], 400);
+        }
+
+        try {
+            $moved = $this->taxonomy->moveByName($user, TermType::Character, $name, $term->id, $request->ip());
+        } catch (TaxonomyException $exception) {
+            return $this->editPage($request, $user, $term, $values, ['move' => $exception->getMessage()], 422);
+        }
+
+        $this->flash->add('success', '"' . $moved->name . '" now belongs to "' . $term->name . '".');
+
+        return Response::redirect(AdminUrl::to(self::PATH . '/term/' . $term->id), 303);
     }
 
     /**
@@ -606,14 +713,20 @@ final class TaxonomyController extends AdminController
 
         $values = ['name' => $request->input('name') ?? $term->name, 'alias' => $request->input('alias') ?? '', 'description' => $request->input('description') ?? $term->description, 'hidden' => $request->checked('hidden')];
 
+        if ($request->input('fandom') !== null) {
+            $values['fandom'] = $request->input('fandom') ?? '';
+        }
+
         if (!$this->validToken($request, self::TOKEN_ACTION)) {
             return $this->editPage($request, $user, $term, $values, ['form' => self::STALE_FORM], 400);
         }
 
+        $this->errorOverride = null;
+
         try {
             $message = $change($user, $term, $request);
         } catch (TaxonomyException $exception) {
-            return $this->editPage($request, $user, $term, $values, [$errorField => $exception->getMessage()], 422);
+            return $this->editPage($request, $user, $term, $values, [($this->errorOverride ?? $errorField) => $exception->getMessage()], 422);
         }
 
         $this->flash->add('success', $message);
@@ -672,12 +785,14 @@ final class TaxonomyController extends AdminController
     }
 
     /**
-     * @param array{name: string, alias: string} $values
+     * @param array{name: string, alias: string, fandom?: string, characters?: string, move?: string} $values
      * @param array<string, string> $errors
      */
     private function editPage(Request $request, User $user, Term $term, array $values, array $errors, int $status): Response
     {
         $base = AdminUrl::to(self::PATH . '/term/' . $term->id);
+        $parentName = $this->taxonomy->namesFor([$term->parentId])[$term->parentId] ?? '';
+        $withCharacters = $term->type === TermType::Fandom && $this->taxonomy->isEnabled(TermType::Character);
 
         return $this->view->render('taxonomy-form', [
             'labels' => $this->taxonomy->labels(),
@@ -686,8 +801,10 @@ final class TaxonomyController extends AdminController
             'curated' => !$this->taxonomy->writersMayPropose($term->type),
             'term' => $term,
             'aliases' => $this->taxonomy->aliasesFor($term->id),
-            'parentName' => $this->taxonomy->namesFor([$term->parentId])[$term->parentId] ?? '',
-            'values' => $values + ['fandom' => ''],
+            'parentName' => $parentName,
+            'characters' => $withCharacters ? $this->taxonomy->list(TermType::Character, ['parent' => $term->id], self::FANDOM_CHARACTERS_SHOWN) : null,
+            'characterTotal' => $withCharacters ? $this->taxonomy->count(TermType::Character, ['parent' => $term->id]) : 0,
+            'values' => $values + ['fandom' => $parentName, 'characters' => '', 'move' => ''],
             'errors' => $errors,
             'errorSummary' => $this->errorSummary($errors),
             'csrfToken' => Csrf::token(self::TOKEN_ACTION),
@@ -695,6 +812,9 @@ final class TaxonomyController extends AdminController
             'listUrl' => AdminUrl::to(self::PATH . '/' . $term->type->value),
             'urls' => [
                 'alias' => $base . '/aliases',
+                'characters' => $base . '/characters',
+                'moveCharacter' => $base . '/characters/move',
+                'term' => AdminUrl::to(self::PATH . '/term'),
                 'removeAlias' => AdminUrl::to(self::PATH . '/alias'),
                 'merge' => $base . '/merge',
                 'delete' => $base . '/delete',

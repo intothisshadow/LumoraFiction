@@ -18,10 +18,12 @@ declare(strict_types=1);
 use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 
-/** @var array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool} $values */
+/** @var array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, who_publishes: string} $values */
 /** @var array<string, string> $errors */
 /** @var array<string, string> $modes */
 /** @var list<array{value: string, label: string}> $roles */
+/** @var array<string, string> $whoModes */
+/** @var array{authors: int, stories: int} $staffImpact */
 /** @var string $csrfToken */
 /** @var string $action */
 /** @var array<string, array<string, array{label: string, description: string, values: list<array{key: string, name: string, description: string}>}>> $catalogue starter lists by list, then preset key */
@@ -68,6 +70,19 @@ $modeHints = [
     </fieldset>
 
     <fieldset class="lf-card">
+        <legend>Who can publish stories</legend>
+        <p class="lf-hint">Applies at once to everyone, whatever their role. Nobody's role is changed: switching back restores what each account could do, and stories already published stay online. Readers always keep bookmarks, reading history, follows, comments and notifications.</p>
+        <?php foreach ($whoModes as $who => $label): ?>
+            <div class="lf-choice">
+                <input type="radio" id="who_publishes_<?= Html::e($who) ?>" name="who_publishes" value="<?= Html::e($who) ?>"<?= $values['who_publishes'] === $who ? ' checked' : '' ?> aria-describedby="who_publishes_<?= Html::e($who) ?>_hint">
+                <label for="who_publishes_<?= Html::e($who) ?>"><?= Html::e($label) ?></label>
+                <p class="lf-hint" id="who_publishes_<?= Html::e($who) ?>_hint"><?php if ($who === 'anyone'): ?>The usual setup: an account with the Author role writes and publishes (the first story can wait for approval, below).<?php elseif ($who === 'approved'): ?>Registering never makes an Author. An administrator gives the Author role to the people who may write, under Users.<?php else: ?>Only Administrators and Editors write. Suited to a site with one author or a few chosen ones. <?= (int) $staffImpact['authors'] === 0 ? 'No Author accounts exist now.' : (int) $staffImpact['authors'] . ($staffImpact['authors'] === 1 ? ' Author account' : ' Author accounts') . ' would become reader-only; their ' . (int) $staffImpact['stories'] . ($staffImpact['stories'] === 1 ? ' published story stays' : ' published stories stay') . ' online.' ?><?php endif; ?></p>
+            </div>
+        <?php endforeach; ?>
+        <?php if (isset($errors['who_publishes'])): ?><p class="lf-error" id="who_publishes"><?= Html::e($errors['who_publishes']) ?></p><?php endif; ?>
+    </fieldset>
+
+    <fieldset class="lf-card">
         <legend>Joining</legend>
 
         <div class="lf-choice">
@@ -83,7 +98,7 @@ $modeHints = [
                     <option value="<?= Html::e($role['value']) ?>"<?= $values['default_role'] === $role['value'] ? ' selected' : '' ?>><?= Html::e($role['label']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <p class="lf-hint" id="default_role_hint">Authors can write and submit stories. Readers can only read and keep bookmarks. Editors and administrators are always chosen by hand.</p>
+            <p class="lf-hint" id="default_role_hint"><?= $values['who_publishes'] === 'anyone' ? 'Authors can write and submit stories. ' : 'Only readers can register on this site, because of who may publish (above). ' ?>Readers can only read and keep bookmarks. Editors and administrators are always chosen by hand.</p>
             <?php if (isset($errors['default_role'])): ?><p class="lf-error" id="default_role_error"><?= Html::e($errors['default_role']) ?></p><?php endif; ?>
         </div>
 

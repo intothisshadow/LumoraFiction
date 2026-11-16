@@ -19,8 +19,10 @@ namespace LumoraFiction\Services;
 
 use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Database\Database;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
+use LumoraFiction\Models\UserStatus;
 
 /**
  * Turning a feature off hides its screens and fields without deleting the data behind it, so the
@@ -34,6 +36,7 @@ final class ArchiveSettings
         'publishing.hold_first_story' => true,
         'reading.require_signin' => false,
         'taxonomy.writer_tags' => true,
+        PublishingPolicy::SETTING => PublishingPolicy::ANYONE,
     ];
 
     public const MODES = [
@@ -51,6 +54,7 @@ final class ArchiveSettings
         'hold_first_story' => 'publishing.hold_first_story',
         'require_signin' => 'reading.require_signin',
         'writer_tags' => 'taxonomy.writer_tags',
+        'who_publishes' => PublishingPolicy::SETTING,
     ];
 
     public function __construct(
@@ -72,17 +76,20 @@ final class ArchiveSettings
     }
 
     /**
-     * @return array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool}
+     * @return array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool, who_publishes: string}
      */
     public function current(): array
     {
         $role = $this->config->setting('registration.default_role');
+        $who = PublishingPolicy::modeOf($this->config);
 
         return [
             'archive_mode' => self::modeOf($this->config),
             // Anything other than a real "true" counts as closed, matching how the registration code reads it.
             'registration_enabled' => $this->config->setting('registration.enabled') === true,
-            'default_role' => is_string($role) && in_array($role, self::roleValues(), true) ? $role : UserRole::Reader->value,
+            // A stored Author that the publishing rule no longer allows is shown (and acted on) as Reader.
+            'default_role' => is_string($role) && in_array($role, self::roleValues($who), true) ? $role : UserRole::Reader->value,
+            'who_publishes' => $who,
             'email_verification' => $this->config->setting('registration.email_verification') !== false,
             'hold_first_story' => $this->config->setting('publishing.hold_first_story') !== false,
             // Closed only by a real "true", so a missing or damaged value leaves the archive readable.
@@ -93,30 +100,44 @@ final class ArchiveSettings
     }
 
     /**
-     * @param array{archive_mode: ?string, default_role: ?string, registration_enabled: bool, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool} $input
-     * @return array{errors: array<string, string>, values: array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool}}
+     * @param array{archive_mode: ?string, default_role: ?string, registration_enabled: bool, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool, who_publishes: string} $input
+     * @return array{errors: array<string, string>, notices: list<string>, values: array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool, who_publishes: string}}
      */
     public function validate(array $input): array
     {
         $errors = [];
+        $notices = [];
         $current = $this->current();
 
         $mode = $input['archive_mode'];
         $role = $input['default_role'];
+        // A form or file without the field leaves the rule as it is.
+        $who = array_key_exists('who_publishes', $input) ? $input['who_publishes'] : $current['who_publishes'];
 
         if ($mode === null || !isset(self::MODES[$mode])) {
             $errors['archive_mode'] = 'Choose what the site will publish.';
             $mode = $current['archive_mode'];
         }
 
+        if ($who === null || !isset(PublishingPolicy::MODES[$who])) {
+            $errors['who_publishes'] = 'Choose who can publish stories.';
+            $who = $current['who_publishes'];
+        }
+
         if ($role === null || !in_array($role, self::roleValues(), true)) {
             $errors['default_role'] = 'Choose the role new accounts receive.';
             $role = $current['default_role'];
+        } elseif (!in_array($role, self::roleValues($who), true)) {
+            // Registering must never make someone who could not publish an Author, so the choice becomes Reader and says so.
+            $role = UserRole::Reader->value;
+            $notices[] = 'New accounts become Readers, because only ' . ($who === PublishingPolicy::STAFF ? 'staff' : 'Authors an administrator has approved') . ' can publish on this site.';
         }
 
         return [
             'errors' => $errors,
+            'notices' => $notices,
             'values' => [
+                'who_publishes' => $who,
                 'archive_mode' => $mode,
                 'registration_enabled' => $input['registration_enabled'],
                 'default_role' => $role,
@@ -132,7 +153,7 @@ final class ArchiveSettings
      * Saves only what changed, and records the change in the same transaction so the two cannot
      * disagree. Returns the names of the settings that changed.
      *
-     * @param array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool} $values
+     * @param array{archive_mode: string, registration_enabled: bool, default_role: string, email_verification: bool, hold_first_story: bool, require_signin: bool, writer_tags: bool, who_publishes: string} $values
      * @return list<string>
      */
     public function save(array $values, User $actor, string $ipAddress): array
@@ -160,14 +181,38 @@ final class ArchiveSettings
             $this->audit->record($actor->id, 'settings.archive.update', 'settings', 'archive', $changes, $ipAddress);
         });
 
+        // Takes effect for this request too, so the page the administrator lands on already reflects it.
+        PublishingPolicy::use(PublishingPolicy::modeOf($this->config));
+
         return array_keys($changes);
     }
 
     /**
+     * What switching to "only staff" would change, for the administrator to read before saving: the Author accounts that
+     * would become reader-only and the published stories they own (which stay online).
+     *
+     * @return array{authors: int, stories: int}
+     */
+    public function staffImpact(): array
+    {
+        return [
+            'authors' => (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}users WHERE role = :role AND status = :status', ['role' => UserRole::Author->value, 'status' => UserStatus::Active->value]),
+            'stories' => (int) $this->database->fetchColumn(
+                'SELECT COUNT(*) FROM {prefix}stories s JOIN {prefix}users u ON u.id = s.owner_id WHERE u.role = :role AND ' . StoryVisibility::publicCondition('s'),
+                ['role' => UserRole::Author->value],
+            ),
+        ];
+    }
+
+    /**
+     * The roles registering can give under a publishing rule: only "anyone" lets a new account become an Author.
+     *
      * @return list<string>
      */
-    private static function roleValues(): array
+    public static function roleValues(string $who = PublishingPolicy::ANYONE): array
     {
-        return array_map(static fn (UserRole $role): string => $role->value, UserRole::selfServiceRoles());
+        $roles = PublishingPolicy::registrationMakesAuthors($who) ? UserRole::selfServiceRoles() : [UserRole::Reader];
+
+        return array_map(static fn (UserRole $role): string => $role->value, $roles);
     }
 }

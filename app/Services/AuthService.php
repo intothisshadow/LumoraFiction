@@ -23,6 +23,7 @@ use LumoraFiction\Core\Mail\Mailer;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Security\LoginThrottle;
 use LumoraFiction\Core\Security\PasswordPolicy;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Core\Security\SessionManager;
 use LumoraFiction\Core\Security\TokenService;
 use LumoraFiction\Models\AlertSeverity;
@@ -454,8 +455,11 @@ final class AuthService
         $setting = $this->config->setting('registration.default_role', 'author');
         $role = is_string($setting) ? UserRole::tryFrom($setting) : null;
 
-        // Staff roles can only be given by an administrator, whatever the setting says.
-        return $role !== null && in_array($role, UserRole::selfServiceRoles(), true) ? $role : UserRole::Reader;
+        // Staff roles can only be given by an administrator, whatever the setting says; and registering makes an Author
+        // only where anyone with an Author account may publish.
+        $allowed = PublishingPolicy::registrationMakesAuthors(PublishingPolicy::modeOf($this->config)) ? UserRole::selfServiceRoles() : [UserRole::Reader];
+
+        return $role !== null && in_array($role, $allowed, true) ? $role : UserRole::Reader;
     }
 
     private function sendVerification(User $user, int $cooldownSeconds): void

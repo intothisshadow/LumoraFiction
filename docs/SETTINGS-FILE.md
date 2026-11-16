@@ -25,7 +25,7 @@
 
 | Group | Settings (kind) |
 | ----- | --------------- |
-| `archive` | `archive_mode` (text: `both`, `fanfiction`, `original`), `registration_enabled`, `email_verification`, `hold_first_story`, `require_signin`, `writer_tags` (true/false), `default_role` (text: `reader` or `author`) |
+| `archive` | `archive_mode` (text: `both`, `fanfiction`, `original`), `registration_enabled`, `email_verification`, `hold_first_story`, `require_signin`, `writer_tags` (true/false), `default_role` (text: `reader` or `author`), `who_publishes` (text: `anyone`, `approved` or `staff`; `default_role` must be `reader` unless this is `anyone`) |
 | `security` | `lockout_attempts` (3 to 20), `lockout_minutes` (1 to 1440), `password_min_length` (8 to 64), `session_hours` (1 to 720) (whole numbers), `lockout_progressive`, `notify_owner` (true/false) |
 | `privacy` | `deleted_stories` (text: `keep` or `delete`), `neutral_name` (text) |
 | `comments` | `enabled`, `author_toggle`, `replies` (true/false), `trust` (text), `edit_minutes`, `report_threshold` (whole numbers) |

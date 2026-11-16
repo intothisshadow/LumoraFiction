@@ -727,6 +727,89 @@ fieldset.lf-card legend {
     flex: 1 1 18rem;
 }
 
+/* The featured image of a news post: the current picture, then a grid of earlier uploads to reuse. */
+.lf-news-image-field__current {
+    margin: 0 0 0.75rem;
+}
+
+.lf-news-image-field__preview {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+/* The Media screen: a small preview in each row, and the pictures named on the delete confirmation. */
+.lf-media-table__thumb {
+    display: block;
+    width: 6rem;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+}
+
+.lf-media-delete {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-media-delete li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.lf-media-delete img {
+    width: 5rem;
+    height: auto;
+    border-radius: 0.25rem;
+}
+
+.lf-news-image-picker {
+    margin: 1rem 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.lf-news-image-picker legend {
+    padding: 0;
+    font-weight: bold;
+}
+
+.lf-news-image-picker__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lf-news-image-picker__item {
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+.lf-news-image-picker__item img {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-bottom: 0.35rem;
+    border-radius: 0.25rem;
+}
+
+.lf-news-image-picker__meta {
+    display: block;
+    font-size: 0.85rem;
+}
+
 .lf-cropper {
     margin-bottom: 1rem;
 }

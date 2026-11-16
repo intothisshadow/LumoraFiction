@@ -46,6 +46,8 @@ final readonly class FeedItem
         public string $image = '',
         public array $categories = [],
         public bool $guidIsAddress = false,
+        public string $enclosureType = '',
+        public int $enclosureBytes = 0,
     ) {
     }
 }

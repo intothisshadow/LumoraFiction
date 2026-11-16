@@ -25,6 +25,7 @@ use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Media\ImageStore;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
@@ -33,6 +34,7 @@ use LumoraFiction\Models\NewsPost;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\NewsImageService;
 use LumoraFiction\Services\NewsPermissionException;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
@@ -51,7 +53,7 @@ final class NewsController extends WriterController
     private const TOKEN = 'admin_news';
 
     /** @var list<string> */
-    private const KEPT = ['title', 'content', 'content_format', 'pinned'];
+    private const KEPT = ['title', 'content', 'content_format', 'pinned', 'image_alt'];
 
     public function __construct(
         AuthService $auth,
@@ -62,6 +64,7 @@ final class NewsController extends WriterController
         private readonly ThemeRenderer $themes,
         private readonly NewsPresenter $presenter,
         private readonly Configuration $config,
+        private readonly ?NewsImageService $images = null,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -165,7 +168,7 @@ final class NewsController extends WriterController
     {
         $user = $this->staff($request, self::PATH);
 
-        return $user instanceof Response ? $user : $this->formPage($request, $user, null, ['title' => '', 'content' => '', 'content_format' => '', 'pinned' => false], [], 200);
+        return $user instanceof Response ? $user : $this->formPage($request, $user, null, ['title' => '', 'content' => '', 'content_format' => '', 'pinned' => false, 'image_alt' => '', 'image_decorative' => false], [], 200);
     }
 
     /**
@@ -185,11 +188,19 @@ final class NewsController extends WriterController
             return $this->formPage($request, $user, null, $values, ['form' => self::STALE_FORM], 400);
         }
 
+        $created = null;
+
         try {
-            $post = $this->news->create($user, $this->serviceInput($values), $request->ip());
+            $post = $created = $this->news->create($user, $this->serviceInput($values), $request->ip());
+            $post = $this->applyImage($user, $post, $request);
             $post = $this->applyAction($user, $post, $request);
         } catch (NewsValidationException $exception) {
-            return $this->formPage($request, $user, null, $values, $exception->errors, 422);
+            // A picture that fails leaves the draft saved; the form is shown again for that draft, with the reasons.
+            if ($created !== null) {
+                $this->flash->add('warning', 'The post was saved as a draft, but its picture was not. Please fix the problems below.');
+            }
+
+            return $this->formPage($request, $user, $created, $values, $exception->errors, 422);
         } catch (NewsPermissionException $exception) {
             return $this->missing($exception->getMessage(), self::PATH);
         }
@@ -238,10 +249,18 @@ final class NewsController extends WriterController
             return $this->formPage($request, $user, $post, $values, ['form' => self::STALE_FORM], 400);
         }
 
+        $saved = false;
+
         try {
             $post = $this->news->update($user, $post->id, $this->serviceInput($values), $request->ip());
+            $saved = true;
+            $post = $this->applyImage($user, $post, $request);
             $post = $this->applyAction($user, $post, $request);
         } catch (NewsValidationException $exception) {
+            if ($saved && array_intersect_key($exception->errors, ['image' => 1, 'image_alt' => 1, 'image_choice' => 1]) !== []) {
+                $this->flash->add('warning', 'The post was saved, but its picture was not. Please fix the problems below.');
+            }
+
             return $this->formPage($request, $user, $post, $values, $exception->errors, 422);
         } catch (NewsPermissionException $exception) {
             return $this->missing($exception->getMessage(), self::PATH);
@@ -394,6 +413,64 @@ final class NewsController extends WriterController
         };
     }
 
+    /**
+     * Applies what the picture panel sent: a new upload, an earlier upload that was ticked, the description, or the
+     * removal. A form without the panel (this server cannot process pictures) changes nothing.
+     *
+     * @throws NewsValidationException
+     * @throws NewsPermissionException
+     */
+    private function applyImage(User $user, NewsPost $post, Request $request): NewsPost
+    {
+        $choice = (string) ($request->input('image_choice') ?? '');
+
+        return $this->news->applyImage(
+            $user,
+            $post->id,
+            $request->upload('image'),
+            preg_match('/^[1-9][0-9]{0,9}\z/', $choice) === 1 ? (int) $choice : 0,
+            $request->input('image_alt') ?? '',
+            $request->checked('image_decorative'),
+            $request->checked('image_remove'),
+            $request->ip(),
+        );
+    }
+
+    /**
+     * Deletes one of the person's pictures that no post shows. Sent from the picker inside the post form, so it takes the
+     * post's number to come back to.
+     *
+     * @param array<string, string> $params
+     */
+    public function deleteImage(array $params, Request $request): Response
+    {
+        $user = $this->staff($request, self::PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $back = (string) ($request->queryValue('post') ?? '');
+        $to = AdminUrl::to(self::PATH . (preg_match('/^[1-9][0-9]{0,9}\z/', $back) === 1 ? '/' . $back : '/new'));
+
+        if (!$this->validToken($request, self::TOKEN)) {
+            $this->flash->add('error', self::STALE_FORM);
+
+            return Response::redirect($to, 303);
+        }
+
+        try {
+            $this->images?->deleteUnused($user, $this->idFrom($params), $request->ip());
+            $this->flash->add('success', 'The picture was deleted.');
+        } catch (NewsPermissionException $exception) {
+            $this->flash->add('error', $exception->getMessage());
+        } catch (NewsValidationException $exception) {
+            $this->flash->add('error', implode(' ', $exception->errors));
+        }
+
+        return Response::redirect($to, 303);
+    }
+
     private function afterSave(Request $request, NewsPost $post): void
     {
         $this->flash->add('success', match ($request->input('action')) {
@@ -436,7 +513,7 @@ final class NewsController extends WriterController
     }
 
     /**
-     * @param array{title: string, content: string, content_format: string, pinned: bool} $values
+     * @param array{title: string, content: string, content_format: string, pinned: bool, image_alt: string, image_decorative: bool} $values
      * @param array<string, string> $errors
      */
     private function formPage(Request $request, User $user, ?NewsPost $post, array $values, array $errors, int $status): Response
@@ -456,6 +533,7 @@ final class NewsController extends WriterController
 
         return $this->view->render('news-form', [
             'post' => $post,
+            'imagePanel' => $this->imagePanel($user, $post, $request),
             'values' => $values,
             'editor' => $this->editor->render($user, 'content', $values['content'], $stored, ['label' => 'Text', 'id' => 'content', 'actions' => $actions]),
             'errors' => $errors,
@@ -469,6 +547,36 @@ final class NewsController extends WriterController
             ],
             'titleMax' => NewsService::TITLE_MAX,
         ], $user, $post === null ? 'Add a news post' : 'Edit news post', self::PATH, $this->flash->pull($request->cookies), $status);
+    }
+
+    /**
+     * What the picture panel shows: the post's current picture, and a page of the pictures this person may reuse. Null when
+     * this server cannot process pictures, in which case the panel is left out and the form works as before.
+     *
+     * @return array{current: array<string, int|string>, limit: string, picker: array{images: list<array{image: \LumoraFiction\Models\NewsImage, uses: int}>, total: int, pages: int, page: int}, pagerUrl: string, deleteUrl: string, thumbs: array<int, string>}|null
+     */
+    private function imagePanel(User $user, ?NewsPost $post, Request $request): ?array
+    {
+        if ($this->images === null || !NewsImageService::available()) {
+            return null;
+        }
+
+        $current = $post?->imageId === null ? null : $this->images->find($post->imageId);
+        $picker = $this->images->pickerFor($user, (int) ($request->queryValue('pictures') ?? 1));
+        $thumbs = [];
+
+        foreach ($picker['images'] as $entry) {
+            $thumbs[$entry['image']->id] = $this->images->files()->url($entry['image']->fileName, true);
+        }
+
+        return [
+            'current' => $post === null || $current === null ? [] : $this->images->present($current, $post->imageAlt, $post->imageDecorative),
+            'limit' => (string) round(ImageStore::limitBytes() / 1048576, 1),
+            'picker' => $picker,
+            'thumbs' => $thumbs,
+            'pagerUrl' => AdminUrl::to($post === null ? self::PATH . '/new' : self::PATH . '/' . $post->id),
+            'deleteUrl' => AdminUrl::to(self::PATH . '/images'),
+        ];
     }
 
     /**
@@ -487,7 +595,7 @@ final class NewsController extends WriterController
     }
 
     /**
-     * @return array{title: string, content: string, content_format: string, pinned: bool}
+     * @return array{title: string, content: string, content_format: string, pinned: bool, image_alt: string, image_decorative: bool}
      */
     private function postedValues(Request $request): array
     {
@@ -496,19 +604,21 @@ final class NewsController extends WriterController
             'content' => $request->input('content') ?? '',
             'content_format' => $request->input('content_format') ?? '',
             'pinned' => $request->checked('pinned'),
+            'image_alt' => $request->input('image_alt') ?? '',
+            'image_decorative' => $request->checked('image_decorative'),
         ];
     }
 
     /**
-     * @return array{title: string, content: string, content_format: string, pinned: bool}
+     * @return array{title: string, content: string, content_format: string, pinned: bool, image_alt: string, image_decorative: bool}
      */
     private function valuesOf(NewsPost $post): array
     {
-        return ['title' => $post->title, 'content' => $post->content, 'content_format' => $post->format->value, 'pinned' => $post->pinned];
+        return ['title' => $post->title, 'content' => $post->content, 'content_format' => $post->format->value, 'pinned' => $post->pinned, 'image_alt' => $post->imageAlt, 'image_decorative' => $post->imageDecorative];
     }
 
     /**
-     * @param array{title: string, content: string, content_format: string, pinned: bool} $values
+     * @param array{title: string, content: string, content_format: string, pinned: bool, image_alt: string, image_decorative: bool} $values
      * @return array{title: string, content: string, format: string, pinned: bool}
      */
     private function serviceInput(array $values): array

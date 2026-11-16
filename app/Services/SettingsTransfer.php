@@ -372,7 +372,7 @@ final class SettingsTransfer
         return $this->groups ??= [
             'archive' => [
                 'label' => 'Archive',
-                'fields' => ['archive_mode' => 'string', 'registration_enabled' => 'bool', 'default_role' => 'string', 'email_verification' => 'bool', 'hold_first_story' => 'bool', 'require_signin' => 'bool', 'writer_tags' => 'bool'],
+                'fields' => ['archive_mode' => 'string', 'registration_enabled' => 'bool', 'default_role' => 'string', 'email_verification' => 'bool', 'hold_first_story' => 'bool', 'require_signin' => 'bool', 'writer_tags' => 'bool', 'who_publishes' => 'string'],
                 'current' => fn (): array => $this->archive->current(),
                 'validate' => fn (array $in): array => $this->archive->validate($in),
                 'save' => function (array $values, User $actor, string $ip): void {

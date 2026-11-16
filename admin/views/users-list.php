@@ -18,6 +18,7 @@ declare(strict_types=1);
 use LumoraFiction\Core\Admin\BulkBar;
 use LumoraFiction\Core\Admin\ColumnSort;
 use LumoraFiction\Core\Admin\SortHeading;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
@@ -105,6 +106,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
                 <th scope="col">Login name</th>
                 <?= SortHeading::render($sort, 'email', 'Email address', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'role', 'Role', $listUrl, $kept) ?>
+                <th scope="col">Publishing</th>
                 <?= SortHeading::render($sort, 'status', 'Status', $listUrl, $kept) ?>
                 <?= SortHeading::render($sort, 'joined', 'Joined', $listUrl, $kept) ?>
             </tr>
@@ -118,6 +120,7 @@ $statusClass = static fn (UserStatus $status): string => match ($status) {
                     <td><?= Html::e($person->loginName) ?></td>
                     <td><?= Html::e($person->email) ?></td>
                     <td><?= Html::e($person->role->label()) ?></td>
+                    <td><?= PublishingPolicy::allowsWriting($person->role) ? 'Can publish' : 'Reader only' ?></td>
                     <td><span class="lf-status<?= Html::e($statusClass($person->status)) ?>"><?= Html::e(ucfirst($person->status->value)) ?></span></td>
                     <td><time datetime="<?= Html::e($person->createdAt->format('Y-m-d')) ?>"><?= Html::e($person->createdAt->format('Y-m-d')) ?></time></td>
                 </tr>

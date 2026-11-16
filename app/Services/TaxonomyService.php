@@ -691,6 +691,174 @@ final class TaxonomyService
         return $this->mustFind($term->id);
     }
 
+    /** The most names one "add several" submission may carry, so a pasted file cannot hold the request open. */
+    public const BULK_NAMES_LIMIT = 100;
+
+    /**
+     * Gives a character or relationship another fandom (or none, with 0). The term keeps its aliases, which move with
+     * it, and every story that uses it; only the fandom the term belongs to changes. A name or alias that the target
+     * fandom already uses is refused rather than creating a second term of the same name.
+     *
+     * @throws TaxonomyException
+     */
+    public function moveToFandom(User $actor, int $termId, int $parentId, string $ipAddress = ''): Term
+    {
+        $this->requireCurator($actor);
+
+        $term = $this->mustFind($termId);
+
+        if (!$term->type->belongsToFandom()) {
+            throw new TaxonomyException('This kind of term does not belong to a fandom.');
+        }
+
+        $this->assertParent($term->type, $parentId);
+
+        if ($term->parentId === $parentId) {
+            return $term;
+        }
+
+        $target = $parentId === 0 ? 'with no fandom' : 'in "' . ($this->namesFor([$parentId])[$parentId] ?? '') . '"';
+
+        foreach (array_merge([$term->name], array_column($this->aliasesFor($term->id), 'alias')) as $name) {
+            $clash = $this->resolve($term->type, $name, $parentId);
+
+            if ($clash !== null) {
+                throw new TaxonomyException('There is already a ' . $this->labels->lower($term->type) . ' called "' . $clash->name . '" ' . $target . ', so "' . $term->name . '" was not moved. Rename this one first, or delete it if they are the same.');
+            }
+        }
+
+        try {
+            $this->database->transaction(function () use ($actor, $term, $parentId, $ipAddress): void {
+                $this->database->execute('UPDATE {prefix}terms SET parent_id = :parent WHERE id = :id', ['parent' => $parentId, 'id' => $term->id]);
+                $this->database->execute('UPDATE {prefix}term_aliases SET parent_id = :parent WHERE term_id = :id', ['parent' => $parentId, 'id' => $term->id]);
+                // A fandom's own count is of the stories that carry it, so no fandom's count changes; the term's is recounted for safety.
+                $this->refreshCountsForTerms(array_filter([$term->id, $term->parentId, $parentId]));
+                $this->audit->record($actor->id, 'term.move', 'term', (string) $term->id, ['from_fandom' => $term->parentId, 'to_fandom' => $parentId] + $this->approveOnEdit($term), $ipAddress);
+            });
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[1] ?? null) === 1062) {
+                throw new TaxonomyException('There is already a term with that name ' . $target . '.', previous: $exception);
+            }
+
+            throw $exception;
+        }
+
+        $moved = $this->mustFind($term->id);
+        $this->hooks?->doAction('term_moved', $moved, $term->parentId, $parentId);
+
+        return $moved;
+    }
+
+    /**
+     * Pulls an existing character (or relationship) of that exact name into a fandom. The name must belong to exactly
+     * one term outside the fandom; when two fandoms each have one, the person must open the right one and move it there.
+     *
+     * @throws TaxonomyException
+     */
+    public function moveByName(User $actor, TermType $type, string $name, int $fandomId, string $ipAddress = ''): Term
+    {
+        $this->requireCurator($actor);
+
+        $name = $this->cleanName($name);
+        $fandom = $this->find($fandomId);
+
+        if ($fandom === null || $fandom->type !== TermType::Fandom) {
+            throw new TaxonomyException('That fandom no longer exists.');
+        }
+
+        if ($this->resolve($type, $name, $fandomId) !== null) {
+            throw new TaxonomyException('"' . $name . '" is already in this fandom.');
+        }
+
+        $matches = $this->namedOutside($type, $name, $fandomId);
+
+        if ($matches === []) {
+            throw new TaxonomyException('There is no ' . $this->labels->lower($type) . ' called "' . $name . '" in another fandom.');
+        }
+
+        if (count($matches) > 1) {
+            throw new TaxonomyException('More than one fandom has a ' . $this->labels->lower($type) . ' called "' . $name . '". Open the one you mean and choose this fandom in its Fandom field.');
+        }
+
+        return $this->moveToFandom($actor, $matches[0]->id, $fandomId, $ipAddress);
+    }
+
+    /**
+     * Adds several characters (or relationships) to a fandom at once, one name per line. A name that is already in the
+     * fandom, repeated in the list, invalid, or used by a term of another fandom is reported and left out; the others are
+     * still added.
+     *
+     * @return array{created: list<Term>, skipped: list<array{name: string, reason: string}>}
+     * @throws TaxonomyException
+     */
+    public function addManyToFandom(User $actor, TermType $type, int $fandomId, string $names, string $ipAddress = ''): array
+    {
+        $this->requireCurator($actor);
+
+        $fandom = $this->find($fandomId);
+
+        if (!$type->belongsToFandom() || $fandom === null || $fandom->type !== TermType::Fandom) {
+            throw new TaxonomyException('Choose one of the fandoms on the list.');
+        }
+
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/u', $names) ?: []), static fn (string $line): bool => $line !== ''));
+
+        if ($lines === []) {
+            throw new TaxonomyException('Type at least one name, one per line.');
+        }
+
+        if (count($lines) > self::BULK_NAMES_LIMIT) {
+            throw new TaxonomyException('Add at most ' . self::BULK_NAMES_LIMIT . ' names at a time.');
+        }
+
+        $created = [];
+        $skipped = [];
+        $seen = [];
+
+        $this->database->transaction(function () use ($actor, $type, $fandom, $lines, $ipAddress, &$created, &$skipped, &$seen): void {
+            foreach ($lines as $line) {
+                try {
+                    $name = $this->cleanName($line);
+                    $key = $this->nameKey($name);
+
+                    if (isset($seen[$key])) {
+                        throw new TaxonomyException('Listed more than once.');
+                    }
+
+                    $seen[$key] = true;
+                    $this->assertNameFree($type, $fandom->id, $name, null);
+
+                    $elsewhere = $this->namedOutside($type, $name, $fandom->id);
+
+                    if ($elsewhere !== []) {
+                        throw new TaxonomyException('Already exists in another fandom. Use "Move an existing ' . $this->labels->lower($type) . ' here" to bring it in.');
+                    }
+
+                    $id = $this->insertTerm($type, $fandom->id, $name, true, $actor->id);
+                    $this->audit->record($actor->id, 'term.create', 'term', (string) $id, ['type' => $type->value, 'name' => $name, 'fandom' => $fandom->id], $ipAddress);
+                    $created[] = $this->mustFind($id);
+                } catch (TaxonomyException $exception) {
+                    $skipped[] = ['name' => $line, 'reason' => $exception->getMessage()];
+                }
+            }
+        });
+
+        return ['created' => $created, 'skipped' => $skipped];
+    }
+
+    /**
+     * Terms of the kind with this exact name (not alias) that belong to some other fandom, or to none.
+     *
+     * @return list<Term>
+     */
+    private function namedOutside(TermType $type, string $name, int $fandomId): array
+    {
+        return $this->hydrateAll($this->database->fetchAll(
+            'SELECT * FROM {prefix}terms WHERE type = :type AND name_key = :key AND parent_id <> :parent ORDER BY id LIMIT 3',
+            ['type' => $type->value, 'key' => $this->nameKey($name), 'parent' => $fandomId],
+        ));
+    }
+
     /**
      * @throws TaxonomyException
      */

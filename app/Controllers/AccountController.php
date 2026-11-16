@@ -26,6 +26,7 @@ use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Security\PasswordPolicy;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Core\Theme\ThemeRenderer;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\EditorMode;
@@ -286,7 +287,7 @@ final class AccountController
 
         $fields = [
             $this->field('login_name', 'Login name', 'text', $values['login_name'] ?? '', 'username', 'Private. You use it to sign in, and it is never shown to other people.', $errors['login_name'] ?? ''),
-            $this->field('display_name', 'Display name', 'text', $values['display_name'] ?? '', 'nickname', 'Public. This is the name shown on your stories and your author page.', $errors['display_name'] ?? ''),
+            $this->field('display_name', 'Display name', 'text', $values['display_name'] ?? '', 'nickname', PublishingPolicy::mode() === PublishingPolicy::ANYONE ? 'Public. This is the name shown on your stories and your author page.' : 'Public. This is the name shown on your comments and your profile.', $errors['display_name'] ?? ''),
             $this->field('email', 'Email address', 'email', $values['email'] ?? '', 'email', '', $errors['email'] ?? ''),
             $this->field('password', 'Password', 'password', '', 'new-password', $this->passwordHint(), $errors['password'] ?? ''),
         ];

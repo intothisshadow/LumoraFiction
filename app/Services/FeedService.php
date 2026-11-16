@@ -55,6 +55,7 @@ final class FeedService
         string $siteUrl,
         private readonly ?SeriesService $series = null,
         private readonly ?CollectionService $collections = null,
+        private readonly ?NewsImageService $newsImages = null,
     ) {
         $this->siteUrl = rtrim($siteUrl, '/');
     }
@@ -297,11 +298,19 @@ final class FeedService
         $profiles = $this->users->publicProfiles(array_map(static fn ($post): int => $post->authorId, $posts));
         $full = FeedSettings::fullText($this->config);
         $items = [];
+        $pictures = $this->newsImages?->findMany(array_values(array_filter(array_map(static fn ($post): ?int => $post->imageId, $posts), static fn (?int $id): bool => $id !== null))) ?? [];
 
         foreach ($posts as $post) {
             $url = $this->absolute(PublicUrl::newsPost($post->slug));
             $profile = $profiles[$post->authorId] ?? ['display_name' => '', 'slug' => ''];
             $excerpt = $this->excerpt($this->renderer->toPlainText($post->content, $post->format));
+            $picture = $pictures[$post->imageId ?? 0] ?? null;
+            $data = $picture !== null && $this->newsImages !== null ? $this->newsImages->present($picture, $post->imageAlt, $post->imageDecorative) : null;
+            $imageUrl = $data === null ? '' : $this->absolute($data['url']);
+            // The picture is also placed in the entry itself, because many feed readers ignore enclosures.
+            $tag = $data === null ? '' : '<p><img src="' . htmlspecialchars($imageUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="' . htmlspecialchars($data['alt'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" width="' . $data['width'] . '" height="' . $data['height'] . '"></p>';
+            $file = $picture === null || $this->newsImages === null ? '' : $this->newsImages->files()->filePath($picture->fileName);
+            $bytes = $file === '' ? 0 : (int) filesize($file);
 
             $items[] = new FeedItem(
                 id: $url,
@@ -311,9 +320,12 @@ final class FeedService
                 modified: $post->updatedAt,
                 author: $profile['display_name'],
                 authorUrl: $profile['slug'] === '' ? '' : $this->absolute(PublicUrl::author($profile['slug'])),
-                summaryHtml: self::paragraphs($excerpt),
-                contentHtml: $full ? $this->renderer->render($post->content, $post->format) : '',
+                summaryHtml: $tag . self::paragraphs($excerpt),
+                contentHtml: $full ? $tag . $this->renderer->render($post->content, $post->format) : '',
+                image: $imageUrl,
                 guidIsAddress: true,
+                enclosureType: $data === null ? '' : $data['type'],
+                enclosureBytes: $bytes,
             );
         }
 

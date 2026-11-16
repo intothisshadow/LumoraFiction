@@ -18,6 +18,7 @@ declare(strict_types=1);
 namespace LumoraFiction\Models;
 
 use DateTimeImmutable;
+use LumoraFiction\Core\Security\PublishingPolicy;
 
 final readonly class User
 {
@@ -38,7 +39,8 @@ final readonly class User
 
     public function can(Capability $capability): bool
     {
-        return $this->status === UserStatus::Active && $this->role->can($capability);
+        // The one place the site-wide publishing rule is applied, so a screen, a menu and a service cannot disagree.
+        return $this->status === UserStatus::Active && PublishingPolicy::effectiveRole($this->role)->can($capability);
     }
 
     /**

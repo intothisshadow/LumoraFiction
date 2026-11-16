@@ -81,6 +81,11 @@ final class RssWriter
         }
 
         if ($item->image !== '') {
+            // A reader that understands enclosures shows the picture as the entry's attachment; the thumbnail is for the rest.
+            if ($item->enclosureType !== '' && $item->enclosureBytes > 0) {
+                $xml .= '<enclosure url="' . self::escape($item->image) . '" length="' . $item->enclosureBytes . '" type="' . self::escape($item->enclosureType) . '"/>' . "\n";
+            }
+
             $xml .= '<media:thumbnail url="' . self::escape($item->image) . '"/>' . "\n";
         }
 

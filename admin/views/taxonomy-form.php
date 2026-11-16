@@ -19,13 +19,16 @@ use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
+use LumoraFiction\Services\TaxonomyService;
 
 /** @var string $mode create or edit */
+/** @var list<Term>|null $characters the characters of a fandom being edited; null when the kind has none */
+/** @var int $characterTotal */
 /** @var TermType $type */
 /** @var Term|null $term */
 /** @var list<array{id: int, alias: string}> $aliases */
 /** @var string $parentName */
-/** @var array{name: string, fandom: string, alias: string, description?: string, hidden?: bool} $values */
+/** @var array{name: string, fandom: string, alias: string, characters?: string, move?: string, description?: string, hidden?: bool} $values */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
 /** @var bool $curated */
@@ -53,15 +56,13 @@ $editing = $mode === 'edit' && $term !== null;
             <?php if (isset($errors['name'])): ?><p class="lf-error" id="name_error"><?= Html::e($errors['name']) ?></p><?php endif; ?>
         </div>
 
-        <?php if (!$editing && $type->belongsToFandom()): ?>
+        <?php if ($type->belongsToFandom()): ?>
             <div class="lf-field<?= isset($errors['fandom']) ? ' lf-field--error' : '' ?>">
                 <label for="fandom">Fandom</label>
                 <input type="text" id="fandom" name="fandom" value="<?= Html::e($values['fandom']) ?>" maxlength="100" aria-describedby="fandom_hint<?= isset($errors['fandom']) ? ' fandom_error' : '' ?>">
-                <p class="lf-hint" id="fandom_hint">The name of the fandom this belongs to, or leave empty if it belongs to none. The same name in two fandoms is two separate terms.</p>
+                <p class="lf-hint" id="fandom_hint"><?= $editing ? 'The name of the fandom this belongs to, or empty for none. Changing it moves the ' . Html::e($labels->lower($type)) . ' and its aliases to that fandom; stories keep it.' : 'The name of the fandom this belongs to, or leave empty if it belongs to none.' ?> The same name in two fandoms is two separate terms.</p>
                 <?php if (isset($errors['fandom'])): ?><p class="lf-error" id="fandom_error"><?= Html::e($errors['fandom']) ?></p><?php endif; ?>
             </div>
-        <?php elseif ($editing && $type->belongsToFandom()): ?>
-            <p><strong>Fandom:</strong> <?= Html::e($parentName !== '' ? $parentName : 'None') ?></p>
         <?php endif; ?>
 
         <?php if ($editing && $curated): ?>
@@ -91,7 +92,7 @@ $editing = $mode === 'edit' && $term !== null;
     </div>
 </form>
 
-<?php if (!$editing): ?>
+<?php if (!$editing || ($characters ?? null) !== null): ?>
     <script src="<?= Html::e(AdminUrl::asset('js/term-lookup.js', $assetVersion ?? '')) ?>" data-lf-lookup-url="<?= Html::e(AdminUrl::to('taxonomy/lookup')) ?>" defer></script>
 <?php endif; ?>
 
@@ -124,6 +125,55 @@ $editing = $mode === 'edit' && $term !== null;
             <p><button type="submit" class="lf-button lf-button--secondary">Add alias</button></p>
         </form>
     </section>
+
+    <?php if (($characters ?? null) !== null): ?>
+        <?php $characterLabel = $labels->plural(TermType::Character); ?>
+        <section class="lf-card" aria-labelledby="characters-heading">
+            <h2 id="characters-heading"><?= Html::e($characterLabel) ?></h2>
+
+            <?php if ($characters === []): ?>
+                <p class="lf-hint">No <?= Html::e(mb_strtolower($characterLabel, 'UTF-8')) ?> belong to this fandom yet.</p>
+            <?php else: ?>
+                <table class="lf-table lf-fandom-characters">
+                    <caption class="lf-visually-hidden"><?= Html::e($characterLabel) ?> in this fandom</caption>
+                    <thead><tr><th scope="col">Name</th><th scope="col">Stories</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($characters as $character): ?>
+                            <tr>
+                                <th scope="row"><a href="<?= Html::e($urls['term'] . '/' . $character->id) ?>"><?= Html::e($character->name) ?></a></th>
+                                <td><?= (int) $character->storyCount ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php if ($characterTotal > count($characters)): ?>
+                    <p class="lf-hint">Showing the first <?= count($characters) ?> of <?= (int) $characterTotal ?>.</p>
+                <?php endif; ?>
+            <?php endif; ?>
+
+            <form method="post" action="<?= Html::e($urls['characters']) ?>" class="lf-form" novalidate>
+                <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                <div class="lf-field<?= isset($errors['characters']) ? ' lf-field--error' : '' ?>">
+                    <label for="characters">Add <?= Html::e(mb_strtolower($characterLabel, 'UTF-8')) ?></label>
+                    <textarea id="characters" name="characters" rows="5" aria-describedby="characters_hint<?= isset($errors['characters']) ? ' characters_error' : '' ?>"><?= Html::e($values['characters']) ?></textarea>
+                    <p class="lf-hint" id="characters_hint">One name per line, up to <?= (int) TaxonomyService::BULK_NAMES_LIMIT ?> at a time. A name this fandom already has, or that exists in another fandom, is reported and not added.</p>
+                    <?php if (isset($errors['characters'])): ?><p class="lf-error" id="characters_error"><?= Html::e($errors['characters']) ?></p><?php endif; ?>
+                </div>
+                <p><button type="submit" class="lf-button lf-button--secondary">Add to this fandom</button></p>
+            </form>
+
+            <form method="post" action="<?= Html::e($urls['moveCharacter']) ?>" class="lf-form" novalidate>
+                <input type="hidden" name="csrf_token" value="<?= Html::e($csrfToken) ?>">
+                <div class="lf-field<?= isset($errors['move']) ? ' lf-field--error' : '' ?>">
+                    <label for="move_character">Move an existing <?= Html::e($labels->lower(TermType::Character)) ?> here</label>
+                    <input type="text" id="move_character" name="move_character" value="<?= Html::e($values['move']) ?>" maxlength="100" autocomplete="off" data-lf-lookup="pick" data-lf-lookup-type="character" aria-describedby="move_hint<?= isset($errors['move']) ? ' move_error' : '' ?>">
+                    <p class="lf-hint" id="move_hint">The name of a <?= Html::e($labels->lower(TermType::Character)) ?> that was added under another fandom. Its aliases and stories come with it.</p>
+                    <?php if (isset($errors['move'])): ?><p class="lf-error" id="move_error"><?= Html::e($errors['move']) ?></p><?php endif; ?>
+                </div>
+                <p><button type="submit" class="lf-button lf-button--secondary">Move here</button></p>
+            </form>
+        </section>
+    <?php endif; ?>
 
     <section class="lf-card" aria-labelledby="tidy-heading">
         <h2 id="tidy-heading">Tidy up</h2>

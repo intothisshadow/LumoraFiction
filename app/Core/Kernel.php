@@ -96,12 +96,14 @@ use LumoraFiction\Services\CacheSettings;
 use LumoraFiction\Core\Cache\PageCache;
 use LumoraFiction\Core\Cache\PurgeRules;
 use LumoraFiction\Controllers\Admin\CacheSettingsController;
+use LumoraFiction\Controllers\Admin\MediaController;
 use LumoraFiction\Services\PrivacySettings;
 use LumoraFiction\Controllers\Admin\PageController as AdminPageController;
 use LumoraFiction\Controllers\PageController;
 use LumoraFiction\Core\Theme\PagePresentation;
 use LumoraFiction\Services\PagePresenter;
 use LumoraFiction\Services\PageService;
+use LumoraFiction\Services\NewsImageService;
 use LumoraFiction\Services\NewsPresenter;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\NewsSettings;
@@ -153,6 +155,7 @@ use LumoraFiction\Core\Plugin\PluginNotices;
 use LumoraFiction\Core\Security\ContentSecurityPolicy;
 use LumoraFiction\Core\Security\Csrf;
 use LumoraFiction\Core\Security\DatabaseSessionHandler;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Core\Security\FormShield;
 use LumoraFiction\Core\Security\LoginThrottle;
 use LumoraFiction\Core\Security\PasswordPolicy;
@@ -219,6 +222,7 @@ use LumoraFiction\Services\StoryNotifier;
 use LumoraFiction\Services\ContentRenderer;
 use LumoraFiction\Core\Media\AvatarImageStore;
 use LumoraFiction\Core\Media\CoverImageStore;
+use LumoraFiction\Core\Media\NewsImageStore;
 use LumoraFiction\Core\Media\ThemePictureStore;
 use LumoraFiction\Services\ThemePictures;
 use LumoraFiction\Services\StoryPresenter;
@@ -295,6 +299,9 @@ final class Kernel
     public ?PageService $pages = null;
 
     public ?SeriesService $series = null;
+
+    /** The pictures uploaded for news posts, shared by the news screens, the public pages and the feed. */
+    public ?NewsImageService $newsImages = null;
 
     public ?CollectionService $collections = null;
 
@@ -388,6 +395,9 @@ final class Kernel
 
         $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + InstallPingService::DEFAULTS + CacheSettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS + FooterText::DEFAULTS + WholeStorySettings::DEFAULTS);
 
+        // Before any account is asked what it may do, since User::can() answers from this rule.
+        PublishingPolicy::use(PublishingPolicy::modeOf($config));
+
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
         $server = $proxies->resolve($server);
@@ -474,8 +484,9 @@ final class Kernel
         $kernel->notifications = $notifications;
         $renderer = new ContentRenderer(new MarkdownParser(), new HtmlSanitizer(), $kernel->hooks);
         $presenter = new StoryPresenter($covers, $taxonomy->labels());
-        $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks);
-        $newsPresenter = new NewsPresenter($renderer, $kernel->users);
+        $kernel->newsImages = new NewsImageService($kernel->database, new NewsImageStore($root . '/content/uploads/news'), $kernel->audit, $kernel->hooks);
+        $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks, $kernel->newsImages);
+        $newsPresenter = new NewsPresenter($renderer, $kernel->users, $kernel->newsImages);
         // The closure is evaluated at save time, so a route a plugin adds later still counts as taken.
         $kernel->pages = new PageService($kernel->database, $kernel->audit, static fn (string $slug): bool => $router->isRouted('/' . $slug), $kernel->hooks);
         $kernel->pagePresentation = new PagePresentation($kernel->pages, rtrim((string) $config->get('site_url', ''), '/'));
@@ -698,7 +709,7 @@ final class Kernel
             rtrim($siteUrl, '/'),
         ))->register($kernel->router);
         (new FeedController(
-            new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl, $kernel->series, $kernel->collections),
+            new FeedService($kernel->config, $stories, $chapters, $publicArchive, $cardFacts, $taxonomy, $kernel->users, $news, $commentService, $presenter, $renderer, $siteUrl, $kernel->series, $kernel->collections, $kernel->newsImages),
             $kernel->themes,
             $kernel->config,
         ))->register($kernel->router);
@@ -808,7 +819,7 @@ final class Kernel
             new TrashController($kernel->auth, $view, $flash, $stories, $chapters, $kernel->users, $kernel->config),
             new NotificationsController($kernel->auth, $view, $flash, $notifications),
             new RetentionSettingsController($kernel->auth, $view, $flash, new RetentionSettings($kernel->config, $kernel->database, $kernel->audit)),
-            new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config),
+            new AdminNewsController($kernel->auth, $view, $flash, $news, $editor, $kernel->themes, $newsPresenter, $kernel->config, $kernel->newsImages),
             new NewsSettingsController($kernel->auth, $view, $flash, new NewsSettings($kernel->config, $kernel->database, $kernel->audit)),
             new FrontPageSettingsController($kernel->auth, $view, $flash, new FrontPageSettings($kernel->config, $kernel->database, $kernel->audit)),
             new DownloadSettingsController($kernel->auth, $view, $flash, new DownloadSettings($kernel->config, $kernel->database, $kernel->audit), $kernel->storyDownloads),
@@ -875,6 +886,7 @@ final class Kernel
                 static fn (): bool => $kernel->config->setting('reading.require_signin') === true,
                 static fn (): bool => $kernel->hooks->hasAction('story_viewed'),
             ),
+            new MediaController($kernel->auth, $view, $flash, $kernel->newsImages ?? throw new \LogicException('Built at boot.'), $news),
         );
     }
 

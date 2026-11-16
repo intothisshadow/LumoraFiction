@@ -246,6 +246,52 @@ class ImageStore
         return $this->exists($name) ? $this->path($name) : '';
     }
 
+    /**
+     * The pixel size of a stored file, for the width and height a page prints so it does not jump while loading; [0, 0]
+     * for a name this store did not make or a file that is gone.
+     *
+     * @return array{int, int}
+     */
+    public function dimensions(string $name, bool $thumbnail = false): array
+    {
+        $path = $this->path($this->variantName($name, $thumbnail ? '-thumb' : ''));
+
+        if (!self::isValidName($name) || !is_file($path)) {
+            return [0, 0];
+        }
+
+        $info = getimagesize($path);
+
+        return $info === false ? [0, 0] : [$info[0], $info[1]];
+    }
+
+    /** The disk space the files of one picture take, every size together. */
+    public function bytes(string $name): int
+    {
+        if (!self::isValidName($name)) {
+            return 0;
+        }
+
+        $total = 0;
+
+        foreach (array_keys($this->variants) as $suffix) {
+            $path = $this->path($this->variantName($name, (string) $suffix));
+            $total += is_file($path) ? (int) filesize($path) : 0;
+        }
+
+        return $total;
+    }
+
+    /** The media type of the full-size file, for a feed that must say what it links to. */
+    public function mimeType(string $name): string
+    {
+        return match (strtolower(pathinfo($name, PATHINFO_EXTENSION))) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/jpeg',
+        };
+    }
+
     private function variantName(string $name, string $suffix): string
     {
         return $suffix === '' ? $name : preg_replace('/\.(jpg|png|webp)\z/', $suffix . '.$1', $name) ?? $name;

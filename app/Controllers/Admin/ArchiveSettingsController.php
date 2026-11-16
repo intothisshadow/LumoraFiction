@@ -23,6 +23,7 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Models\UserRole;
@@ -154,6 +155,8 @@ final class ArchiveSettingsController extends AdminController
             'hold_first_story' => $request->checked('hold_first_story'),
             'require_signin' => $request->checked('require_signin'),
             'writer_tags' => $request->checked('writer_tags'),
+            // A form from before this field existed leaves the rule alone rather than resetting it.
+            'who_publishes' => $request->input('who_publishes') ?? $this->settings->current()['who_publishes'],
         ];
 
         if (!$this->validToken($request, 'admin_settings_archive')) {
@@ -169,6 +172,10 @@ final class ArchiveSettingsController extends AdminController
         $changed = $this->settings->save($result['values'], $user, $request->ip());
 
         $this->flash->add('success', $changed === [] ? 'Nothing needed changing.' : 'Settings saved.');
+
+        foreach ($result['notices'] as $notice) {
+            $this->flash->add('info', $notice);
+        }
 
         return Response::redirect(AdminUrl::to(self::PATH), 303);
     }
@@ -188,7 +195,10 @@ final class ArchiveSettingsController extends AdminController
             'values' => $values,
             'errors' => $errors,
             'modes' => ArchiveSettings::MODES,
-            'roles' => array_map(static fn (UserRole $role): array => ['value' => $role->value, 'label' => $role->label()], UserRole::selfServiceRoles()),
+            // Only the roles registering may give under the publishing rule are offered, so the form cannot ask for a contradiction.
+            'roles' => array_map(static fn (UserRole $role): array => ['value' => $role->value, 'label' => $role->label()], array_values(array_filter(UserRole::selfServiceRoles(), static fn (UserRole $role): bool => in_array($role->value, ArchiveSettings::roleValues((string) ($values['who_publishes'] ?? PublishingPolicy::ANYONE)), true)))),
+            'whoModes' => PublishingPolicy::MODES,
+            'staffImpact' => $this->settings->staffImpact(),
             'csrfToken' => Csrf::token('admin_settings_archive'),
             'action' => AdminUrl::to(self::PATH),
             'catalogue' => $this->presets->catalogue(),

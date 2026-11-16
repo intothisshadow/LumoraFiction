@@ -269,13 +269,13 @@ A view with a list of stories receives:
 
 News posts are announcements from the staff, kept apart from stories. A theme draws them with two templates and a small block on the home page. Unlike most views, a theme with only `index.php` draws a news page as just a title, so a theme should supply `news-archive.php` and `news-single.php`. A post that is not published, or any post while news is switched off, is never in the data; there is nothing for a theme to check.
 
-A news card is `{title, url, date, datetime, author, excerpt, pinned}`. `date` reads "23 October 2026" and `datetime` is the same day as `2026-10-23` for a `<time>` element. `author` is the display name only. `excerpt` is plain text of about two hundred characters, so print it with `lf_e()`. `pinned` is the word "Pinned" for a post kept at the top and empty otherwise; mark it in a way that does not rely on colour alone.
+A news card is `{title, url, date, datetime, author, excerpt, pinned, image}`. `image` is the post's featured picture, or an empty array for a post without one: `{url, thumb, width, height, thumb_width, thumb_height, alt, type}`. A card prints `thumb` with `thumb_width` and `thumb_height` (so the page does not jump while it loads) and `loading="lazy"`; the post page prints `url` with `width` and `height` and no `loading` attribute, since it is at the top of the page. `alt` is the post's own description and is empty on purpose for a decorative picture, so always print the attribute (`alt=""`). The bundled themes style it with `.lf-news-image` (`--card`, `--single`) and `.lf-news-image__img`, with dark-mode rules; a theme that prints nothing for `image` simply shows no picture. In a template, test `lf_has('post.image.url')` and print the fields with `lf_field('post.image.url')`; in a card part read `$post['image']`. `date` reads "23 October 2026" and `datetime` is the same day as `2026-10-23` for a `<time>` element. `author` is the display name only. `excerpt` is plain text of about two hundred characters, so print it with `lf_e()`. `pinned` is the word "Pinned" for a post kept at the top and empty otherwise; mark it in a way that does not rely on colour alone.
 
 | View | Data |
 | ---- | ---- |
 | `home` | `news` is `{posts, url}`: a list of news cards and the address of the News page, or an empty array. Draw a block only when `lf_has('news.posts')` and link to `lf_field('news.url')`. |
 | `news-archive` | `posts`, a list of news cards (pinned first, then newest), and `pagination` as for the story lists. The page title is "News". |
-| `news-single` | `post` is `{title, url, date, datetime, author, pinned, body, list_url}`. `body` is sanitised markup: print it with `lf_field('post.body')`. A staff preview of a draft uses the same data, with the usual preview notice. |
+| `news-single` | `post` is `{title, url, date, datetime, author, pinned, body, list_url, image}` (`image` as for a news card). `body` is sanitised markup: print it with `lf_field('post.body')`. A staff preview of a draft uses the same data, with the usual preview notice. |
 
 The main menu gets a **News** link from core while news is on, so a theme does not add one.
 

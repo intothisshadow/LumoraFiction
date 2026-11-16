@@ -99,6 +99,13 @@ final class AdminMenu
                 ],
             ],
             [
+                'slug' => 'media',
+                'label' => 'Media',
+                'path' => 'media',
+                'capability' => Capability::ManageSite,
+                'children' => [],
+            ],
+            [
                 'slug' => 'profile',
                 'label' => 'Author profile',
                 'path' => 'profile',

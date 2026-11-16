@@ -24,6 +24,7 @@ use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Core\Security\Csrf;
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
@@ -128,7 +129,8 @@ abstract class AdminController
 
     protected function forbidden(User $user, Request $request, bool $withLayout, string $currentPath): Response
     {
-        $data = ['signOutToken' => Csrf::token('admin_logout')];
+        // An Author kept from writing by the site's publishing rule is told that, not just "access denied".
+        $data = ['signOutToken' => Csrf::token('admin_logout'), 'publishingOff' => PublishingPolicy::effectiveRole($user->role) !== $user->role];
 
         if ($withLayout) {
             return $this->view->render('forbidden', $data, $user, 'Access denied', $currentPath, $this->flash->pull($request->cookies), 403);

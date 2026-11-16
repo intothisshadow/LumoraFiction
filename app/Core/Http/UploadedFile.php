@@ -23,7 +23,24 @@ final readonly class UploadedFile
         public string $path,
         public int $error,
         public int $size,
+        /** The name the person's computer gave the file, cleaned for showing in a message; never used as a path. */
+        public string $name = '',
     ) {
+    }
+
+    /**
+     * A name that is safe to print and short: the part after any folder, without control characters.
+     */
+    public static function cleanName(mixed $name): string
+    {
+        if (!is_string($name)) {
+            return '';
+        }
+
+        $name = basename(str_replace('\\', '/', $name));
+        $name = (string) preg_replace('/[\x00-\x1f\x7f]/u', '', $name);
+
+        return mb_substr($name, 0, 100, 'UTF-8');
     }
 
     /**

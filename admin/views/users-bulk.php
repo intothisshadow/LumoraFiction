@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Security\PublishingPolicy;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\PublishingOverride;
 use LumoraFiction\Models\UserRole;
@@ -79,6 +80,9 @@ $button = match ($action) {
                 <?php endforeach; ?>
             </ul>
             <p><?= Html::e($note) ?></p>
+            <?php if (in_array($action, ['role', 'publishing'], true) && PublishingPolicy::mode() === PublishingPolicy::STAFF): ?>
+                <p class="lf-hint">Only staff can publish on this site, so <?= $action === 'role' ? 'an Author stays reader-only' : 'a publishing setting has no effect' ?> until that is changed under Settings &rsaquo; Archive.</p>
+            <?php endif; ?>
 
             <?php if ($action === 'role'): ?>
                 <div class="lf-field<?= isset($errors['role_choice']) ? ' lf-field--error' : '' ?>">

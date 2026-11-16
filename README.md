@@ -55,7 +55,7 @@ Four themes are included: Storybook (the default), Rosewine, Lavender Mist and C
 
 ### Running the site
 
-Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, and how new writers are moderated. They manage classification lists, users, news, themes and plugins, and see problems with the site in one alerts screen. Every story needs a rating before it is published, so a new site starts with the common ratings and Not Rated; starter lists for ratings, warnings and relationship categories are optional. 
+Administrators choose whether the archive hosts fanfiction, original fiction, or both, who may register, who may publish (anyone with an Author account, only approved Authors, or only staff for a single-author site), and how new writers are moderated. They manage classification lists, users, news (with an optional featured picture), uploaded pictures, themes and plugins, and see problems with the site in one alerts screen. Every story needs a rating before it is published, so a new site starts with the common ratings and Not Rated; starter lists for ratings, warnings and relationship categories are optional. 
 
 Administrators can also write static pages such as About, FAQ, Terms of Service and a Privacy Policy and link them from the menu or the footer, limit tags to ones they add themselves, moderate reader comments on chapters, answer a data request by exporting or deleting an account, ask search engines to stay away or let them find the site through a sitemap, redirect old addresses to new ones, and copy a site's settings to another site with a file. See the [administration guide](docs/ADMINISTRATION.md).
 

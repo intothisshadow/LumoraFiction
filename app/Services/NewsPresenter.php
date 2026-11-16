@@ -19,6 +19,7 @@ namespace LumoraFiction\Services;
 
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Theme\SafeHtml;
+use LumoraFiction\Models\NewsImage;
 use LumoraFiction\Models\NewsPost;
 
 /**
@@ -33,15 +34,17 @@ final class NewsPresenter
     public function __construct(
         private readonly ContentRenderer $renderer,
         private readonly UserService $users,
+        private readonly ?NewsImageService $images = null,
     ) {
     }
 
     /**
      * A card for a list. The excerpt is plain text, so a theme prints it with lf_e() like any other value.
      *
-     * @return array{title: string, url: string, date: string, datetime: string, author: string, excerpt: string, pinned: string}
+     * @param array<string, int|string>|array{} $image the picture's data from imageData(), or an empty array
+     * @return array{title: string, url: string, date: string, datetime: string, author: string, excerpt: string, pinned: string, image: array<string, int|string>|array{}}
      */
-    public function card(NewsPost $post, string $author, string $url): array
+    public function card(NewsPost $post, string $author, string $url, array $image = []): array
     {
         return [
             'title' => $post->title,
@@ -51,6 +54,7 @@ final class NewsPresenter
             'author' => $author,
             'excerpt' => $this->excerpt($post),
             'pinned' => $post->pinned ? 'Pinned' : '',
+            'image' => $image,
         ];
     }
 
@@ -62,8 +66,9 @@ final class NewsPresenter
     public function cards(array $posts, callable $urlFor): array
     {
         $names = $this->users->displayNames(array_map(static fn (NewsPost $post): int => $post->authorId, $posts));
+        $pictures = $this->images?->findMany(array_values(array_filter(array_map(static fn (NewsPost $post): ?int => $post->imageId, $posts), static fn (?int $id): bool => $id !== null))) ?? [];
 
-        return array_map(fn (NewsPost $post): array => $this->card($post, $names[$post->authorId] ?? '', $urlFor($post)), $posts);
+        return array_map(fn (NewsPost $post): array => $this->card($post, $names[$post->authorId] ?? '', $urlFor($post), $this->imageData($post, $pictures[$post->imageId ?? 0] ?? null)), $posts);
     }
 
     /**
@@ -82,7 +87,7 @@ final class NewsPresenter
     }
 
     /**
-     * @return array{title: string, url: string, date: string, datetime: string, author: string, pinned: string, body: SafeHtml, list_url: string}
+     * @return array{title: string, url: string, date: string, datetime: string, author: string, pinned: string, body: SafeHtml, list_url: string, image: array<string, int|string>|array{}}
      */
     public function single(NewsPost $post, string $url): array
     {
@@ -97,7 +102,19 @@ final class NewsPresenter
             'pinned' => $post->pinned ? 'Pinned' : '',
             'body' => new SafeHtml($this->renderer->render($post->content, $post->format)),
             'list_url' => PublicUrl::news(),
+            'image' => $this->imageData($post, $post->imageId === null ? null : $this->images?->find($post->imageId)),
         ];
+    }
+
+    /**
+     * The picture of a post as a theme prints it, or an empty array when the post has none or its file record is gone,
+     * so a template only has to ask whether there is an address.
+     *
+     * @return array<string, int|string>|array{}
+     */
+    public function imageData(NewsPost $post, ?NewsImage $image): array
+    {
+        return $image === null || $this->images === null ? [] : $this->images->present($image, $post->imageAlt, $post->imageDecorative);
     }
 
     private function date(NewsPost $post): string

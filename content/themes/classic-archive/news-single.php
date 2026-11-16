@@ -27,6 +27,9 @@ lf_get_header();
             <?php if (lf_has('post.pinned')): ?> &middot; <span class="lf-news-post__pinned"><?php lf_field('post.pinned'); ?></span><?php endif; ?>
         </p>
     </header>
+    <?php if (lf_has('post.image.url')): ?>
+        <p class="lf-news-image lf-news-image--single"><img class="lf-news-image__img" src="<?php lf_field('post.image.url'); ?>" width="<?php lf_field('post.image.width'); ?>" height="<?php lf_field('post.image.height'); ?>" alt="<?php lf_field('post.image.alt'); ?>"></p>
+    <?php endif; ?>
     <div class="lf-news-post__body"><?php lf_field('post.body'); ?></div>
     <p class="lf-news-post__back"><a href="<?php lf_field('post.list_url'); ?>">&larr; All news</a></p>
 </article>

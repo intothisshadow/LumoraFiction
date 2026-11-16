@@ -69,7 +69,7 @@ final readonly class Request
             return null;
         }
 
-        return new UploadedFile($path, $entry['error'], is_int($entry['size'] ?? null) ? $entry['size'] : 0);
+        return new UploadedFile($path, $entry['error'], is_int($entry['size'] ?? null) ? $entry['size'] : 0, UploadedFile::cleanName($entry['name'] ?? ''));
     }
 
     /**
@@ -102,7 +102,7 @@ final readonly class Request
             }
 
             $size = $entry['size'][$index] ?? 0;
-            $found[] = new UploadedFile($path, $error, is_int($size) ? $size : 0);
+            $found[] = new UploadedFile($path, $error, is_int($size) ? $size : 0, UploadedFile::cleanName($entry['name'][$index] ?? ''));
         }
 
         return $found;
