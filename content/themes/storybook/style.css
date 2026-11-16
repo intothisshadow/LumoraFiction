@@ -1564,11 +1564,15 @@ a.lf-term-link:hover {
     font-size: 0.9rem;
 }
 
-.lf-reader-controls {
+/* Under the script-only rule a plain display here would lose (or, without a script, wrongly show the controls). */
+.lf-js .lf-reader-controls {
     display: flex;
+}
+
+.lf-reader-controls {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.5rem 1.5rem;
+    gap: 0.9rem 1.5rem;
     margin: 0 0 1.25rem;
     padding: 0.6rem 1rem;
     background: var(--lf-surface);
@@ -1729,7 +1733,9 @@ html[data-lf-reader-mode="on"] .lf-reader-bar:focus-within {
    theme's own, enlarged, so a soft theme gets rounded buttons and a square one stays square. */
 .lf-reader-bar__button,
 .lf-reader-controls__view-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.4rem 1.1rem;
     background: var(--lf-surface);
     color: var(--lf-text);
