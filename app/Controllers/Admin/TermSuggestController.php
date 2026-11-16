@@ -17,11 +17,13 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Controllers\Admin;
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\TaxonomyException;
 use LumoraFiction\Services\TaxonomyService;
 
 /**
@@ -73,6 +75,82 @@ final class TermSuggestController
             'ok' => true,
             'suggestions' => $this->taxonomy->suggest($type, $words, $this->names($request->queryValue('skip')), $this->names($request->queryValue('fandoms'))),
         ]);
+    }
+
+    /**
+     * What already exists, for an administrator's merge and create-term screens. On the merge screen the term being
+     * merged names itself (`merging`), so the lookup takes its kind and fandom from the stored term and never offers it;
+     * on the create screen the kind and the fandom typed so far come from the address. Only a signed-in administrator
+     * is answered, since unapproved and hidden terms are included.
+     *
+     * @param array<string, string> $params
+     */
+    public function lookup(array $params, Request $request): Response
+    {
+        $user = $this->auth->user($request->cookies);
+
+        if ($user === null) {
+            return $this->json(['ok' => false, 'message' => 'Your session has ended.'], 401);
+        }
+
+        if (!$user->can(Capability::ManageSite)) {
+            return $this->json(['ok' => false, 'message' => 'You may not do that.'], 403);
+        }
+
+        $words = trim($request->queryValue('q') ?? '');
+        $length = mb_strlen($words, 'UTF-8');
+        $merging = $request->queryValue('merging') ?? '';
+        $exclude = 0;
+        $parent = null;
+
+        if ($merging !== '') {
+            $term = preg_match('/^[1-9][0-9]{0,9}\z/', $merging) === 1 ? $this->taxonomy->find((int) $merging) : null;
+
+            if ($term === null) {
+                return $this->json(['ok' => false, 'message' => 'That term no longer exists.'], 404);
+            }
+
+            $type = $term->type;
+            $exclude = $term->id;
+            $parent = $type->belongsToFandom() ? $term->parentId : null;
+        } else {
+            $type = TermType::tryFrom($request->queryValue('type') ?? '');
+
+            if ($type === null || !$this->taxonomy->isEnabled($type)) {
+                return $this->json(['ok' => false, 'message' => 'That kind cannot be looked up.'], 422);
+            }
+
+            $fandom = trim($request->queryValue('fandom') ?? '');
+
+            if ($type->belongsToFandom()) {
+                // No fandom typed means a term that belongs to none; a fandom that does not exist matches nothing.
+                $parent = 0;
+
+                if ($fandom !== '') {
+                    try {
+                        $parent = $this->taxonomy->resolve(TermType::Fandom, $this->taxonomy->cleanName($fandom))?->id;
+                    } catch (TaxonomyException) {
+                        $parent = null;
+                    }
+
+                    if ($parent === null) {
+                        return $this->json(['ok' => true, 'matches' => []]);
+                    }
+                }
+            }
+        }
+
+        if ($length < self::MIN_WORDS || $length > self::MAX_WORDS) {
+            return $this->json(['ok' => true, 'matches' => []]);
+        }
+
+        $matches = [];
+
+        foreach ($this->taxonomy->lookup($type, $words, $parent, $exclude, 10) as $match) {
+            $matches[] = $match + ['kind' => $type->value, 'url' => AdminUrl::to('taxonomy/term/' . $match['id'])];
+        }
+
+        return $this->json(['ok' => true, 'matches' => $matches]);
     }
 
     /**

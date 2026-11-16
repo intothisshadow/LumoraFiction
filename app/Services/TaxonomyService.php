@@ -420,7 +420,7 @@ final class TaxonomyService
         $seen = [];
 
         foreach ($this->database->fetchAll(
-            'SELECT id, name, name_key, reviewed FROM {prefix}terms WHERE type = :type AND name_key LIKE :contains' . $parents
+            'SELECT id, name, name_key, reviewed FROM {prefix}terms WHERE type = :type AND hidden = 0 AND name_key LIKE :contains' . $parents
             . ' ORDER BY CASE WHEN name_key LIKE :prefix THEN 0 ELSE 1 END, story_count DESC, name_key LIMIT ' . $rows,
             $params,
         ) as $row) {
@@ -436,7 +436,7 @@ final class TaxonomyService
 
             foreach ($this->database->fetchAll(
                 'SELECT a.alias, t.id, t.name, t.name_key, t.reviewed FROM {prefix}term_aliases a JOIN {prefix}terms t ON t.id = a.term_id
-                 WHERE a.type = :type AND a.alias_key LIKE :contains' . str_replace('parent_id', 't.parent_id', $parents)
+                 WHERE a.type = :type AND t.hidden = 0 AND a.alias_key LIKE :contains' . str_replace('parent_id', 't.parent_id', $parents)
                 . ' ORDER BY a.alias_key LIMIT ' . $rows,
                 $aliasParams,
             ) as $row) {
@@ -451,6 +451,76 @@ final class TaxonomyService
         }
 
         return array_slice($found, 0, $limit);
+    }
+
+    /**
+     * The terms of one kind whose name or alias contains the typed words, for an administrator's merge and create
+     * screens: unlike suggest(), every state is shown (unapproved and hidden terms too) because the point is to find
+     * what already exists, and the answer carries what is needed to tell two look-alikes apart. Names that start with
+     * the words come first, then names that contain them, then aliases.
+     *
+     * @param int|null $parentId only terms of this fandom (0 for none); null searches every fandom
+     * @param int $excludeId a term never offered, such as the one being merged away
+     * @return list<array{id: int, name: string, alias: string, fandom: string, stories: int, reviewed: bool}>
+     */
+    public function lookup(TermType $type, string $words, ?int $parentId = null, int $excludeId = 0, int $limit = 10): array
+    {
+        $key = trim((string) preg_replace('/\s+/u', ' ', $this->nameKey($words)));
+
+        if ($key === '') {
+            return [];
+        }
+
+        $limit = max(1, min(20, $limit));
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $key);
+        $params = ['type' => $type->value, 'contains' => '%' . $escaped . '%', 'exclude' => $excludeId];
+        $scope = '';
+
+        if ($parentId !== null && $type->belongsToFandom()) {
+            $scope = ' AND t.parent_id = :parent';
+            $params['parent'] = $parentId;
+        }
+
+        $found = [];
+
+        foreach ($this->database->fetchAll(
+            'SELECT t.id, t.name, t.parent_id, t.story_count, t.reviewed, NULL AS alias FROM {prefix}terms t
+             WHERE t.type = :type AND t.name_key LIKE :contains AND t.id <> :exclude' . $scope
+            . ' ORDER BY CASE WHEN t.name_key LIKE :prefix THEN 0 ELSE 1 END, t.story_count DESC, t.name_key, t.id LIMIT ' . $limit,
+            $params + ['prefix' => $escaped . '%'],
+        ) as $row) {
+            $found[(int) $row['id']] = $row;
+        }
+
+        if (count($found) < $limit) {
+            foreach ($this->database->fetchAll(
+                'SELECT t.id, t.name, t.parent_id, t.story_count, t.reviewed, a.alias FROM {prefix}term_aliases a JOIN {prefix}terms t ON t.id = a.term_id
+                 WHERE a.type = :type AND a.alias_key LIKE :contains AND t.id <> :exclude' . $scope
+                . ' ORDER BY a.alias_key, t.id LIMIT ' . $limit,
+                $params,
+            ) as $row) {
+                // An entry reached by its name and by an alias is listed once, under its name.
+                if (!isset($found[(int) $row['id']]) && count($found) < $limit) {
+                    $found[(int) $row['id']] = $row;
+                }
+            }
+        }
+
+        $fandoms = $this->namesFor(array_values(array_unique(array_map(static fn (array $row): int => (int) $row['parent_id'], $found))));
+        $result = [];
+
+        foreach ($found as $row) {
+            $result[] = [
+                'id' => (int) $row['id'],
+                'name' => (string) $row['name'],
+                'alias' => (string) ($row['alias'] ?? ''),
+                'fandom' => $type->belongsToFandom() ? (string) ($fandoms[(int) $row['parent_id']] ?? '') : '',
+                'stories' => (int) $row['story_count'],
+                'reviewed' => (int) $row['reviewed'] === 1,
+            ];
+        }
+
+        return $result;
     }
 
     /**

@@ -10,6 +10,23 @@
         summary.focus();
     }
 
+    /* A textarea marked data-lf-count shows how many characters it holds in the element it names, so a limit is
+       visible before the form is sent. The server still checks the length. */
+    Array.prototype.forEach.call(document.querySelectorAll('textarea[data-lf-count]'), function (area) {
+        var output = document.getElementById(area.getAttribute('data-lf-count'));
+
+        if (!output) {
+            return;
+        }
+
+        function update() {
+            output.textContent = Array.from(area.value).length.toLocaleString();
+        }
+
+        area.addEventListener('input', update);
+        update();
+    });
+
     /* A writer's form asks before the page is left with changes that were not saved. The chapter text is
        left out of the comparison because the editor keeps track of it itself. */
     function formState(form) {

@@ -24,6 +24,11 @@ use LumoraFiction\Helpers\Html;
 /** @var array<string, string> $errors */
 /** @var string $csrfToken */
 /** @var string $action */
+/** @var string $footerText */
+/** @var string $footerError */
+/** @var int $footerMax */
+/** @var string $footerToken */
+/** @var string $footerAction */
 ?>
 <?php if ($errors !== []): ?>
     <div class="lf-notice lf-notice--error" role="alert" id="lf-error-summary" tabindex="-1">
@@ -99,3 +104,20 @@ use LumoraFiction\Helpers\Html;
         <p><button type="submit" class="lf-button">Save options</button></p>
     </form>
 <?php endif; ?>
+
+<form method="post" action="<?= Html::e($footerAction) ?>" class="lf-form" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= Html::e($footerToken) ?>">
+
+    <fieldset class="lf-card">
+        <legend>Footer text</legend>
+        <p class="lf-hint">A short text printed at the bottom of every page, such as a disclaimer. It belongs to the site, not to a theme, so it is kept when you change the theme.</p>
+        <div class="lf-field">
+            <label for="footer_text">Text</label>
+            <textarea id="footer_text" name="footer_text" rows="4" aria-describedby="footer_text_hint<?= $footerError !== '' ? ' footer_text_error' : '' ?>"<?= $footerError !== '' ? ' aria-invalid="true"' : '' ?> data-lf-count="footer_text_count"><?= Html::e($footerText) ?></textarea>
+            <p class="lf-hint" id="footer_text_hint">Plain text, up to <?= number_format($footerMax) ?> characters (<span id="footer_text_count"><?= number_format(mb_strlen($footerText)) ?></span> used). A blank line starts a new paragraph. Leave it empty to print nothing.</p>
+            <?php if ($footerError !== ''): ?><p class="lf-error" id="footer_text_error" role="alert"><?= Html::e($footerError) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
+    <p><button type="submit" class="lf-button">Save footer text</button></p>
+</form>

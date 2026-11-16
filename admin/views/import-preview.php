@@ -26,6 +26,7 @@ use LumoraFiction\Helpers\Html;
 /** @var string $cancelUrl */
 
 $posting = $posted !== [];
+$hasDownloads = array_filter($preview['works'], static fn (array $entry): bool => !$entry['general']) !== [];
 $included = static fn (int $index): bool => $posting ? in_array((string) $index, (array) ($posted['include'] ?? []), true) : true;
 $chosen = static fn (string $group, string $key, string $fallback): string => $posting ? (string) ($posted[$group][$key] ?? $fallback) : $fallback;
 $option = static fn (string $value, string $current, string $label): string => '<option value="' . Html::e($value) . '"' . ($value === $current ? ' selected' : '') . '>' . Html::e($label) . '</option>';
@@ -96,6 +97,119 @@ $kindLabels = ['fandom' => 'Fandoms', 'character' => 'Characters', 'relationship
                 <p class="lf-hint"><?= Html::e($note) ?></p>
             <?php endforeach; ?>
 
+            <?php if ($entry['general']): ?>
+                <?php
+                $field = static fn (string $name, string $fallback): string => $posting ? (string) ($posted['meta'][$index][$name] ?? $fallback) : $fallback;
+                $ticked = static fn (string $name, int $id): bool => $posting && in_array((string) $id, (array) ($posted['meta'][$index][$name] ?? []), true);
+                ?>
+                <p class="lf-hint">Read as <?= $entry['files'] > 1 ? 'an ordinary HTML file for each of ' . (int) $entry['files'] . ' files, joined as chapters' : 'an ordinary HTML file' ?>. It carries no rating, tags or author of its own, so choose them below. This story will be yours.</p>
+
+                <?php if ($entry['canSplit']): ?>
+                    <div class="lf-field">
+                        <label for="split-<?= $index ?>">How the text is cut into chapters</label>
+                        <select id="split-<?= $index ?>" name="split[<?= $index ?>]">
+                            <?php foreach ($preview['splitModes'] as $value => $label): ?>
+                                <?= $option($value, $posting ? (string) ($posted['split'][$index] ?? $entry['split']) : $entry['split'], $label) ?>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="lf-button lf-button--quiet" name="resplit" value="<?= $index ?>" formaction="<?= Html::e($action . '/split') ?>" formnovalidate>Cut it again</button>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (count($entry['chapterList']) > 1): ?>
+                    <table class="lf-table lf-import-chapters">
+                        <caption>Chapters found. To change the order, change the numbers.</caption>
+                        <thead>
+                            <tr><th scope="col">Order</th><th scope="col">Chapter</th><th scope="col">Words</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($entry['chapterList'] as $position => $chapter): ?>
+                                <tr>
+                                    <td>
+                                        <label class="lf-visually-hidden" for="order-<?= $index ?>-<?= $position ?>">Place of <?= Html::e($chapter['title'] !== '' ? $chapter['title'] : 'chapter ' . $chapter['number']) ?></label>
+                                        <input type="text" id="order-<?= $index ?>-<?= $position ?>" name="order[<?= $index ?>][<?= $position ?>]" inputmode="numeric" size="3" maxlength="4" value="<?= Html::e($posting ? (string) ($posted['order'][$index][$position] ?? $position + 1) : (string) ($position + 1)) ?>">
+                                    </td>
+                                    <th scope="row"><?= Html::e($chapter['title'] !== '' ? $chapter['title'] : 'Chapter ' . $chapter['number']) ?></th>
+                                    <td><?= number_format($chapter['words']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+
+                <div class="lf-field">
+                    <label for="meta-title-<?= $index ?>">Title</label>
+                    <input type="text" id="meta-title-<?= $index ?>" name="meta[<?= $index ?>][title]" value="<?= Html::e($field('title', $work->title)) ?>" maxlength="255">
+                </div>
+                <div class="lf-field">
+                    <label for="meta-summary-<?= $index ?>">Summary</label>
+                    <textarea id="meta-summary-<?= $index ?>" name="meta[<?= $index ?>][summary]" rows="3"><?= Html::e($field('summary', '')) ?></textarea>
+                </div>
+                <div class="lf-field">
+                    <label for="meta-notes-<?= $index ?>">Notes for readers</label>
+                    <textarea id="meta-notes-<?= $index ?>" name="meta[<?= $index ?>][notes]" rows="2"><?= Html::e($field('notes', '')) ?></textarea>
+                </div>
+                <div class="lf-field">
+                    <label for="meta-language-<?= $index ?>">Language code</label>
+                    <input type="text" id="meta-language-<?= $index ?>" name="meta[<?= $index ?>][language]" value="<?= Html::e($field('language', $work->language !== '' ? $work->language : 'en')) ?>" maxlength="3" size="4">
+                </div>
+                <div class="lf-field">
+                    <label for="meta-status-<?= $index ?>">Where the story stands</label>
+                    <select id="meta-status-<?= $index ?>" name="meta[<?= $index ?>][status]">
+                        <?php foreach ($preview['statusOptions'] as $item): ?>
+                            <?= $option($item['value'], $field('status', 'ongoing'), $item['label']) ?>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="lf-field">
+                    <label for="meta-rating-<?= $index ?>">Rating</label>
+                    <select id="meta-rating-<?= $index ?>" name="meta[<?= $index ?>][rating]">
+                        <?= $option('', $field('rating', ''), 'Choose a rating later (it stays a draft until you do)') ?>
+                        <?php foreach ($preview['ratingOptions'] as $item): ?>
+                            <?= $option((string) $item['id'], $field('rating', ''), $item['name']) ?>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <?php if ($preview['warningOptions'] !== []): ?>
+                    <fieldset class="lf-field">
+                        <legend>Warnings</legend>
+                        <?php foreach ($preview['warningOptions'] as $item): ?>
+                            <div class="lf-choice">
+                                <input type="checkbox" id="meta-warning-<?= $index ?>-<?= (int) $item['id'] ?>" name="meta[<?= $index ?>][warning][]" value="<?= (int) $item['id'] ?>"<?= $ticked('warning', (int) $item['id']) ? ' checked' : '' ?>>
+                                <label for="meta-warning-<?= $index ?>-<?= (int) $item['id'] ?>"><?= Html::e($item['name']) ?></label>
+                            </div>
+                        <?php endforeach; ?>
+                    </fieldset>
+                <?php endif; ?>
+
+                <?php if ($preview['genreOptions'] !== []): ?>
+                    <fieldset class="lf-field">
+                        <legend>Genres</legend>
+                        <?php foreach ($preview['genreOptions'] as $item): ?>
+                            <div class="lf-choice">
+                                <input type="checkbox" id="meta-genre-<?= $index ?>-<?= (int) $item['id'] ?>" name="meta[<?= $index ?>][genre][]" value="<?= (int) $item['id'] ?>"<?= $ticked('genre', (int) $item['id']) ? ' checked' : '' ?>>
+                                <label for="meta-genre-<?= $index ?>-<?= (int) $item['id'] ?>"><?= Html::e($item['name']) ?></label>
+                            </div>
+                        <?php endforeach; ?>
+                    </fieldset>
+                <?php endif; ?>
+
+                <?php foreach ($preview['kinds'] as $kind => $info): ?>
+                    <div class="lf-field">
+                        <label for="meta-<?= Html::e($kind) ?>-<?= $index ?>"><?= Html::e($info['label']) ?></label>
+                        <input type="text" id="meta-<?= Html::e($kind) ?>-<?= $index ?>" name="meta[<?= $index ?>][<?= Html::e($kind) ?>]" value="<?= Html::e($field($kind, '')) ?>" aria-describedby="meta-<?= Html::e($kind) ?>-<?= $index ?>-hint">
+                        <p class="lf-hint" id="meta-<?= Html::e($kind) ?>-<?= $index ?>-hint">Separate with commas. A name that is already on this site uses it<?= $info['proposable'] ? '; a new one is added as a proposal for an administrator to review' : '; a new one is left out, since only administrators add to this list' ?>.</p>
+                    </div>
+                <?php endforeach; ?>
+
+                <div class="lf-field">
+                    <label for="meta-published-<?= $index ?>">Date first published (optional)</label>
+                    <input type="date" id="meta-published-<?= $index ?>" name="meta[<?= $index ?>][published]" value="<?= Html::e($field('published', '')) ?>" aria-describedby="meta-published-<?= $index ?>-hint">
+                    <p class="lf-hint" id="meta-published-<?= $index ?>-hint">The dates in the file are not trusted. Without a date here, the story is dated today.</p>
+                </div>
+            <?php endif; ?>
+
             <?php foreach ($kindLabels as $kind => $label): ?>
                 <?php if (!empty($entry['terms'][$kind])): ?>
                     <h3><?= Html::e($label) ?></h3>
@@ -123,6 +237,7 @@ $kindLabels = ['fandom' => 'Fandoms', 'character' => 'Characters', 'relationship
         </section>
     <?php endforeach; ?>
 
+    <?php if ($hasDownloads): ?>
     <section class="lf-card" aria-labelledby="mapping-heading">
         <h2 id="mapping-heading">Match to this site</h2>
         <p class="lf-hint">Every story here needs a rating. A rating you do not choose leaves the story a draft.</p>
@@ -170,6 +285,7 @@ $kindLabels = ['fandom' => 'Fandoms', 'character' => 'Characters', 'relationship
             <p class="lf-hint">The files carry no rating, warnings or categories.</p>
         <?php endif; ?>
     </section>
+    <?php endif; ?>
 
     <?php if ($preview['series'] !== []): ?>
         <section class="lf-card" aria-labelledby="series-heading">

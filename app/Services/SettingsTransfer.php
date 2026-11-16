@@ -58,6 +58,8 @@ final class SettingsTransfer
         private readonly EditorSettings $editor,
         private readonly RetentionSettings $retention,
         private readonly SearchSettings $search,
+        private readonly FooterText $footerText,
+        private readonly WholeStorySettings $wholeStory,
         private readonly ThemeSettings $themes,
         private readonly ThemeChoice $themeChoice,
         private readonly ThemeOptions $themeOptions,
@@ -498,6 +500,28 @@ final class SettingsTransfer
                 'validate' => fn (array $in): array => ['errors' => [], 'values' => ['discourage' => $in['discourage']]],
                 'save' => function (array $values, User $actor, string $ip): void {
                     $this->search->save(['discourage' => (bool) $values['discourage']], $actor, $ip);
+                },
+            ],
+            'reading' => [
+                'label' => 'Reading',
+                'fields' => ['whole_story' => 'bool', 'whole_story_words' => 'int'],
+                'current' => fn (): array => $this->wholeStory->current(),
+                'validate' => fn (array $in): array => $this->wholeStory->validate(['whole_story' => $in['whole_story'], 'whole_story_words' => (string) $in['whole_story_words']]),
+                'save' => function (array $values, User $actor, string $ip): void {
+                    $this->wholeStory->save($values, $actor, $ip);
+                },
+            ],
+            'footer' => [
+                'label' => 'Footer text',
+                'fields' => ['text' => 'string'],
+                'current' => fn (): array => ['text' => $this->footerText->current()],
+                'validate' => function (array $in): array {
+                    $checked = FooterText::validate((string) $in['text']);
+
+                    return ['errors' => $checked['error'] === '' ? [] : ['text' => $checked['error']], 'values' => ['text' => $checked['value']]];
+                },
+                'save' => function (array $values, User $actor, string $ip): void {
+                    $this->footerText->save((string) $values['text'], $actor, $ip);
                 },
             ],
             'theme' => [

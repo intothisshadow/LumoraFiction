@@ -28,6 +28,11 @@ use LumoraFiction\Helpers\Html;
 /** @var array<string, string> $applied the starter list last applied to each list */
 /** @var string $presetUrl */
 /** @var string $presetToken */
+/** @var array{whole_story: bool, whole_story_words: int} $reading */
+/** @var array<string, string> $readingErrors */
+/** @var string $readingToken */
+/** @var string $readingAction */
+/** @var array{min: int, max: int} $wordLimits */
 
 $modeHints = [
     'both' => 'Both kinds of story, with the fields each needs.',
@@ -120,6 +125,30 @@ $modeHints = [
     </fieldset>
 
     <p><button type="submit" class="lf-button">Save settings</button></p>
+</form>
+
+<form method="post" action="<?= Html::e($readingAction) ?>" class="lf-form" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= Html::e($readingToken) ?>">
+
+    <fieldset class="lf-card">
+        <legend>Reading a story on one page</legend>
+        <?php if (isset($readingErrors['reading_form'])): ?><p class="lf-error" role="alert"><?= Html::e($readingErrors['reading_form']) ?></p><?php endif; ?>
+
+        <div class="lf-choice">
+            <input type="checkbox" id="whole_story" name="whole_story" value="1"<?= $reading['whole_story'] ? ' checked' : '' ?> aria-describedby="whole_story_hint">
+            <label for="whole_story">Let readers open a story with several chapters as one page</label>
+            <p class="lf-hint" id="whole_story_hint">Adds a &ldquo;Read the whole story on one page&rdquo; link to such stories. Switching it off removes the link and the address; nothing is lost.</p>
+        </div>
+
+        <div class="lf-field<?= isset($readingErrors['whole_story_words']) ? ' lf-field--error' : '' ?>">
+            <label for="whole_story_words">Longest page, in words</label>
+            <input type="text" id="whole_story_words" name="whole_story_words" inputmode="numeric" value="<?= Html::e((string) $reading['whole_story_words']) ?>" maxlength="7" aria-describedby="whole_story_words_hint<?= isset($readingErrors['whole_story_words']) ? ' whole_story_words_error' : '' ?>">
+            <p class="lf-hint" id="whole_story_words_hint">From <?= number_format($wordLimits['min']) ?> to <?= number_format($wordLimits['max']) ?>. A longer story shows the chapters that fit, says so, and links to the next chapter on its own page. The same limit is used for PDF downloads by default.</p>
+            <?php if (isset($readingErrors['whole_story_words'])): ?><p class="lf-error" id="whole_story_words_error"><?= Html::e($readingErrors['whole_story_words']) ?></p><?php endif; ?>
+        </div>
+    </fieldset>
+
+    <p><button type="submit" class="lf-button">Save reading settings</button></p>
 </form>
 
 <?php if ($catalogue !== []): ?>

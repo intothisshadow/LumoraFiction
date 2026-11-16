@@ -29,7 +29,7 @@ use DOMXPath;
  * in the tag list are the English ones the templates print; a file in another language is refused rather than guessed
  * at. The text is read as data only: nothing in it is followed, fetched or run.
  */
-final class OtwDownloadParser
+final class OtwDownloadParser implements WorkParser
 {
     private bool $strictHeadings = false;
 
@@ -47,6 +47,23 @@ final class OtwDownloadParser
         'tiếng việt' => 'vi', 'العربية' => 'ar', 'עברית' => 'he', 'ελληνικά' => 'el', 'українська' => 'uk', 'català' => 'ca',
         'română' => 'ro', 'ไทย' => 'th', 'eesti' => 'et', 'íslenska' => 'is',
     ];
+
+    /**
+     * Whether the file carries the template's own preface (title, byline and tag list), which is what makes its details
+     * trustworthy. Anything else is read as a general HTML file.
+     */
+    public function recognises(string $html): bool
+    {
+        $dom = new DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8"?>' . $html, LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $xpath = new DOMXPath($dom);
+
+        return $xpath->query("//*[@id='preface']//dl")->length > 0 && $xpath->query("//*[@id='preface']//h1")->length > 0;
+    }
 
     /**
      * @throws ImportException when the file is not a download of a work, or holds no text

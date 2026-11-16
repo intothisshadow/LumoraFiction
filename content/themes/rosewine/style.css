@@ -315,6 +315,22 @@ img {
     text-align: center;
 }
 
+/* The site's own footer text (a disclaimer); it takes the footer's colours, so dark mode follows by itself. */
+.lf-footer-text {
+    max-width: 48rem;
+    margin: 0 auto 0.75rem;
+    text-align: center;
+    line-height: 1.55;
+}
+
+.lf-footer-text__paragraph {
+    margin: 0 0 0.5em;
+}
+
+.lf-footer-text__paragraph:last-child {
+    margin-bottom: 0;
+}
+
 .lf-footer-links {
     margin-block-end: 0.75rem;
 }
@@ -1555,6 +1571,187 @@ a.lf-term-link:hover {
 .lf-story__end-notes p {
     margin: 0;
     white-space: pre-line;
+}
+
+/* The whole story on one page. Colours come from the tokens above, so dark mode follows without extra rules. */
+
+.lf-whole-link {
+    margin: 0.75rem 0;
+}
+
+.lf-whole__notice {
+    margin: 1rem 0;
+    padding: 0.6rem 1rem;
+    background: var(--lf-info-bg);
+    border: 1px solid var(--lf-info-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-whole__notice p {
+    margin: 0;
+}
+
+.lf-whole__back {
+    margin: 0.5rem 0;
+    font-size: 0.95rem;
+}
+
+.lf-whole__skip {
+    display: inline-block;
+    margin: 0.5rem 0 0;
+    font-size: 0.9rem;
+}
+
+.lf-whole__contents {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+}
+
+.lf-whole__contents-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+}
+
+.lf-whole__contents-list {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.lf-whole__contents-item {
+    margin: 0.2rem 0;
+}
+
+.lf-whole__contents-meta {
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-whole__chapter {
+    margin: 3rem 0 0;
+    padding-top: 2rem;
+    border-top: 1px solid var(--lf-border);
+}
+
+.lf-whole__chapter-title {
+    margin: 0 0 0.25rem;
+    font-size: 1.6rem;
+    scroll-margin-top: 1rem;
+}
+
+.lf-whole__chapter-meta,
+.lf-whole__comments {
+    margin: 0;
+    color: var(--lf-muted);
+    font-size: 0.9rem;
+}
+
+.lf-whole__comments {
+    margin-top: 1rem;
+}
+
+.lf-whole__top {
+    margin: 1rem 0 0;
+    font-size: 0.9rem;
+}
+
+.lf-whole__footer {
+    margin: 3rem 0 1rem;
+}
+
+@media print {
+    .lf-whole__chapter {
+        break-before: page;
+        border-top: 0;
+    }
+
+    .lf-whole__contents,
+    .lf-whole__top,
+    .lf-whole__comments {
+        display: none;
+    }
+}
+
+/* Reader mode: a quiet layout of a chapter. Nothing is removed from the page, the rules only hide parts of it, and
+   only on a page that has the reader-mode button, so a page without a way out is never left bare. */
+
+.lf-reader-mode {
+    flex-basis: 100%;
+    text-align: center;
+}
+
+.lf-reader-bar {
+    display: none;
+}
+
+html[data-lf-reader-mode="on"] .lf-reader-bar {
+    display: flex;
+    position: fixed;
+    inset-block-start: 0.5rem;
+    inset-inline-end: 0.5rem;
+    z-index: 60;
+    gap: 0.5rem;
+    opacity: 0.6;
+}
+
+html[data-lf-reader-mode="on"] .lf-reader-bar:hover,
+html[data-lf-reader-mode="on"] .lf-reader-bar:focus-within {
+    opacity: 1;
+}
+
+.lf-reader-bar__button {
+    padding: 0.35rem 0.8rem;
+    background: var(--lf-surface);
+    color: var(--lf-text);
+    border: 1px solid var(--lf-control-border);
+    border-radius: var(--lf-radius);
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.lf-reader-bar__button:hover {
+    background: var(--lf-surface-strong);
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) :is(.lf-site-header-wrap, .lf-site-footer, .lf-preview-banner, .lf-feed-link, .lf-bookmarks, .lf-follow, .lf-downloads, .lf-comments, .lf-whole-link, .lf-reader-controls) {
+    display: none;
+}
+
+html[data-lf-reader-mode="on"][data-lf-reader-controls="open"]:has([data-lf-reader-exit]) .lf-reader-controls {
+    display: flex;
+    margin-block-start: 3rem;
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-main {
+    padding-block: 3.5rem 4rem;
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) :is(.lf-chapter, .lf-story, .lf-whole) {
+    max-width: var(--lf-reading-width);
+    margin-inline: auto;
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-chapter__text {
+    line-height: 2;
+}
+
+html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-chapter__text p {
+    margin-bottom: 1.35em;
+}
+
+@media print {
+    .lf-reader-bar {
+        display: none !important;
+    }
+}
+
+@media (forced-colors: active) {
+    .lf-reader-bar__button {
+        border-color: ButtonText;
+    }
 }
 
 /* Comments under a chapter. Colours come from the tokens above, so dark mode follows without extra rules. */

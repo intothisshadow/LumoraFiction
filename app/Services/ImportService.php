@@ -23,12 +23,14 @@ use LumoraFiction\Core\Content\HtmlSanitizer;
 use LumoraFiction\Core\Database\Database;
 use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\UploadedFile;
+use LumoraFiction\Core\Import\GeneralHtmlParser;
 use LumoraFiction\Core\Import\ImportException;
 use LumoraFiction\Core\Import\OtwChapter;
 use LumoraFiction\Core\Import\OtwDownloadParser;
 use LumoraFiction\Core\Import\OtwWork;
 use LumoraFiction\Core\Import\RatingScale;
 use LumoraFiction\Core\Import\UploadReader;
+use LumoraFiction\Helpers\WordCounter;
 use LumoraFiction\Models\ContentFormat;
 use LumoraFiction\Models\PublicationState;
 use LumoraFiction\Models\Term;
@@ -68,6 +70,7 @@ final class ImportService
         private readonly string $workDirectory,
         private readonly ?HookManager $hooks = null,
         private readonly float $stepSeconds = 8.0,
+        private readonly ?GeneralHtmlParser $general = null,
     ) {
     }
 
@@ -79,25 +82,48 @@ final class ImportService
     /**
      * Reads the uploaded files and keeps what they hold for the preview.
      *
+     * Each file goes to the reader that suits it: a download from an OTW-Archive site to the parser that trusts its
+     * details, anything else (or any file, when the author asked) to the general HTML reader.
+     *
      * @param list<UploadedFile> $uploads
+     * @param array{general?: bool, split?: string, combine?: bool} $options force the general reader, how a general file is cut into chapters, and whether several general files are chapters of one story
      * @return string the token of the preview
      * @throws ImportException when nothing could be read or the person may not import
      */
-    public function begin(User $user, array $uploads, string $pseuds): string
+    public function begin(User $user, array $uploads, string $pseuds, array $options = []): string
     {
         $this->requireAllowed($user);
         $this->sweep();
 
         if ($uploads === []) {
-            throw new ImportException('Choose the file you downloaded from the archive.');
+            throw new ImportException('Choose the file you want to import.');
         }
 
+        $force = ($options['general'] ?? false) === true;
+        $split = isset(GeneralHtmlParser::SPLITS[$options['split'] ?? '']) ? (string) $options['split'] : 'none';
+        $combine = ($options['combine'] ?? true) === true;
         $works = [];
+        $sources = [];
+        $splits = [];
         $refused = [];
+        $files = [];
 
-        foreach ($this->reader->read($uploads) as $row) {
+        foreach ($this->reader->read($uploads, true) as $row) {
             if ($row['html'] === null) {
                 $refused[] = ['name' => $row['name'], 'error' => $row['error']];
+
+                continue;
+            }
+
+            if ($force || !$this->parser->recognises($row['html'])) {
+                $files[] = ['name' => $row['name'], 'html' => $row['html'], 'converted' => ($row['converted'] ?? false) === true];
+
+                continue;
+            }
+
+            // The download reader trusts a file's details, so text it cannot be sure of is refused, not guessed at.
+            if (($row['converted'] ?? false) === true) {
+                $refused[] = ['name' => $row['name'], 'error' => 'This file is not UTF-8 text. Download the work again as HTML and upload that file.'];
 
                 continue;
             }
@@ -109,11 +135,25 @@ final class ImportService
             }
         }
 
+        foreach ($this->groupGeneral($files, $combine) as $group) {
+            try {
+                $work = $this->readGeneral($group, $split);
+            } catch (ImportException $exception) {
+                $refused[] = ['name' => (string) ($group[0]['name'] ?? ''), 'error' => $exception->getMessage()];
+
+                continue;
+            }
+
+            $sources[count($works)] = array_map(static fn (array $file): array => ['name' => $file['name'], 'html' => $file['html'], 'converted' => $file['converted']], $group);
+            $splits[count($works)] = $split;
+            $works[] = $work->toArray();
+        }
+
         if ($works === []) {
             throw new ImportException($refused[0]['error'] ?? 'Nothing in that upload could be imported.');
         }
 
-        $plan = json_encode(['user' => $user->id, 'created' => time(), 'pseuds' => mb_substr($pseuds, 0, 300, 'UTF-8'), 'works' => $works, 'refused' => $refused], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        $plan = json_encode(['user' => $user->id, 'created' => time(), 'pseuds' => mb_substr($pseuds, 0, 300, 'UTF-8'), 'works' => $works, 'sources' => $sources, 'splits' => $splits, 'refused' => $refused], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
         if ($plan === false || strlen($plan) > self::PLAN_BYTES_MAX) {
             throw new ImportException('That upload is too large to import in one go. Import it in smaller parts.');
@@ -193,7 +233,20 @@ final class ImportService
                 'duplicate' => $duplicate,
                 'bylineWarning' => $work->byline !== '' && !$this->bylineMatches($work->byline, $ownNames),
                 'sourceNote' => $work->sourceUrl !== '',
+                'general' => $work->isGeneral(),
+                'split' => (string) ($plan['splits'][$index] ?? 'none'),
+                'canSplit' => $work->isGeneral() && is_array($plan['sources'][$index] ?? null),
+                'files' => $work->isGeneral() && is_array($plan['sources'][$index] ?? null) ? count($plan['sources'][$index]) : 1,
+                'chapterList' => array_map(static fn (OtwChapter $chapter): array => ['number' => $chapter->number, 'title' => $chapter->title, 'words' => WordCounter::count($chapter->html, ContentFormat::Html)], $work->chapters),
             ];
+        }
+
+        $kinds = [];
+
+        foreach ([TermType::Fandom, TermType::Character, TermType::Relationship, TermType::Tag] as $type) {
+            if ($this->taxonomy->isEnabled($type)) {
+                $kinds[$type->value] = ['label' => $this->taxonomy->labels()->plural($type), 'proposable' => $this->taxonomy->writersMayPropose($type)];
+            }
         }
 
         $ownSeries = array_map(static fn ($series): array => ['id' => $series->id, 'title' => $series->title], $this->series->ownedBy($user->id));
@@ -217,12 +270,245 @@ final class ImportService
             'ratingOptions' => $this->options(TermType::Rating),
             'warningOptions' => $this->options(TermType::Warning),
             'categoryOptions' => $this->options(TermType::RelationshipCategory),
+            'genreOptions' => $this->taxonomy->isEnabled(TermType::Genre) ? $this->options(TermType::Genre) : [],
+            'statusOptions' => array_map(static fn (WorkStatus $status): array => ['value' => $status->value, 'label' => $status->label()], WorkStatus::cases()),
+            'kinds' => $kinds,
+            'splitModes' => GeneralHtmlParser::SPLITS,
             'series' => array_values($seriesGroups),
             'ownSeries' => $ownSeries,
             'collections' => array_values($collectionGroups),
             'ownCollections' => $ownCollections,
             'mayStartCollection' => $this->collections->mayCreate($user),
         ];
+    }
+
+    /**
+     * Cuts a general file again at another kind of heading, from the text kept with the preview, so the author can see
+     * the chapters it would make before anything is written. Only a file read by the general reader can be cut again.
+     *
+     * @throws ImportException when the upload has expired or the work was not read from a general file
+     */
+    public function resplit(User $user, string $token, int $index, string $mode): void
+    {
+        $plan = $this->loadPlan($user, $token);
+
+        if ($plan === null) {
+            throw new ImportException('This import has expired. Upload the files again.');
+        }
+
+        $files = $plan['sources'][$index] ?? null;
+
+        if (!is_array($files) || $files === [] || !isset($plan['works'][$index])) {
+            throw new ImportException('That story was not read from a general file, so it cannot be cut again.');
+        }
+
+        $mode = isset(GeneralHtmlParser::SPLITS[$mode]) ? $mode : 'none';
+        $group = [];
+
+        foreach ($files as $file) {
+            if (is_array($file) && is_string($file['html'] ?? null)) {
+                $group[] = ['name' => (string) ($file['name'] ?? ''), 'html' => $file['html'], 'converted' => ($file['converted'] ?? false) === true];
+            }
+        }
+
+        $plan['works'][$index] = $this->readGeneral($group, $mode)->toArray();
+        $plan['splits'][$index] = $mode;
+
+        if (file_put_contents($this->planPath($token), json_encode($plan, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX) === false) {
+            throw new ImportException('The change could not be kept. Please try again.');
+        }
+    }
+
+    /**
+     * General files that are chapters of one story go together in the order they were given; otherwise each file is a story.
+     *
+     * @param list<array{name: string, html: string, converted: bool}> $files
+     * @return list<list<array{name: string, html: string, converted: bool}>>
+     */
+    private function groupGeneral(array $files, bool $combine): array
+    {
+        if ($files === []) {
+            return [];
+        }
+
+        if (!$combine || count($files) === 1) {
+            return array_map(static fn (array $file): array => [$file], $files);
+        }
+
+        // Entries of a ZIP all have names, and go in file-name order; files picked one by one keep the order they were chosen in.
+        if (count(array_filter($files, static fn (array $file): bool => $file['name'] !== '')) === count($files)) {
+            usort($files, static fn (array $a, array $b): int => strnatcasecmp($a['name'], $b['name']));
+        }
+
+        return [$files];
+    }
+
+    /**
+     * @param list<array{name: string, html: string, converted: bool}> $group the file, or the files that are chapters of one story
+     * @throws ImportException when none of the files holds text
+     */
+    private function readGeneral(array $group, string $split): OtwWork
+    {
+        $reader = ($this->general ?? new GeneralHtmlParser())->withSplit($split);
+        $parsed = [];
+        $left = 0;
+
+        foreach ($group as $file) {
+            try {
+                $work = $reader->parse($file['html'], $file['name']);
+            } catch (ImportException $exception) {
+                if (count($group) === 1) {
+                    throw $exception;
+                }
+
+                $left++;
+
+                continue;
+            }
+
+            $parsed[] = $file['converted'] ? $this->withNotes($work, ['This file was not UTF-8 text and was read as Windows-1252 (Western European). Check that accents and quotation marks look right.']) : $work;
+        }
+
+        if ($parsed === []) {
+            throw new ImportException('None of these files has text to import.');
+        }
+
+        if (count($parsed) === 1 && count($group) === 1) {
+            return $parsed[0];
+        }
+
+        $chapters = [];
+        $words = 0;
+        $notes = [];
+        $hashes = [];
+
+        foreach ($parsed as $work) {
+            foreach ($work->chapters as $chapter) {
+                // A file that is one untitled chapter is named by its own title, so the contents list reads sensibly.
+                $title = $chapter->title !== '' ? $chapter->title : (count($work->chapters) === 1 ? $work->title : '');
+                $chapters[] = new OtwChapter(count($chapters) + 1, mb_substr($title, 0, 255, 'UTF-8'), '', '', '', $chapter->html);
+            }
+
+            $words += $work->words;
+            $notes = array_merge($notes, $work->readerNotes);
+            $hashes[] = $work->fileHash;
+        }
+
+        $notes[] = count($parsed) . ' files are read as chapters of one story, in the order they were given. Check the title.';
+
+        if ($left > 0) {
+            $notes[] = $left . ' file' . ($left === 1 ? ' had' : 's had') . ' no text and ' . ($left === 1 ? 'was' : 'were') . ' left out.';
+        }
+
+        $data = $parsed[0]->toArray();
+        $data['chapters'] = array_map(static fn (OtwChapter $chapter): array => $chapter->toArray(), $chapters);
+        $data['words'] = $words;
+        $data['file_hash'] = hash('sha256', implode('|', $hashes));
+        $data['reader_notes'] = array_values(array_unique($notes));
+
+        return OtwWork::fromArray($data);
+    }
+
+    /**
+     * @param list<string> $notes
+     */
+    private function withNotes(OtwWork $work, array $notes): OtwWork
+    {
+        $data = $work->toArray();
+        $data['reader_notes'] = array_values(array_unique([...$work->readerNotes, ...$notes]));
+
+        return OtwWork::fromArray($data);
+    }
+
+    /**
+     * What the author typed in the preview for a general file goes over what the reader could not know. A download keeps
+     * its own details and is returned as it is. Nothing here picks a term: names go through the same rules as the story
+     * form when the story is written, and the chosen rating, warnings and genres are checked there too.
+     *
+     * @param array<string, mixed> $meta
+     * @param array<int|string, mixed> $order the position the author gave each chapter, by its position in the file
+     */
+    private function applyMeta(OtwWork $work, array $meta, array $order): OtwWork
+    {
+        if (!$work->isGeneral()) {
+            return $work;
+        }
+
+        $data = $work->toArray();
+        $text = static fn (mixed $value, int $max): string => is_string($value) ? mb_substr(trim(str_replace("\r\n", "\n", $value)), 0, $max, 'UTF-8') : '';
+        $names = static function (mixed $value): array {
+            $found = [];
+
+            foreach (preg_split('/[,\n]+/', is_string($value) ? $value : '') ?: [] as $name) {
+                $name = trim($name);
+
+                if ($name !== '' && count($found) < 50) {
+                    $found[mb_strtolower($name, 'UTF-8')] = mb_substr($name, 0, 100, 'UTF-8');
+                }
+            }
+
+            return array_values($found);
+        };
+
+        $title = $text($meta['title'] ?? null, StoryService::TITLE_MAX);
+        $data['title'] = $title !== '' ? $title : $work->title;
+        $data['summary'] = $text($meta['summary'] ?? null, StoryService::SUMMARY_MAX);
+        $data['notes'] = $text($meta['notes'] ?? null, StoryService::NOTES_MAX);
+        $data['fandoms'] = $names($meta['fandom'] ?? null);
+        $data['characters'] = $names($meta['character'] ?? null);
+        $data['relationships'] = $names($meta['relationship'] ?? null);
+        $data['tags'] = $names($meta['tag'] ?? null);
+
+        $language = strtolower($text($meta['language'] ?? null, 5));
+        $data['language'] = preg_match('/^[a-z]{2,3}\z/', $language) === 1 ? $language : $work->language;
+
+        $published = DateTimeImmutable::createFromFormat('!Y-m-d', $text($meta['published'] ?? null, 10));
+        $data['published'] = $published === false ? null : $published->format('Y-m-d');
+        $data['updated'] = $data['published'];
+
+        if (count($work->chapters) > 1 && $order !== []) {
+            $positions = [];
+
+            foreach ($work->chapters as $position => $chapter) {
+                $given = $order[$position] ?? null;
+                $positions[$position] = is_string($given) && preg_match('/^[0-9]{1,4}\z/', $given) === 1 ? (int) $given : $position + 1;
+            }
+
+            $sorted = array_keys($positions);
+            usort($sorted, static fn (int $a, int $b): int => [$positions[$a], $a] <=> [$positions[$b], $b]);
+            $data['chapters'] = [];
+
+            foreach ($sorted as $number => $position) {
+                $chapter = $work->chapters[$position];
+                $data['chapters'][] = (new OtwChapter($number + 1, $chapter->title, $chapter->summary, $chapter->notes, $chapter->endNotes, $chapter->html))->toArray();
+            }
+        }
+
+        return OtwWork::fromArray($data);
+    }
+
+    private function chosenId(int $id, TermType $type): ?int
+    {
+        return $id > 0 && $this->isVisibleTerm($id, $type) ? $id : null;
+    }
+
+    /**
+     * @param array<mixed> $ids
+     * @return list<int>
+     */
+    private function chosenIds(array $ids, TermType $type): array
+    {
+        $found = [];
+
+        foreach ($ids as $id) {
+            $checked = is_string($id) && ctype_digit($id) ? $this->chosenId((int) $id, $type) : null;
+
+            if ($checked !== null) {
+                $found[$checked] = $checked;
+            }
+        }
+
+        return array_values($found);
     }
 
     public function discard(User $user, string $token): void
@@ -236,7 +522,7 @@ final class ImportService
      * Starts the import the author confirmed. Nothing is written yet: the run is queued, and step() writes the stories a few at
      * a time, so a long batch stays inside a host's time limit and an interrupted run can be carried on.
      *
-     * @param array{include: list<int>, mode: array<int, string>, duplicate: array<int, string>, rating: array<string, int>, warning: array<string, int>, category: array<string, int>, series: array<string, string>, collection: array<string, string>, source_note: list<int>} $choices
+     * @param array{include: list<int>, mode: array<int, string>, duplicate: array<int, string>, rating: array<string, int>, warning: array<string, int>, category: array<string, int>, series: array<string, string>, collection: array<string, string>, source_note: list<int>, meta?: array<int, array<string, mixed>>, order?: array<int, array<int, string>>} $choices
      * @return string the token of the run
      * @throws ImportException
      */
@@ -543,7 +829,7 @@ final class ImportService
             if ($data === null) {
                 $report['stories'][] = ['title' => '', 'file' => '', 'status' => 'failed', 'reason' => 'The uploaded files were removed before this story could be imported. Upload it again.', 'notes' => []];
             } else {
-                $work = OtwWork::fromArray($data);
+                $work = $this->applyMeta(OtwWork::fromArray($data), is_array($choices['meta'][$index] ?? null) ? $choices['meta'][$index] : [], is_array($choices['order'][$index] ?? null) ? $choices['order'][$index] : []);
                 $this->discardPartial($user, $runId, $work, $ip);
                 $duplicate = $this->duplicateOf($user, $work);
 
@@ -621,6 +907,9 @@ final class ImportService
         $notes = [];
         $classified = $this->classification($work);
         $notes = array_merge($notes, $classified['notes'], $this->textNotes($work));
+        $general = $work->isGeneral();
+        // What the author chose in the preview for a general file; a download carries its own details instead.
+        $meta = $general && is_array($choices['meta'][$index] ?? null) ? $choices['meta'][$index] : [];
 
         $title = mb_substr($work->title, 0, StoryService::TITLE_MAX, 'UTF-8');
         $storyNotes = $work->notes;
@@ -636,7 +925,9 @@ final class ImportService
                 'notes' => $this->cut($storyNotes, StoryService::NOTES_MAX),
                 'end_notes' => $this->cut($work->endNotes, StoryService::END_NOTES_MAX),
                 'language' => $work->language !== '' ? $work->language : 'en',
-                'work_status' => ($work->complete ? WorkStatus::Completed : WorkStatus::Ongoing)->value,
+                'work_status' => $general
+                    ? (WorkStatus::tryFrom((string) ($meta['status'] ?? '')) ?? WorkStatus::Ongoing)->value
+                    : ($work->complete ? WorkStatus::Completed : WorkStatus::Ongoing)->value,
             ], $ipAddress);
         } catch (StoryValidationException $exception) {
             throw new ImportException('The story details were refused: ' . implode(' ', $exception->errors));
@@ -664,18 +955,26 @@ final class ImportService
             }
 
             $selection = $classified['selection'];
-            $ratingId = $this->mappedId($choices['rating'] ?? [], $work->rating, TermType::Rating);
+            $ratingId = $general ? $this->chosenId((int) ($meta['rating'] ?? 0), TermType::Rating) : $this->mappedId($choices['rating'] ?? [], $work->rating, TermType::Rating);
 
             if ($ratingId !== null) {
                 $selection[TermType::Rating->value] = [$ratingId];
             } else {
-                $notes[] = $work->rating === '' ? 'The file names no rating.' : 'No rating was chosen for "' . $work->rating . '".';
+                $notes[] = $general || $work->rating === '' ? 'No rating was chosen.' : 'No rating was chosen for "' . $work->rating . '".';
             }
 
-            $selection[TermType::Warning->value] = $this->mappedIds($choices['warning'] ?? [], $work->warnings, TermType::Warning);
+            if ($general) {
+                $selection[TermType::Warning->value] = $this->chosenIds((array) ($meta['warning'] ?? []), TermType::Warning);
 
-            if ($this->taxonomy->isEnabled(TermType::RelationshipCategory)) {
-                $selection[TermType::RelationshipCategory->value] = $this->mappedIds($choices['category'] ?? [], $work->categories, TermType::RelationshipCategory);
+                if ($this->taxonomy->isEnabled(TermType::Genre)) {
+                    $selection[TermType::Genre->value] = $this->chosenIds((array) ($meta['genre'] ?? []), TermType::Genre);
+                }
+            } else {
+                $selection[TermType::Warning->value] = $this->mappedIds($choices['warning'] ?? [], $work->warnings, TermType::Warning);
+
+                if ($this->taxonomy->isEnabled(TermType::RelationshipCategory)) {
+                    $selection[TermType::RelationshipCategory->value] = $this->mappedIds($choices['category'] ?? [], $work->categories, TermType::RelationshipCategory);
+                }
             }
 
             $this->stories->classify($user, $story->id, $selection, $ipAddress);
@@ -718,7 +1017,7 @@ final class ImportService
         }
 
         if ($work->publishedAt === null) {
-            $notes[] = 'The file has no publication date, so the dates are those of the import.';
+            $notes[] = $general ? 'No publication date was given, so the dates are those of the import.' : 'The file has no publication date, so the dates are those of the import.';
         }
 
         $this->groupings($user, $work, $story->id, $choices, $ownSeries, $ownCollections, $seriesIds, $collectionIds, $report, $notes, $ipAddress);
@@ -898,7 +1197,7 @@ final class ImportService
      */
     private function textNotes(OtwWork $work): array
     {
-        $notes = [];
+        $notes = $work->readerNotes;
 
         if (mb_strlen($work->title, 'UTF-8') > StoryService::TITLE_MAX) {
             $notes[] = 'The title is longer than this site allows and will be shortened.';

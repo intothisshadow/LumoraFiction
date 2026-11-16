@@ -23,6 +23,7 @@ use LumoraFiction\Core\Configuration;
 use LumoraFiction\Core\Http\FlashMessages;
 use LumoraFiction\Core\Http\Request;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Core\Import\GeneralHtmlParser;
 use LumoraFiction\Core\Import\ImportException;
 use LumoraFiction\Core\Import\UploadReader;
 use LumoraFiction\Core\Security\Csrf;
@@ -84,7 +85,11 @@ final class ImportController extends WriterController
         }
 
         try {
-            $token = $this->imports->begin($user, $request->uploads('work'), $pseuds);
+            $token = $this->imports->begin($user, $request->uploads('work'), $pseuds, [
+                'general' => $request->checked('force_general'),
+                'split' => (string) $request->input('split'),
+                'combine' => $request->input('combine') !== 'separate',
+            ]);
         } catch (ImportException $exception) {
             return $this->uploadPage($request, $user, $pseuds, ['work' => $exception->getMessage()], 422);
         }
@@ -104,6 +109,43 @@ final class ImportController extends WriterController
         }
 
         return $this->previewPage($request, $user, $params['token'] ?? '', [], 200);
+    }
+
+    /**
+     * Cuts one general file into chapters again at another kind of heading. The page comes back with everything the
+     * author had typed still in place, except the order of the chapters of the file that was cut, which no longer applies.
+     *
+     * @param array<string, string> $params
+     */
+    public function resplit(array $params, Request $request): Response
+    {
+        $user = $this->open($request);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $token = $params['token'] ?? '';
+        $index = (string) $request->input('resplit');
+
+        if (!$this->validToken($request, self::TOKEN)) {
+            return $this->previewPage($request, $user, $token, ['form' => self::STALE_FORM], 400);
+        }
+
+        $posted = $request->post;
+        $mode = is_array($posted['split'] ?? null) && is_string($posted['split'][$index] ?? null) ? $posted['split'][$index] : 'none';
+
+        try {
+            $this->imports->resplit($user, $token, ctype_digit($index) ? (int) $index : -1, $mode);
+        } catch (ImportException $exception) {
+            return $this->previewPage($request, $user, $token, ['form' => $exception->getMessage()], 422);
+        }
+
+        if (is_array($posted['order'] ?? null)) {
+            unset($posted['order'][$index]);
+        }
+
+        return $this->previewPage($request, $user, $token, [], 200, $posted);
     }
 
     /**
@@ -376,6 +418,7 @@ final class ImportController extends WriterController
             'zipAvailable' => UploadReader::zipAvailable(),
             'maxFiles' => UploadReader::MAX_FILES,
             'maxMegabytes' => (int) (UploadReader::MAX_FILE_BYTES / 1048576),
+            'splitModes' => GeneralHtmlParser::SPLITS,
             'runs' => $this->imports->recentRuns($user),
             'csrfToken' => Csrf::token(self::TOKEN),
             'action' => AdminUrl::to(self::PATH),
@@ -387,7 +430,7 @@ final class ImportController extends WriterController
     /**
      * @param array<string, string> $errors
      */
-    private function previewPage(Request $request, User $user, string $token, array $errors, int $status): Response
+    private function previewPage(Request $request, User $user, string $token, array $errors, int $status, ?array $posted = null): Response
     {
         $preview = $this->imports->preview($user, $token);
 
@@ -398,7 +441,7 @@ final class ImportController extends WriterController
         return $this->view->render('import-preview', [
             'preview' => $preview,
             'errors' => $errors,
-            'posted' => $request->isPost() ? $request->post : [],
+            'posted' => $posted ?? ($request->isPost() ? $request->post : []),
             'csrfToken' => Csrf::token(self::TOKEN),
             'action' => AdminUrl::to(self::PATH . '/preview/' . $token),
             'cancelUrl' => AdminUrl::to(self::PATH . '/preview/' . $token . '/cancel'),
@@ -421,7 +464,7 @@ final class ImportController extends WriterController
     }
 
     /**
-     * @return array{include: list<int>, mode: array<int, string>, duplicate: array<int, string>, rating: array<string, int>, warning: array<string, int>, category: array<string, int>, series: array<string, string>, collection: array<string, string>, source_note: list<int>}
+     * @return array{include: list<int>, mode: array<int, string>, duplicate: array<int, string>, rating: array<string, int>, warning: array<string, int>, category: array<string, int>, series: array<string, string>, collection: array<string, string>, source_note: list<int>, meta: array<int, array<string, mixed>>, order: array<int, array<int, string>>}
      */
     private function choices(Request $request): array
     {
@@ -453,7 +496,44 @@ final class ImportController extends WriterController
 
         $ids = static fn (array $map): array => array_map(static fn (string $item): int => ctype_digit($item) ? (int) $item : 0, $map);
 
+        // What the author typed for a general file: only known fields, as text; the service checks each value again.
+        $meta = [];
+
+        foreach (is_array($request->post['meta'] ?? null) ? $request->post['meta'] : [] as $work => $fields) {
+            if (!is_array($fields) || !(is_int($work) || ctype_digit((string) $work))) {
+                continue;
+            }
+
+            foreach (['title', 'summary', 'notes', 'language', 'status', 'published', 'rating', 'fandom', 'character', 'relationship', 'tag'] as $name) {
+                if (is_string($fields[$name] ?? null)) {
+                    $meta[(int) $work][$name] = $fields[$name];
+                }
+            }
+
+            foreach (['warning', 'genre'] as $name) {
+                if (is_array($fields[$name] ?? null)) {
+                    $meta[(int) $work][$name] = array_values(array_filter($fields[$name], 'is_string'));
+                }
+            }
+        }
+
+        $order = [];
+
+        foreach (is_array($request->post['order'] ?? null) ? $request->post['order'] : [] as $work => $positions) {
+            if (!is_array($positions) || !(is_int($work) || ctype_digit((string) $work))) {
+                continue;
+            }
+
+            foreach ($positions as $position => $value) {
+                if ((is_int($position) || ctype_digit((string) $position)) && is_string($value)) {
+                    $order[(int) $work][(int) $position] = $value;
+                }
+            }
+        }
+
         return [
+            'meta' => $meta,
+            'order' => $order,
             'include' => $numbers($request->post['include'] ?? null),
             'mode' => $byWork($request->post['mode'] ?? null),
             'duplicate' => $byWork($request->post['duplicate'] ?? null),

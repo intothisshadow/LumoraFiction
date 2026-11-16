@@ -60,6 +60,7 @@ final class ThemeContext
         private readonly ?Closure $privacyLink = null,
         private readonly ?Closure $themeTools = null,
         private readonly ?Closure $feedLink = null,
+        private readonly string $footerText = '',
     ) {
     }
 
@@ -343,6 +344,41 @@ final class ThemeContext
         }
 
         echo '</ul></nav>', "\n";
+    }
+
+    /**
+     * A link to the whole story on one page, for a story with several chapters while the page is switched on, or nothing.
+     * The address and the words come from core, so a theme only places it.
+     */
+    public function wholeStoryLink(string $before = '', string $after = ''): void
+    {
+        $url = $this->value('whole_link.url');
+        $label = $this->value('whole_link.label');
+
+        if (!is_string($url) || $url === '' || !is_string($label) || $label === '') {
+            return;
+        }
+
+        echo '<p class="lf-whole-link">', Html::e($before), '<a class="lf-whole-link__anchor" href="', Html::e($url), '">', Html::e($label), '</a>', Html::e($after), '</p>', "\n";
+    }
+
+    /**
+     * The site's footer text (a disclaimer, say) as escaped paragraphs, with single line breaks kept, or nothing when
+     * the administrator left it empty. It is a site setting, so every theme prints the same words.
+     */
+    public function footerText(): void
+    {
+        if ($this->footerText === '') {
+            return;
+        }
+
+        echo '<div class="lf-footer-text">';
+
+        foreach (preg_split("/\n{2,}/", $this->footerText) ?: [] as $paragraph) {
+            echo '<p class="lf-footer-text__paragraph">', nl2br(Html::e($paragraph), false), '</p>';
+        }
+
+        echo '</div>', "\n";
     }
 
     /**

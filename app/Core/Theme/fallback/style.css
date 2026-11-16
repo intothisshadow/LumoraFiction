@@ -129,6 +129,16 @@ a:focus-visible {
     font-size: 0.875rem;
 }
 
+.lf-footer-text {
+    max-width: 48rem;
+    margin: 0.5rem auto;
+    line-height: 1.55;
+}
+
+.lf-footer-text__paragraph {
+    margin: 0 0 0.5em;
+}
+
 .lf-footer-links__list {
     display: flex;
     flex-wrap: wrap;

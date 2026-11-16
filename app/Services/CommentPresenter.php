@@ -118,6 +118,28 @@ final class CommentPresenter
     }
 
     /**
+     * The comment count line for each of several chapters, so a page that prints many chapters asks once. Chapters
+     * without a published comment are left out, and an empty list means comments are off.
+     *
+     * @param list<int> $chapterIds
+     * @return array<int, string> a label such as "3 comments" by chapter id
+     */
+    public function chapterLabels(array $chapterIds): array
+    {
+        if (!$this->comments->settings()->enabled()) {
+            return [];
+        }
+
+        $labels = [];
+
+        foreach ($this->comments->countsForChapters($chapterIds) as $id => $count) {
+            $labels[$id] = $count === 1 ? '1 comment' : number_format($count) . ' comments';
+        }
+
+        return $labels;
+    }
+
+    /**
      * The form that posts a comment, or null when this person cannot.
      *
      * @param array{story_id: int, chapter_id: int, owner_id: int, number: int, title: string, story_title: string, story_slug: string} $target

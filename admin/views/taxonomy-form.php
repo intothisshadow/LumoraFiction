@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Term;
 use LumoraFiction\Models\TermType;
@@ -47,7 +48,7 @@ $editing = $mode === 'edit' && $term !== null;
 
         <div class="lf-field<?= isset($errors['name']) ? ' lf-field--error' : '' ?>">
             <label for="name">Name</label>
-            <input type="text" id="name" name="name" value="<?= Html::e($values['name']) ?>" maxlength="100" required aria-describedby="name_hint<?= isset($errors['name']) ? ' name_error' : '' ?>">
+            <input type="text" id="name" name="name" value="<?= Html::e($values['name']) ?>" maxlength="100" required<?= !$editing ? ' autocomplete="off" data-lf-lookup="warn" data-lf-lookup-type="' . Html::e($type->value) . '"' . ($type->belongsToFandom() ? ' data-lf-lookup-fandom="fandom"' : '') : '' ?> aria-describedby="name_hint<?= isset($errors['name']) ? ' name_error' : '' ?>">
             <p class="lf-hint" id="name_hint">Up to 100 characters, without commas.<?= $editing ? ' Changing the name does not change the term\'s address. Choosing one of its aliases swaps the two.' : '' ?></p>
             <?php if (isset($errors['name'])): ?><p class="lf-error" id="name_error"><?= Html::e($errors['name']) ?></p><?php endif; ?>
         </div>
@@ -89,6 +90,10 @@ $editing = $mode === 'edit' && $term !== null;
         <p><button type="submit" class="lf-button"><?= $editing ? 'Save changes' : 'Add ' . Html::e($labels->lower($type)) ?></button></p>
     </div>
 </form>
+
+<?php if (!$editing): ?>
+    <script src="<?= Html::e(AdminUrl::asset('js/term-lookup.js', $assetVersion ?? '')) ?>" data-lf-lookup-url="<?= Html::e(AdminUrl::to('taxonomy/lookup')) ?>" defer></script>
+<?php endif; ?>
 
 <?php if ($editing): ?>
     <section class="lf-card" aria-labelledby="aliases-heading">

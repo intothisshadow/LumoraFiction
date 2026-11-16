@@ -9,11 +9,12 @@
     var CHOICES = {
         scheme: ['system', 'light', 'dark'],
         size: ['small', 'default', 'large', 'xlarge'],
-        width: ['narrow', 'default', 'wide']
+        width: ['narrow', 'default', 'wide'],
+        reader: ['off', 'on']
     };
-    // The attribute each preference sets on the root element; "system" and "default" remove it.
-    var ATTRIBUTES = {scheme: 'data-lf-scheme', size: 'data-lf-size', width: 'data-lf-width'};
-    var NEUTRAL = {scheme: 'system', size: 'default', width: 'default'};
+    // The attribute each preference sets on the root element; "system", "default" and "off" remove it.
+    var ATTRIBUTES = {scheme: 'data-lf-scheme', size: 'data-lf-size', width: 'data-lf-width', reader: 'data-lf-reader-mode'};
+    var NEUTRAL = {scheme: 'system', size: 'default', width: 'default', reader: 'off'};
 
     var root = document.documentElement;
 
@@ -207,7 +208,93 @@
         paint();
     }
 
+    // Reader mode: a button, and the "r" key, switch a quiet layout of the chapter on and off. The page keeps all of its
+    // markup; the stylesheet only hides parts of it, so nothing breaks, and the choice is saved like the others.
+    function setUpReaderMode() {
+        var toggle = document.querySelector('[data-lf-reader-toggle]');
+
+        if (!toggle) {
+            return;
+        }
+
+        var exit = document.querySelector('[data-lf-reader-exit]');
+        var settings = document.querySelector('[data-lf-reader-settings]');
+        var status = document.querySelector('[data-lf-reader-status]');
+        var hint = toggle.querySelector('[data-lf-reader-hint]');
+
+        function paint(announce) {
+            var on = preferences.reader === 'on';
+
+            toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+
+            if (hint) {
+                hint.textContent = on ? ' (on). Press to leave reader mode.' : ' (off). Press to turn it on.';
+            }
+
+            if (settings) {
+                settings.setAttribute('aria-expanded', root.hasAttribute('data-lf-reader-controls') ? 'true' : 'false');
+            }
+
+            if (status && announce) {
+                status.textContent = on ? 'Reader mode is on. Press r to leave it.' : 'Reader mode is off.';
+            }
+        }
+
+        function set(on) {
+            preferences.reader = on ? 'on' : 'off';
+            root.removeAttribute('data-lf-reader-controls');
+            apply(preferences);
+            save(preferences);
+            sendToAccount();
+            paint(true);
+
+            // The button that was pressed may have just been hidden, so focus is moved to the one that is shown.
+            var next = on ? exit : toggle;
+
+            if (next && next.offsetParent !== null) {
+                next.focus();
+            }
+        }
+
+        toggle.addEventListener('click', function () {
+            set(preferences.reader !== 'on');
+        });
+
+        if (exit) {
+            exit.addEventListener('click', function () {
+                set(false);
+            });
+        }
+
+        if (settings) {
+            settings.addEventListener('click', function () {
+                if (root.hasAttribute('data-lf-reader-controls')) {
+                    root.removeAttribute('data-lf-reader-controls');
+                } else {
+                    root.setAttribute('data-lf-reader-controls', 'open');
+                }
+
+                paint(false);
+            });
+        }
+
+        // A single letter must never fire while someone is typing, or with a modifier held, which are browser shortcuts.
+        document.addEventListener('keydown', function (event) {
+            var target = event.target;
+            var typing = target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+
+            if (event.key !== 'r' || event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented || typing) {
+                return;
+            }
+
+            set(preferences.reader !== 'on');
+        });
+
+        paint(false);
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        setUpReaderMode();
         Array.prototype.forEach.call(document.querySelectorAll('button[data-lf-pref]'), setUpCycleButton);
 
         var selects = document.querySelectorAll('select[data-lf-pref]');

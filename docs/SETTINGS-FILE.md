@@ -37,6 +37,8 @@
 | `editor` | `default_mode` (text), `lock_to_default` (true/false) |
 | `retention` | `trash_days`, `revisions` (whole numbers) |
 | `search` | `discourage` (true/false) |
+| `reading` | `whole_story` (true/false: whether a story with several chapters can be read on one page), `whole_story_words` (5,000 to 500,000, a whole number) |
+| `footer` | `text` (text up to 2,000 characters, already trimmed, with `\n` line endings and no control characters: the text printed at the foot of every page; a file that carries it in another form is refused) |
 | `theme` | `active` (text: the folder name of an installed theme), `visitor_choice` (true/false), `visitor_themes` (list of installed theme folder names), `options` (the options of the theme in use, by name) |
 
 An empty `active` in the `theme` group means "leave the theme as it is". `options` are only applied when `active` is the theme the site already uses, because only that theme's own rules can check them; otherwise they are skipped and the preview says so.

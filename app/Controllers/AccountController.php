@@ -591,12 +591,16 @@ final class AccountController
                 : $this->profilePage($request, $user, ['reading' => ['summary' => self::EXPIRED]], 400);
         }
 
-        // The reading script knows only the three display choices, so it must not wipe the one it cannot see.
+        // The reading script sends only the display choices and the reader mode, and the form only the others, so each
+        // keeps the stored value of the choices it cannot see instead of wiping them.
+        $stored = $this->readerPreferences->forUser($user->id);
         $this->readerPreferences->save($user->id, [
             'scheme' => $request->input('scheme'),
             'size' => $request->input('size'),
             'width' => $request->input('width'),
-            'updates' => $script ? ($this->readerPreferences->forUser($user->id)['updates'] ?? null) : $request->input('updates'),
+            'updates' => $script ? ($stored['updates'] ?? null) : $request->input('updates'),
+            'view' => $script ? ($stored['view'] ?? null) : $request->input('view'),
+            'reader' => $request->input('reader') ?? ($stored['reader'] ?? null),
         ]);
 
         if ($script) {
@@ -651,6 +655,7 @@ final class AccountController
             'scheme' => 'Colours',
             'size' => 'Text size',
             'width' => 'Reading width',
+            'view' => 'How to open a story',
             'updates' => 'Tell me when a story I\'m reading has been updated',
         ] as $name => $label) {
             $options = [];
@@ -661,6 +666,7 @@ final class AccountController
 
             $hint = match ($name) {
                 'scheme' => 'These follow you to any device you sign in on.',
+                'view' => 'Applies to stories with more than one chapter. You can still switch on any story.',
                 'updates' => 'Applies to the stories you follow. A line on the story page and a count on your account page say when one has something new.',
                 default => '',
             };

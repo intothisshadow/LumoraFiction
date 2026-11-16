@@ -63,6 +63,8 @@ use LumoraFiction\Services\StoryCardFacts;
 use LumoraFiction\Services\StoryService;
 use LumoraFiction\Services\TaxonomyService;
 use LumoraFiction\Services\UserService;
+use LumoraFiction\Services\WholeStoryPresenter;
+use LumoraFiction\Services\WholeStorySettings;
 
 /**
  * Every page here answers for a visitor, so a story that is not public is treated exactly like one that does not
@@ -120,6 +122,7 @@ final class ArchiveController
         private readonly ?SearchHead $searchHead = null,
         private readonly ?SeriesService $series = null,
         private readonly ?CollectionService $collections = null,
+        private readonly ?WholeStoryPresenter $wholeStory = null,
     ) {
     }
 
@@ -206,6 +209,13 @@ final class ArchiveController
             $profile = $this->users->publicProfiles([$story->ownerId])[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
             $authorUrl = $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']);
             $user = $this->auth->user();
+
+            // A signed-in reader who asked for stories as one page is taken there. It is a temporary redirect, so the
+            // browser never remembers it, and "?view=chapters" is the way back that does not change the saved choice.
+            if ($user !== null && $request->queryValue('view') !== 'chapters' && $this->opensAsWhole($user, $chapters)) {
+                return Response::redirect(PublicUrl::wholeStory($story->slug), 302)->withHeader('Cache-Control', 'private, no-store');
+            }
+
             // The same rule the admin uses, so the link appears for exactly the people the admin would let in.
             $mayEdit = $user !== null && $this->stories->canManage($user, $story);
 
@@ -242,6 +252,7 @@ final class ArchiveController
             $data['downloads'] = $this->downloadPresenter?->menu($story) ?? [];
             $data['story_comments'] = $this->comments?->storySummary($story->id) ?? [];
             $data += $this->groupings($story);
+            $data['whole_link'] = $this->wholeLink($story, $chapters);
 
             // A story told in one chapter reads on this page, so its comments sit here too.
             if ($readsHere) {
@@ -268,6 +279,103 @@ final class ArchiveController
 
             return $this->themes->render('story', $data, 200, ['title' => $story->title]);
         });
+    }
+
+    /**
+     * Every chapter a visitor may read, in order, on one page. It is built from the same public story and chapter lists
+     * as the other pages, so a story or chapter that is not public is as missing here as anywhere else. Reading
+     * progress is left alone on purpose: the page has no single place to record, and "Continue reading" keeps pointing
+     * at the chapter the reader last opened.
+     *
+     * @param array<string, string> $params
+     */
+    public function wholeStory(array $params, Request $request): Response
+    {
+        return $this->guarded(function () use ($params, $request): Response {
+            $slug = $params['slug'] ?? '';
+
+            if ($this->wholeStory === null || !WholeStorySettings::enabled($this->config)) {
+                return $this->themes->notFound();
+            }
+
+            $story = $this->stories->findPublicBySlug($slug);
+            $chapters = $story === null ? [] : $this->chapters->listPublic($story->id);
+
+            if ($story === null || $chapters === []) {
+                return $this->unavailable($slug, null);
+            }
+
+            // One chapter is already a page of its own, so there is nothing to join.
+            if (count($chapters) === 1) {
+                return Response::redirect(PublicUrl::story($story->slug), 302);
+            }
+
+            $profile = $this->users->publicProfiles([$story->ownerId])[$story->ownerId] ?? ['display_name' => '', 'slug' => ''];
+            $authorUrl = $profile['slug'] === '' ? '' : PublicUrl::author($profile['slug']);
+            $user = $this->auth->user();
+            $whole = $this->wholeStory->present($story, $chapters, WholeStorySettings::wordLimit($this->config));
+
+            $data = $this->presenter->story(
+                $story,
+                $profile['display_name'],
+                $this->visibleTerms($this->taxonomy->termsForStory($story->id)),
+                $chapters,
+                PublicUrl::story($story->slug),
+                static fn (Chapter $chapter): string => PublicUrl::chapter($story->slug, $chapter->number),
+                false,
+                static fn (Term $term): string => PublicUrl::term($term->type, $term->slug),
+                $authorUrl,
+            );
+
+            // The closing note belongs after the last chapter of a finished story, and only when that chapter is on this page.
+            $data['story']['end_notes'] = !$whole['truncated'] && $story->workStatus === WorkStatus::Completed ? $story->endNotes : '';
+            $data['whole'] = $whole + ['back_url' => PublicUrl::storyByChapters($story->slug)];
+            $data += $this->readerData($user, $story, null, $request->cookies, $user !== null && $this->follows->isFollowing($user, $story->id));
+            $data['downloads'] = $this->downloadPresenter?->menu($story) ?? [];
+
+            // One view of the story, however many chapters it prints, so a plugin that counts views counts one.
+            do_action('story_viewed', $story, null, $user, $request);
+
+            $this->feedLinks?->showing('story', $story->title, ['story', $story->slug]);
+            // Search engines are pointed at the story page, so the same text is not indexed twice.
+            $this->searchHead?->canonical(PublicUrl::story($story->slug));
+
+            return $this->themes->render('story', $data, 200, ['title' => $story->title . ' (whole story)', 'variant' => 'full']);
+        });
+    }
+
+    /**
+     * The link to the whole-story page, or an empty list when the story has one chapter or the page is switched off.
+     *
+     * @param list<Chapter> $chapters
+     * @return array{url: string, label: string}|array{}
+     */
+    private function wholeLink(Story $story, array $chapters): array
+    {
+        if ($this->wholeStory === null || count($chapters) < 2 || !WholeStorySettings::enabled($this->config)) {
+            return [];
+        }
+
+        return ['url' => PublicUrl::wholeStory($story->slug), 'label' => 'Read the whole story on one page'];
+    }
+
+    /**
+     * Whether a signed-in reader's saved wish to read stories as one page applies to this story: it has several
+     * chapters, the page is on, and the whole story fits on one page, since a longer story is better read by chapter.
+     *
+     * @param list<Chapter> $chapters
+     */
+    private function opensAsWhole(User $user, array $chapters): bool
+    {
+        if ($this->wholeStory === null || count($chapters) < 2 || !WholeStorySettings::enabled($this->config)) {
+            return false;
+        }
+
+        if (($this->readerPreferences->forUser($user->id)['view'] ?? 'chapters') !== 'whole') {
+            return false;
+        }
+
+        return array_sum(array_map(static fn (Chapter $chapter): int => $chapter->wordCount, $chapters)) <= WholeStorySettings::wordLimit($this->config);
     }
 
     /**
@@ -310,7 +418,8 @@ final class ArchiveController
             }
 
             $data += $this->readerData($user, $story, $chapter, $request->cookies, $user !== null && $this->follows->isFollowing($user, $story->id));
-            $data['comments'] = $this->comments?->forChapterId($user, $chapter->id, $this->commentPage($request), PublicUrl::chapter($story->slug, $chapter->number)) ?? [];
+            $data['whole_link'] = $this->wholeLink($story, $chapters);
+            $data['comments'] =$this->comments?->forChapterId($user, $chapter->id, $this->commentPage($request), PublicUrl::chapter($story->slug, $chapter->number)) ?? [];
 
             do_action('story_viewed', $story, $chapter, $user, $request);
 

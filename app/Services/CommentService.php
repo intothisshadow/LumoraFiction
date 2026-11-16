@@ -538,6 +538,26 @@ final class CommentService
     }
 
     /**
+     * @param list<int> $chapterIds
+     * @return array<int, int> published comments by chapter id, in one query
+     */
+    public function countsForChapters(array $chapterIds): array
+    {
+        if ($chapterIds === []) {
+            return [];
+        }
+
+        [$marks, $params] = $this->marks($chapterIds, 'chapter_');
+        $counts = [];
+
+        foreach ($this->database->fetchAll("SELECT c.chapter_id, COUNT(*) AS total FROM {prefix}comments c WHERE c.status = 'published' AND " . self::LIVE_THREAD . ' AND c.chapter_id IN (' . $marks . ') GROUP BY c.chapter_id', $params) as $row) {
+            $counts[(int) $row['chapter_id']] = (int) $row['total'];
+        }
+
+        return $counts;
+    }
+
+    /**
      * @param list<int> $storyIds
      * @return array<int, int> published comments by story id
      */

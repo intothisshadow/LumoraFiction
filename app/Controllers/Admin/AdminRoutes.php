@@ -80,7 +80,8 @@ final class AdminRoutes
         $router->post('/admin/logout', $auth->logout(...), 'admin.logout');
         $router->get('/admin/settings/archive', $archive->show(...), 'admin.settings.archive');
         $router->post('/admin/settings/archive', $archive->update(...));
-        $router->post('/admin/settings/archive/presets', $archive->applyPreset(...), 'admin.settings.archive.presets');
+        $router->post('/admin/settings/archive/reading', $archive->updateReading(...), 'admin.settings.archive.reading');
+        $router->post('/admin/settings/archive/presets',$archive->applyPreset(...), 'admin.settings.archive.presets');
         $router->get('/admin/settings/editor', $editor->show(...), 'admin.settings.editor');
         $router->post('/admin/settings/editor', $editor->update(...));
         $router->get('/admin/settings/security', $security->show(...), 'admin.settings.security');
@@ -113,7 +114,8 @@ final class AdminRoutes
         $router->post('/admin/import', $import->upload(...), 'admin.import.upload');
         $router->get('/admin/import/preview/{token}', $import->preview(...), 'admin.import.preview');
         $router->post('/admin/import/preview/{token}', $import->apply(...), 'admin.import.apply');
-        $router->post('/admin/import/preview/{token}/cancel', $import->cancel(...), 'admin.import.cancel');
+        $router->post('/admin/import/preview/{token}/split', $import->resplit(...), 'admin.import.split');
+        $router->post('/admin/import/preview/{token}/cancel',$import->cancel(...), 'admin.import.cancel');
         $router->get('/admin/import/run/{token}', $import->progress(...), 'admin.import.run');
         $router->post('/admin/import/run/{token}', $import->step(...), 'admin.import.step');
         $router->post('/admin/import/run/{token}/stop', $import->stop(...), 'admin.import.stop');
@@ -204,6 +206,7 @@ final class AdminRoutes
         $router->post('/admin/content/convert', $content->convert(...), 'admin.content.convert');
         // Before the /admin/taxonomy/{type} pattern below, which would otherwise read "suggest" as a kind.
         $router->get('/admin/taxonomy/suggest', $suggest->suggest(...), 'admin.taxonomy.suggest');
+        $router->get('/admin/taxonomy/lookup', $suggest->lookup(...), 'admin.taxonomy.lookup');
         $router->get('/admin/taxonomy', $taxonomy->overview(...), 'admin.taxonomy');
         $router->post('/admin/taxonomy/required', $taxonomy->saveRequired(...), 'admin.taxonomy.required');
         $router->post('/admin/taxonomy/labels', $taxonomy->saveLabels(...), 'admin.taxonomy.labels');
@@ -275,6 +278,7 @@ final class AdminRoutes
         $router->get('/admin/appearance/screenshot/{slug}', $appearance->screenshot(...), 'admin.appearance.screenshot');
         $router->get('/admin/appearance/options', $appearance->showOptions(...), 'admin.appearance.options');
         $router->post('/admin/appearance/options', $appearance->saveOptions(...));
+        $router->post('/admin/appearance/options/footer-text', $appearance->saveFooterText(...), 'admin.appearance.footer_text');
         $router->post('/admin/appearance/visitor-choice', $appearance->saveVisitorChoice(...), 'admin.appearance.visitor_choice');
         $router->post('/admin/appearance/preview/activate', $appearance->activatePreview(...), 'admin.appearance.preview.activate');
         $router->post('/admin/appearance/preview/exit', $appearance->exitPreview(...), 'admin.appearance.preview.exit');

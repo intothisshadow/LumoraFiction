@@ -38,6 +38,9 @@ final class UploadReader
 
     public const MAX_ENTRIES = 100;
 
+    /** Whether text that is not UTF-8 and declares no charset is read as Windows-1252, with the row marked as converted. */
+    private bool $assumeWestern = false;
+
     public static function zipAvailable(): bool
     {
         return class_exists(ZipArchive::class);
@@ -45,10 +48,13 @@ final class UploadReader
 
     /**
      * @param list<UploadedFile> $uploads
-     * @return list<array{name: string, html: ?string, error: string}> one row per HTML file found, or per file refused
+     * @param bool $assumeWestern read undeclared non-UTF-8 text as Windows-1252 (and say so in `converted`), for files whose
+     *                            reader has no better way to tell; the default refuses it, as the download reader needs
+     * @return list<array{name: string, html: ?string, error: string, converted?: bool}> one row per HTML file found, or per file refused
      */
-    public function read(array $uploads): array
+    public function read(array $uploads, bool $assumeWestern = false): array
     {
+        $this->assumeWestern = $assumeWestern;
         $rows = [];
         $expanded = 0;
 
@@ -210,20 +216,26 @@ final class UploadReader
 
         $raw = (string) preg_replace('/^\xEF\xBB\xBF/', '', $raw);
 
+        $converted = false;
+
         if (!mb_check_encoding($raw, 'UTF-8')) {
-            // A Western charset the page itself declares is converted; anything else is refused, never saved as broken text.
-            if (preg_match('/charset\s*=\s*["\']?(?:iso-8859-1|iso-8859-15|windows-1252|latin1)/i', substr($raw, 0, 4096)) !== 1) {
+            $declared = preg_match('/charset\s*=\s*["\']?(?:iso-8859-1|iso-8859-15|windows-1252|latin1)/i', substr($raw, 0, 4096)) === 1;
+
+            // A Western charset the page itself declares is converted, and so is undeclared text when the caller asked for
+            // that and the file is not binary; anything else is refused, never saved as broken text.
+            if (!$declared && (!$this->assumeWestern || str_contains($raw, "\0"))) {
                 return ['name' => $name, 'html' => null, 'error' => 'This file is not UTF-8 text. Download the work again as HTML and upload that file.'];
             }
 
             $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1252');
+            $converted = !$declared;
         }
 
         if (str_contains($raw, "\0")) {
             return ['name' => $name, 'html' => null, 'error' => 'This does not look like an HTML file.'];
         }
 
-        return ['name' => $name, 'html' => $raw, 'error' => ''];
+        return ['name' => $name, 'html' => $raw, 'error' => '', 'converted' => $converted];
     }
 
     private function unsafeName(string $name): bool

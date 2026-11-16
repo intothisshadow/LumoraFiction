@@ -15,6 +15,7 @@
 
 declare(strict_types=1);
 
+use LumoraFiction\Core\Admin\AdminUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Term;
 
@@ -39,11 +40,13 @@ use LumoraFiction\Models\Term;
 
         <div class="lf-field<?= isset($errors['target']) ? ' lf-field--error' : '' ?>">
             <label for="target">Merge into</label>
-            <input type="text" id="target" name="target" value="<?= Html::e($target) ?>" maxlength="100" required aria-describedby="target_hint<?= isset($errors['target']) ? ' target_error' : '' ?>">
-            <p class="lf-hint" id="target_hint">The name, or an alias, of the term to keep. It must be the same kind of term.</p>
+            <input type="text" id="target" name="target" value="<?= Html::e($target) ?>" maxlength="100" required autocomplete="off" data-lf-lookup="pick" data-lf-lookup-merging="<?= (int) $term->id ?>" aria-describedby="target_hint<?= isset($errors['target']) ? ' target_error' : '' ?>">
+            <p class="lf-hint" id="target_hint">The name, or an alias, of the term to keep. It must be the same kind of term. Matching terms appear as you type.</p>
             <?php if (isset($errors['target'])): ?><p class="lf-error" id="target_error"><?= Html::e($errors['target']) ?></p><?php endif; ?>
         </div>
 
         <p><button type="submit" class="lf-button">Merge</button></p>
     </div>
 </form>
+
+<script src="<?= Html::e(AdminUrl::asset('js/term-lookup.js', $assetVersion ?? '')) ?>" data-lf-lookup-url="<?= Html::e(AdminUrl::to('taxonomy/lookup')) ?>" defer></script>

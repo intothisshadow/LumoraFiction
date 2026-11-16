@@ -14,4 +14,6 @@ Open **Appearance > Themes**, find Rosewine and press **Use this theme**. Storyb
 
 ## Theme options
 
+Readers can switch on a quiet **Reader mode** for a chapter (with the button in the reading controls or the R key), and open a story with several chapters as one page. The site's footer text, set under **Appearance > Theme options**, is printed in the footer.
+
 **Appearance > Theme options** offers the story text typeface (leave it on "use the theme's own" for the theme's serif) and whether the footer shows the "Powered by" credit.

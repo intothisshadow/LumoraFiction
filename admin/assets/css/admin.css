@@ -320,6 +320,21 @@ fieldset.lf-card legend {
     color: var(--accent-text);
 }
 
+/* The existing terms a new name resembles, shown under the create-term name box; colours come from the notice. */
+.lf-lookup-warning {
+    margin: 0.5rem 0 0;
+}
+
+.lf-lookup-warning__title {
+    margin: 0 0 0.25rem;
+    font-weight: bold;
+}
+
+.lf-lookup-warning__list {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+}
+
 .lf-error {
     margin: 0.25rem 0 0;
     color: var(--error);
@@ -603,6 +618,10 @@ fieldset.lf-card legend {
 .lf-import-work__title {
     font-size: 1.1rem;
     font-weight: bold;
+}
+
+.lf-import-chapters {
+    margin: 0.5rem 0 1rem;
 }
 
 .lf-import-terms {

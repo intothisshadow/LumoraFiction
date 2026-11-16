@@ -22,6 +22,8 @@ use DateTimeImmutable;
 /**
  * The metadata keeps the names exactly as the source printed them; mapping them to this site's lists is the import
  * service's job. The preview step stores a work as an array and reads it back, so every field survives that trip.
+ * It is the neutral shape every reader fills (the Archive of Our Own download parser and the general HTML reader), so
+ * one preview and one import serve both; a general file leaves most fields empty for the author to fill in.
  */
 final readonly class OtwWork
 {
@@ -60,15 +62,29 @@ final readonly class OtwWork
         public string $sourceUrl,
         public string $sourceId,
         public array $chapters,
+        public string $reader = 'otw',
+        public string $fileHash = '',
+        public array $readerNotes = [],
     ) {
     }
 
+    /** Whether this came from a file that carries no details of its own, so the author supplies them in the preview. */
+    public function isGeneral(): bool
+    {
+        return $this->reader === 'general';
+    }
+
     /**
-     * What identifies this work when it has no address of its own: the title, the byline and the start of the first
+     * What identifies this work when it has no address of its own: for a general file, a hash of the file itself, which
+     * is unaffected by what the author types in the preview; otherwise the title, the byline and the start of the first
      * chapter, so a second upload of the same file is noticed even when it was saved under another name.
      */
     public function fingerprint(): string
     {
+        if ($this->fileHash !== '') {
+            return $this->fileHash;
+        }
+
         $first = $this->chapters[0]->html ?? '';
         $start = mb_substr((string) preg_replace('/\s+/u', ' ', strip_tags($first)), 0, 500, 'UTF-8');
 
@@ -104,6 +120,9 @@ final readonly class OtwWork
             'words' => $this->words,
             'source_url' => $this->sourceUrl,
             'source_id' => $this->sourceId,
+            'reader' => $this->reader,
+            'file_hash' => $this->fileHash,
+            'reader_notes' => $this->readerNotes,
             'chapters' => array_map(static fn (OtwChapter $chapter): array => $chapter->toArray(), $this->chapters),
         ];
     }
@@ -152,6 +171,9 @@ final readonly class OtwWork
             (string) ($data['source_url'] ?? ''),
             (string) ($data['source_id'] ?? ''),
             $chapters,
+            ($data['reader'] ?? 'otw') === 'general' ? 'general' : 'otw',
+            preg_match('/^[a-f0-9]{64}\z/', (string) ($data['file_hash'] ?? '')) === 1 ? (string) $data['file_hash'] : '',
+            $list($data['reader_notes'] ?? null),
         );
     }
 }

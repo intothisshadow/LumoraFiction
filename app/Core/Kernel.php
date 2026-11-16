@@ -62,6 +62,9 @@ use LumoraFiction\Services\SettingsTransfer;
 use LumoraFiction\Services\SitemapService;
 use LumoraFiction\Services\FeedService;
 use LumoraFiction\Services\FeedSettings;
+use LumoraFiction\Services\FooterText;
+use LumoraFiction\Services\WholeStorySettings;
+use LumoraFiction\Services\WholeStoryPresenter;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Services\DownloadAccess;
 use LumoraFiction\Services\PendingMigrations;
@@ -383,7 +386,7 @@ final class Kernel
 
         $router = new Router();
 
-        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + InstallPingService::DEFAULTS + CacheSettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS);
+        $config->registerDefaults(AuthService::DEFAULTS + ArchiveSettings::DEFAULTS + EditorSettings::DEFAULTS + TaxonomyService::DEFAULTS + ThemeSettings::DEFAULTS + PluginManager::DEFAULTS + SpamSettings::DEFAULTS + SecurityEventLog::DEFAULTS + SecuritySettings::DEFAULTS + SiteAlerts::DEFAULTS + RetentionSettings::DEFAULTS + NewsSettings::DEFAULTS + FrontPageSettings::DEFAULTS + DownloadSettings::DEFAULTS + FeedSettings::DEFAULTS + MaintenanceMode::DEFAULTS + UpdateChecker::DEFAULTS + PrivacySettings::DEFAULTS + InstallPingService::DEFAULTS + CacheSettings::DEFAULTS + CommentSettings::DEFAULTS + ThemeChoice::DEFAULTS + SearchSettings::DEFAULTS + FooterText::DEFAULTS + WholeStorySettings::DEFAULTS);
 
         // Before anything reads the address or HTTPS, so the sessions, headers and rate limits all see what a trusted proxy reported.
         $proxies = TrustedProxies::fromSetting($config->setting('security.trusted_proxies', ''));
@@ -631,6 +634,7 @@ final class Kernel
             $kernel->searchHead,
             $kernel->series,
             $kernel->collections,
+            new WholeStoryPresenter($presenter, $renderer, $commentPresenter),
         );
         $newsPages =new NewsController($kernel->themes, $news, $newsPresenter, $kernel->auth, $kernel->config, $kernel->feedLinks);
 
@@ -700,6 +704,8 @@ final class Kernel
         ))->register($kernel->router);
 
         $kernel->router->get(PublicUrl::STORY, $archive->story(...), 'story');
+        // Before the chapter route, whose number placeholder would otherwise take the word "full".
+        $kernel->router->get(PublicUrl::WHOLE_STORY, $archive->wholeStory(...), 'story.full');
         $kernel->router->get(PublicUrl::CHAPTER, $archive->chapter(...), 'chapter');
 
         $commentPages = new CommentController($kernel->themes, $kernel->auth, $commentService, $commentPresenter, $kernel->commentGuard ?? throw new \LogicException('Built at boot.'), $stories, $chapters, $flash);
@@ -773,7 +779,7 @@ final class Kernel
             $kernel->router,
             new AuthController($kernel->auth, $view, $flash),
             new DashboardController($kernel->auth, $view, $flash, $kernel->users, $kernel->audit, $alerts, $stories, $news, $maintenanceNotice, new ActivityDescriber(), $kernel->comments),
-            new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets')),
+            new ArchiveSettingsController($kernel->auth, $view, $flash, new ArchiveSettings($kernel->config, $kernel->database, $kernel->audit), new ClassificationPresets($kernel->database, $kernel->config, $taxonomy, $kernel->audit, __DIR__ . '/../Data/presets'), new WholeStorySettings($kernel->config, $kernel->database, $kernel->audit)),
             new EditorSettingsController($kernel->auth, $view, $flash, $editorSettings),
             new ContentEditorController($kernel->auth, $renderer),
             new TermSuggestController($kernel->auth, $taxonomy),
@@ -792,7 +798,7 @@ final class Kernel
                 $kernel->audit,
                 $kernel->config,
                 $version,
-            ), new ThemeScreenshot(), $kernel->themeChoice ?? throw new \LogicException('Built at boot.')),
+            ), new ThemeScreenshot(), $kernel->themeChoice ?? throw new \LogicException('Built at boot.'), new FooterText($kernel->config, $kernel->database, $kernel->audit)),
             new SystemInformationController($kernel->auth, $view, $flash, $root, $kernel->config, $kernel->database),
             new PluginsController($kernel->auth, $view, $flash, $plugins),
             new SpamSettingsController($kernel->auth, $view, $flash, $spamSettings, $registrationThrottle, $akismet, $kernel->audit),
@@ -831,6 +837,8 @@ final class Kernel
                 $editorSettings,
                 new RetentionSettings($kernel->config, $kernel->database, $kernel->audit),
                 new SearchSettings($kernel->config, $kernel->database, $kernel->audit),
+                new FooterText($kernel->config, $kernel->database, $kernel->audit),
+                new WholeStorySettings($kernel->config, $kernel->database, $kernel->audit),
                 $themeSettings,
                 $kernel->themeChoice ?? throw new \LogicException('Built at boot.'),
                 $themeOptions,

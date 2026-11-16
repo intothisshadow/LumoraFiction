@@ -16,6 +16,8 @@ Open **Appearance > Themes**, find Classic Archive and press **Use this theme**.
 
 ## Theme options
 
+Readers can switch on a quiet **Reader mode** for a chapter (with the button in the reading controls or the R key), and open a story with several chapters as one page. The site's footer text, set under **Appearance > Theme options**, is printed in the footer.
+
 **Appearance > Theme options** offers the story text typeface (leave it on "use the theme's own" for the theme's serif), whether the footer shows the "Powered by" credit, and **Show a picture band under the site header**. The band is off until you turn it on; when it is on, choose Dusk, Ink or Meadow, a picture you added yourself, or your own upload. The picture is decorative and is not printed.
 
 - **Upload your own picture** on the same screen takes a JPEG, PNG or WebP picture. A wide, short one (around 1600 by 300 pixels) suits the band, because it is cropped to fill it. After saving, choose **Uploaded picture** in the list. **Remove this picture** deletes it.

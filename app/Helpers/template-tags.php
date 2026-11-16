@@ -152,6 +152,22 @@ if (!function_exists('lf_footer_links')) {
     }
 }
 
+if (!function_exists('lf_whole_story_link')) {
+    /** Prints a paragraph linking to the whole story on one page, with optional text before and after the link, or nothing when the story has one chapter or the page is switched off. */
+    function lf_whole_story_link(string $before = '', string $after = ''): void
+    {
+        ThemeContext::current()?->wholeStoryLink($before, $after);
+    }
+}
+
+if (!function_exists('lf_footer_text')) {
+    /** Prints the site's footer text (a disclaimer, say) as escaped paragraphs, or nothing when the administrator left it empty. The text belongs to the site, so it is the same in every theme. */
+    function lf_footer_text(): void
+    {
+        ThemeContext::current()?->footerText();
+    }
+}
+
 if (!function_exists('lf_privacy_link')) {
     /** Prints a paragraph linking to the privacy policy, with optional text before and after the link, or nothing when no policy page is set. */
     function lf_privacy_link(string $before = '', string $after = ''): void

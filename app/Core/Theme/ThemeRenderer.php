@@ -25,6 +25,7 @@ use LumoraFiction\Core\Hooks\HookManager;
 use LumoraFiction\Core\Http\BasePath;
 use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Core\Http\Response;
+use LumoraFiction\Services\FooterText;
 use LumoraFiction\Services\NewsSettings;
 use LumoraFiction\Services\ThemeOptions;
 use Throwable;
@@ -309,6 +310,7 @@ final class ThemeRenderer
             fn (): ?array => $this->privacyLink(),
             $this->themeTools,
             fn (): ?array => $this->feedLink(),
+            FooterText::text($this->config),
         );
 
         $level = ob_get_level();

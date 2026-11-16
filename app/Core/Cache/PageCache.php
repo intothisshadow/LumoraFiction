@@ -89,7 +89,7 @@ final class PageCache
 
         return match (true) {
             $routeName === 'home' => 'home',
-            $routeName === 'story' || $routeName === 'chapter' => 'stories',
+            $routeName === 'story' || $routeName === 'chapter' || $routeName === 'story.full' => 'stories',
             $routeName === 'search' => 'search',
             $routeName === 'news' || $routeName === 'news.post' => 'news',
             $routeName === Router::FALLBACK_NAME => 'pages',

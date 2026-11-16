@@ -31,6 +31,7 @@ use LumoraFiction\Core\Theme\ThemeScreenshot;
 use LumoraFiction\Models\Capability;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuthService;
+use LumoraFiction\Services\FooterText;
 use LumoraFiction\Services\ThemeManager;
 use LumoraFiction\Services\ThemeChoice;
 use LumoraFiction\Services\ThemeOptions;
@@ -54,6 +55,7 @@ final class AppearanceController extends AdminController
         private readonly ThemeManager $manager,
         private readonly ThemeScreenshot $screenshots,
         private readonly ThemeChoice $choice,
+        private readonly FooterText $footerText,
     ) {
         parent::__construct($auth, $view, $flash);
     }
@@ -442,6 +444,38 @@ final class AppearanceController extends AdminController
     }
 
     /**
+     * The footer text belongs to the site, so it is saved by a form of its own and is never part of a theme's options.
+     *
+     * @param array<string, string> $params
+     */
+    public function saveFooterText(array $params, Request $request): Response
+    {
+        $user = $this->guard($request, Capability::ManageSite, self::OPTIONS_PATH);
+
+        if ($user instanceof Response) {
+            return $user;
+        }
+
+        $theme = $this->themes->activeTheme();
+        $this->themes->bootTheme($theme);
+        $text = (string) $request->input('footer_text');
+
+        if (!$this->validToken($request, 'admin_appearance_footer')) {
+            return $this->optionsPage($request, $user, $this->options->values($theme->slug), [], 400, $text, 'Your session expired, so nothing was saved. Please check the footer text and save again.');
+        }
+
+        $checked = FooterText::validate($text);
+
+        if ($checked['error'] !== '') {
+            return $this->optionsPage($request, $user, $this->options->values($theme->slug), [], 422, $text, $checked['error']);
+        }
+
+        $this->flash->add('success', $this->footerText->save($text, $user, $request->ip()) ? 'Footer text saved.' : 'Nothing needed changing.');
+
+        return Response::redirect(AdminUrl::to(self::OPTIONS_PATH), 303);
+    }
+
+    /**
      * PHP drops the whole form when a file is larger than post_max_size, so the token is missing too; telling that
      * apart from an expired session saves the administrator a confusing message.
      */
@@ -469,11 +503,16 @@ final class AppearanceController extends AdminController
      * @param array<string, string|bool> $values
      * @param array<string, string> $errors
      */
-    private function optionsPage(Request $request, User $user, array $values, array $errors, int $status = 200): Response
+    private function optionsPage(Request $request, User $user, array $values, array $errors, int $status = 200, ?string $footerText = null, string $footerError = ''): Response
     {
         $theme = $this->themes->activeTheme();
 
         return $this->view->render('appearance-options', [
+            'footerText' => $footerText ?? $this->footerText->current(),
+            'footerError' => $footerError,
+            'footerMax' => FooterText::MAX_LENGTH,
+            'footerToken' => Csrf::token('admin_appearance_footer'),
+            'footerAction' => AdminUrl::to(self::OPTIONS_PATH . '/footer-text'),
             'themeName' => $theme->name,
             'fields' => $this->options->displayFields($values),
             'hasUpload' => $this->options->hasImageField(),

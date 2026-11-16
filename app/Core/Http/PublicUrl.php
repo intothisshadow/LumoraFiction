@@ -30,6 +30,9 @@ final class PublicUrl
 
     public const CHAPTER = '/story/{slug}/{number}';
 
+    /** The whole story on one page; a fixed word, so it can never be read as a chapter number. */
+    public const WHOLE_STORY = '/story/{slug}/full';
+
     public const DOWNLOAD = '/story/{slug}/download/{format}';
 
     public const AUTHOR = '/author/{slug}';
@@ -248,6 +251,20 @@ final class PublicUrl
     public static function commentAction(int $id, string $action): string
     {
         return self::account('comments/' . $id . '/' . $action);
+    }
+
+    public static function wholeStory(string $slug): string
+    {
+        return self::story($slug) . '/full';
+    }
+
+    /**
+     * The story page with the reader's saved wish to open it as one page set aside for this visit, which is what the
+     * "Back to chapter by chapter" link on the whole-story page needs to avoid sending the reader straight back.
+     */
+    public static function storyByChapters(string $slug): string
+    {
+        return self::story($slug) . '?view=chapters';
     }
 
     public static function download(string $slug, string $format): string

@@ -33,6 +33,10 @@ final class ReaderPreferences
         'size' => ['default', 'small', 'large', 'xlarge'],
         'width' => ['default', 'narrow', 'wide'],
         'updates' => ['off', 'on'],
+        // How a story with several chapters opens: chapter by chapter, or all on one page.
+        'view' => ['chapters', 'whole'],
+        // The distraction-free layout of a chapter, which only the reader script switches.
+        'reader' => ['off', 'on'],
     ];
 
     public const LABELS = [
@@ -40,6 +44,8 @@ final class ReaderPreferences
         'size' => ['default' => 'Default', 'small' => 'Small', 'large' => 'Large', 'xlarge' => 'Extra large'],
         'width' => ['default' => 'Default', 'narrow' => 'Narrow', 'wide' => 'Wide'],
         'updates' => ['off' => 'No, do not tell me', 'on' => 'Yes, tell me'],
+        'view' => ['chapters' => 'Chapter by chapter', 'whole' => 'The whole story on one page'],
+        'reader' => ['off' => 'Off', 'on' => 'On'],
     ];
 
     /**
