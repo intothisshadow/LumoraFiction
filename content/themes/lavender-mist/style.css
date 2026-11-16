@@ -2614,6 +2614,21 @@ body {
     color: var(--lf-header-text);
 }
 
+/* The picture runs edge to edge at the top of the card and the title bar sits directly under it, instead of being pulled up over it. */
+.lf-news-image--card {
+    margin: -1rem -1.25rem 0;
+}
+
+.lf-news-image--card .lf-news-image__img {
+    width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.lf-news-image--card + .lf-news-card__title {
+    margin-top: 0;
+}
+
 .lf-news-post {
     background: var(--lf-grad-card);
 }
@@ -2871,6 +2886,141 @@ select.lf-form__input:hover {
 .lf-menu__option[aria-selected="true"] {
     background: var(--lf-grad-button);
     color: var(--lf-on-accent);
+}
+
+/* Calmer lists: no zebra stripes, a soft tint on hover, and a small tick on the chosen entry. */
+.lf-menu__option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    padding: 0.5rem 0.9rem;
+    transition: background-color 0.15s ease;
+}
+
+.lf-menu__option:nth-child(even) {
+    background: transparent;
+}
+
+.lf-menu__option:hover {
+    background: var(--lf-grad-tag);
+}
+
+.lf-menu__option--active {
+    box-shadow: inset 0 0 0 1px var(--lf-link);
+}
+
+/* The chosen entry keeps its gradient and light text when hovered or focused, so the text never sits on the pale hover tint. */
+.lf-menu__option[aria-selected="true"],
+.lf-menu__option[aria-selected="true"]:hover,
+.lf-menu__option--active[aria-selected="true"] {
+    background: var(--lf-grad-button);
+    color: var(--lf-on-accent);
+}
+
+.lf-menu__option[aria-selected="true"]::after {
+    content: "";
+    flex: none;
+    width: 0.3rem;
+    height: 0.6rem;
+    margin-top: -0.15rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+}
+
+@supports (appearance: base-select) {
+    .lf-select option,
+    select.lf-form__input option {
+        padding: 0.5rem 0.9rem;
+    }
+
+    .lf-select option:nth-child(even),
+    select.lf-form__input option:nth-child(even) {
+        background: transparent;
+    }
+
+    .lf-select option:hover,
+    .lf-select option:focus-visible,
+    select.lf-form__input option:hover,
+    select.lf-form__input option:focus-visible {
+        background: var(--lf-grad-tag);
+    }
+
+    .lf-select option:checked,
+    .lf-select option:checked:hover,
+    .lf-select option:checked:focus-visible,
+    select.lf-form__input option:checked,
+    select.lf-form__input option:checked:hover,
+    select.lf-form__input option:checked:focus-visible {
+        background: var(--lf-grad-button);
+        color: var(--lf-on-accent);
+    }
+
+    /* A thin chevron instead of the browser's filled triangle. */
+    .lf-select::picker-icon,
+    select.lf-form__input::picker-icon {
+        content: "";
+        align-self: center;
+        width: 0.4rem;
+        height: 0.4rem;
+        margin: -0.15rem 0 0 0.6rem;
+        border-right: 2px solid var(--lf-link);
+        border-bottom: 2px solid var(--lf-link);
+        transform: rotate(45deg);
+    }
+
+    .lf-select,
+    select.lf-form__input {
+        display: inline-flex;
+        align-items: center;
+    }
+}
+
+/* The theme switcher in the header: a frosted pill joined to its button, with a quiet small-caps label. */
+.lf-site-header-wrap .lf-theme-switch {
+    column-gap: 0;
+    row-gap: 0.4rem;
+}
+
+.lf-site-header-wrap .lf-theme-switch__label {
+    margin-right: 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.lf-site-header-wrap .lf-theme-switch__select,
+.lf-site-header-wrap .lf-theme-switch .lf-menu__button {
+    min-height: 2.4rem;
+    padding-inline: 1.1rem 0.95rem;
+    background: color-mix(in srgb, var(--lf-surface) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lf-surface) 55%, transparent);
+    border-right-color: transparent;
+    border-radius: 999px 0 0 999px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    font-weight: 500;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.lf-site-header-wrap .lf-theme-switch__button {
+    min-height: 2.4rem;
+    padding-inline: 1.15rem;
+    background: var(--lf-grad-button);
+    color: var(--lf-on-accent);
+    border: 1px solid transparent;
+    border-radius: 0 999px 999px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    font-weight: 600;
+}
+
+.lf-site-header-wrap .lf-theme-switch__button:hover {
+    background: var(--lf-grad-button-hover);
+    color: var(--lf-on-accent);
+    border-color: transparent;
 }
 
 /* In a form the box fills the field's width, with a squarer corner to sit beside the text boxes. */
