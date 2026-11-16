@@ -99,13 +99,19 @@ final class Screen extends AdminController
         }
 
         $this->flash->add('success', sprintf(
-            'Made %s users, %s terms, %s stories, %s chapters (%s words) and %s bookmarks in %s seconds.',
+            'Made %s users, %s terms, %s stories, %s chapters (%s words), %s bookmarks, %s comments (%s of them replies, %s reports, comments switched off on %s places), %s news posts and %s pages in %s seconds.',
             number_format($report['users']),
             number_format($report['terms']),
             number_format($report['stories']),
             number_format($report['chapters']),
             number_format($report['words']),
             number_format($report['bookmarks']),
+            number_format($report['comments'] + $report['replies']),
+            number_format($report['replies']),
+            number_format($report['reports']),
+            number_format($report['closures']),
+            number_format($report['news']),
+            number_format($report['pages']),
             (string) $report['seconds'],
         ));
 
@@ -131,12 +137,17 @@ final class Screen extends AdminController
             try {
                 $removed = $this->generator->removeAll($user, $request->ip());
                 $this->flash->add('success', sprintf(
-                    'Removed %s users, %s terms, %s stories, %s chapters and %s bookmarks.',
+                    'Removed %s users, %s terms, %s stories, %s chapters, %s bookmarks, %s comments, %s reports, %s comments-off settings, %s news posts and %s pages.',
                     number_format($removed['user']),
                     number_format($removed['term']),
                     number_format($removed['story']),
                     number_format($removed['chapter']),
                     number_format($removed['bookmark']),
+                    number_format($removed['comment']),
+                    number_format($removed['report']),
+                    number_format($removed['closure']),
+                    number_format($removed['news']),
+                    number_format($removed['page']),
                 ));
             } catch (RuntimeException $exception) {
                 $this->flash->add('error', $exception->getMessage());
@@ -170,7 +181,7 @@ final class Screen extends AdminController
         })(dirname(__DIR__) . '/views/screen.php', [
             'values' => $values,
             'errors' => $errors,
-            'counts' => $this->tracker->counts(),
+            'counts' => $this->tracker->counts() + ['comment' => $this->tracker->commentCount()],
             'generateToken' => Csrf::token('dummy_content_generate'),
             'removeToken' => Csrf::token('dummy_content_remove'),
             'generateAction' => AdminUrl::to(self::PATH . '/generate'),

@@ -17,7 +17,7 @@
  * Plugin Name: Dummy Content
  * Version: 1.0.1
  * Author: Ariane
- * Description: Makes placeholder users, stories and chapters for testing, and removes them again. Development sites only.
+ * Description: Makes placeholder users, stories, chapters, comments, news posts and pages for testing, and removes them again. Development sites only.
  * Requires PHP: 8.3
  * Requires at least: 0.1.0
  */
@@ -32,6 +32,9 @@ use LumoraFiction\Plugins\DummyContent\Tracker;
 require_once __DIR__ . '/src/Corpus.php';
 require_once __DIR__ . '/src/Options.php';
 require_once __DIR__ . '/src/Tracker.php';
+require_once __DIR__ . '/src/Rows.php';
+require_once __DIR__ . '/src/CommentMaker.php';
+require_once __DIR__ . '/src/SiteContentMaker.php';
 require_once __DIR__ . '/src/Generator.php';
 require_once __DIR__ . '/src/Screen.php';
 
@@ -86,6 +89,8 @@ add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $
         $kernel->audit,
         $tracker,
         (string) $kernel->config->get('environment', 'production'),
+        $kernel->pages,
+        $kernel->comments,
     );
     $screen = new Screen($kernel->auth, $kernel->admin, new \LumoraFiction\Core\Http\FlashMessages($kernel->sessions), $generator, $tracker);
 

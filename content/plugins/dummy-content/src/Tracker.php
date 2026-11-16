@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Remembers which users, stories and terms the Dummy Content plugin made, and removes them again.
+ * Remembers which users, stories, terms, news posts and pages the Dummy Content plugin made, and removes them (and their comments) again.
  *
  * @package LumoraFiction
  * @subpackage Plugins
@@ -31,6 +31,10 @@ final class Tracker
     public const KIND_STORY = 'story';
 
     public const KIND_TERM = 'term';
+
+    public const KIND_NEWS = 'news';
+
+    public const KIND_PAGE = 'page';
 
     public function __construct(private readonly Database $database)
     {
@@ -81,11 +85,11 @@ final class Tracker
     }
 
     /**
-     * @return array{user: int, story: int, term: int}
+     * @return array{user: int, story: int, term: int, news: int, page: int}
      */
     public function counts(): array
     {
-        $counts = [self::KIND_USER => 0, self::KIND_STORY => 0, self::KIND_TERM => 0];
+        $counts = [self::KIND_USER => 0, self::KIND_STORY => 0, self::KIND_TERM => 0, self::KIND_NEWS => 0, self::KIND_PAGE => 0];
 
         foreach ($this->database->fetchAll('SELECT kind, COUNT(*) AS total FROM {prefix}dummy_content_items GROUP BY kind') as $row) {
             if (isset($counts[(string) $row['kind']])) {
@@ -97,14 +101,47 @@ final class Tracker
     }
 
     /**
+     * Comments are not listed one by one: they are found through the story they are under or the account that wrote
+     * them, which also takes the comments a real reader left under a placeholder story.
+     */
+    public function commentCount(): int
+    {
+        return (int) $this->database->fetchColumn(
+            "SELECT COUNT(*) FROM {prefix}comments c WHERE EXISTS (SELECT 1 FROM {prefix}dummy_content_items t WHERE t.kind = 'story' AND t.item_id = c.story_id)
+             OR EXISTS (SELECT 1 FROM {prefix}dummy_content_items t WHERE t.kind = 'user' AND t.item_id = c.user_id)",
+        );
+    }
+
+    /**
      * Deletes everything the plugin made and the rows hanging off it, then forgets the list. Each statement
      * joins the list rather than sending ids, so a run of a hundred thousand stories is a handful of queries.
      *
-     * @return array{user: int, story: int, term: int, chapter: int, bookmark: int}
+     * @return array{user: int, story: int, term: int, chapter: int, bookmark: int, comment: int, report: int, closure: int, news: int, page: int}
      */
     public function removeAll(): array
     {
-        $removed = ['user' => 0, 'story' => 0, 'term' => 0, 'chapter' => 0, 'bookmark' => 0];
+        $removed = ['user' => 0, 'story' => 0, 'term' => 0, 'chapter' => 0, 'bookmark' => 0, 'comment' => 0, 'report' => 0, 'closure' => 0, 'news' => 0, 'page' => 0];
+
+        // Reports first, then the comments they point at; a reply goes with its comment whoever wrote it.
+        $removed['report'] = $this->database->execute(
+            "DELETE r FROM {prefix}comment_reports r JOIN {prefix}comments c ON c.id = r.comment_id JOIN {prefix}dummy_content_items t ON t.kind = 'story' AND t.item_id = c.story_id",
+        ) + $this->database->execute(
+            "DELETE r FROM {prefix}comment_reports r JOIN {prefix}comments c ON c.id = r.comment_id JOIN {prefix}dummy_content_items t ON t.kind = 'user' AND t.item_id = c.user_id",
+        ) + $this->database->execute(
+            "DELETE r FROM {prefix}comment_reports r JOIN {prefix}dummy_content_items t ON t.kind = 'user' AND t.item_id = r.reporter_id",
+        );
+        $removed['comment'] = $this->database->execute(
+            "DELETE c FROM {prefix}comments c JOIN {prefix}comments p ON p.id = c.parent_id JOIN {prefix}dummy_content_items t ON t.kind = 'user' AND t.item_id = p.user_id",
+        ) + $this->database->execute(
+            "DELETE c FROM {prefix}comments c JOIN {prefix}dummy_content_items t ON t.kind = 'story' AND t.item_id = c.story_id",
+        ) + $this->database->execute(
+            "DELETE c FROM {prefix}comments c JOIN {prefix}dummy_content_items t ON t.kind = 'user' AND t.item_id = c.user_id",
+        );
+        $removed['closure'] = $this->database->execute(
+            "DELETE x FROM {prefix}comment_closures x JOIN {prefix}dummy_content_items t ON t.kind = 'story' AND t.item_id = x.story_id",
+        );
+        $removed['news'] = $this->database->execute("DELETE n FROM {prefix}news_posts n JOIN {prefix}dummy_content_items t ON t.kind = 'news' AND t.item_id = n.id");
+        $removed['page'] = $this->database->execute("DELETE p FROM {prefix}pages p JOIN {prefix}dummy_content_items t ON t.kind = 'page' AND t.item_id = p.id");
 
         $removed['chapter'] = $this->database->execute(
             "DELETE c FROM {prefix}chapters c JOIN {prefix}dummy_content_items t ON t.kind = 'story' AND t.item_id = c.story_id",

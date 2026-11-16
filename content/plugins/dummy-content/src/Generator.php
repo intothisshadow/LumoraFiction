@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Makes placeholder users, terms, stories, chapters and bookmarks for testing.
+ * Makes placeholder users, terms, stories, chapters, bookmarks, comments, news posts and pages for testing.
  *
  * @package LumoraFiction
  * @subpackage Plugins
@@ -24,6 +24,8 @@ use LumoraFiction\Models\ContentFormat;
 use LumoraFiction\Models\TermType;
 use LumoraFiction\Models\User;
 use LumoraFiction\Services\AuditLogService;
+use LumoraFiction\Services\CommentService;
+use LumoraFiction\Services\PageService;
 use LumoraFiction\Services\TaxonomyService;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
@@ -47,13 +49,28 @@ final class Generator
     /** @var array<string, list<array{html: string, words: int}>> */
     private array $pool = [];
 
+    private readonly Rows $rows;
+
+    private readonly CommentMaker $commentMaker;
+
+    private readonly SiteContentMaker $siteMaker;
+
+    /**
+     * @param PageService|null $pages used to make pages, which it checks against reserved and routed addresses
+     * @param CommentService|null $comments read for the site's report threshold and whether replies are allowed
+     */
     public function __construct(
         private readonly Database $database,
         private readonly TaxonomyService $taxonomy,
         private readonly AuditLogService $audit,
         private readonly Tracker $tracker,
         private readonly string $environment,
+        ?PageService $pages = null,
+        ?CommentService $comments = null,
     ) {
+        $this->rows = new Rows($database);
+        $this->commentMaker = new CommentMaker($database, $this->rows, $tracker, $comments);
+        $this->siteMaker = new SiteContentMaker($database, $this->rows, $tracker, $pages);
     }
 
     /**
@@ -71,7 +88,7 @@ final class Generator
     }
 
     /**
-     * @return array{run: string, users: int, terms: int, stories: int, chapters: int, words: int, bookmarks: int, seconds: float}
+     * @return array{run: string, users: int, terms: int, stories: int, chapters: int, words: int, bookmarks: int, comments: int, replies: int, reports: int, closures: int, news: int, pages: int, seconds: float}
      */
     public function generate(Options $options, User $actor, string $ipAddress = ''): array
     {
@@ -89,7 +106,7 @@ final class Generator
         $corpus = new Corpus($options->seed === null ? new Randomizer() : new Randomizer(new Mt19937($options->seed)));
         $this->buildPool($corpus, $run);
 
-        $report = ['run' => $run, 'users' => 0, 'terms' => 0, 'stories' => 0, 'chapters' => 0, 'words' => 0, 'bookmarks' => 0, 'seconds' => 0.0];
+        $report = ['run' => $run, 'users' => 0, 'terms' => 0, 'stories' => 0, 'chapters' => 0, 'words' => 0, 'bookmarks' => 0, 'comments' => 0, 'replies' => 0, 'reports' => 0, 'closures' => 0, 'news' => 0, 'pages' => 0, 'seconds' => 0.0];
 
         $report['users'] = $this->makeUsers($options->users, $run, $corpus);
         $report['terms'] = $this->makeTerms($options, $run, $corpus, $actor);
@@ -106,6 +123,15 @@ final class Generator
 
         $report['bookmarks'] = $this->makeBookmarks($options->bookmarks, $corpus);
 
+        // After everything else, so a run with these counts at 0 draws the same random numbers as before they existed.
+        $comments = $this->commentMaker->make($options->comments, $corpus, $actor->id);
+        $report['comments'] = $comments['comments'];
+        $report['replies'] = $comments['replies'];
+        $report['reports'] = $comments['reports'];
+        $report['closures'] = $comments['closures'];
+        $report['news'] = $this->siteMaker->makeNews($options->news, $run, $corpus, $actor);
+        $report['pages'] = $this->siteMaker->makePages($options->pages, $run, $corpus, $actor);
+
         // The term pages show these counts; the inserts above do not keep them.
         $this->taxonomy->refreshAllCounts();
 
@@ -115,13 +141,16 @@ final class Generator
             'users' => $report['users'],
             'stories' => $report['stories'],
             'chapters' => $report['chapters'],
+            'comments' => $report['comments'] + $report['replies'],
+            'news' => $report['news'],
+            'pages' => $report['pages'],
         ], $ipAddress);
 
         return $report;
     }
 
     /**
-     * @return array{user: int, story: int, term: int, chapter: int, bookmark: int}
+     * @return array{user: int, story: int, term: int, chapter: int, bookmark: int, comment: int, report: int, closure: int, news: int, page: int}
      */
     public function removeAll(User $actor, string $ipAddress = ''): array
     {
@@ -578,33 +607,16 @@ final class Generator
 
     private function maxId(string $table): int
     {
-        return (int) $this->database->fetchColumn('SELECT COALESCE(MAX(id), 0) FROM {prefix}' . $table);
+        return $this->rows->maxId($table);
     }
 
     /**
-     * Table and column names come from this file, never from a request; the values are bound.
-     *
      * @param list<string> $columns
      * @param list<list<mixed>> $rows
      * @return int rows written
      */
     private function insertRows(string $table, array $columns, array $rows, ?int $perStatement = null, bool $ignore = false): int
     {
-        if ($rows === []) {
-            return 0;
-        }
-
-        $perStatement ??= max(1, intdiv(30000, count($columns)));
-        $written = 0;
-        $group = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
-
-        foreach (array_chunk($rows, $perStatement) as $chunk) {
-            $written += $this->database->execute(
-                'INSERT ' . ($ignore ? 'IGNORE ' : '') . 'INTO {prefix}' . $table . ' (' . implode(', ', $columns) . ') VALUES ' . implode(', ', array_fill(0, count($chunk), $group)),
-                array_merge(...$chunk),
-            );
-        }
-
-        return $written;
+        return $this->rows->insert($table, $columns, $rows, $perStatement, $ignore);
     }
 }

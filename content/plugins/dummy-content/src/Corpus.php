@@ -45,6 +45,20 @@ final class Corpus
         'promise', 'kept', 'at', 'last', 'when', 'dawn', 'finally', 'arrived', 'nobody', 'could', 'say', 'how', 'long', 'had', 'been', 'standing', 'there',
     ];
 
+    private const NEWS_TITLES = [
+        'Welcome to the archive', 'Site maintenance this weekend', 'A new theme is available', 'Posting rules have been updated', 'Archive milestone reached',
+        'Tag clean-up in progress', 'Moderation team update', 'New features for readers', 'Writing event announced', 'Reminder about content ratings',
+        'Downtime report', 'Thank you for helping', 'Changes to how comments work', 'Spring clean of old drafts', 'Fandom lists have been tidied',
+    ];
+
+    /** Static pages in the order they are made, so a small number gives the pages a site is most likely to have. */
+    public const PAGES = [
+        ['About', 'about'], ['FAQ', 'faq'], ['Terms of Service', 'terms-of-service'], ['Privacy Policy', 'privacy-policy'],
+        ['Contact', 'contact'], ['Community Guidelines', 'community-guidelines'], ['Content Policy', 'content-policy'], ['Accessibility', 'accessibility'],
+        ['Help', 'help'], ['Rules', 'rules'], ['Credits', 'credits'], ['Copyright', 'copyright'],
+        ['Writing Tips', 'writing-tips'], ['Meet the Team', 'meet-the-team'], ['Links', 'links'], ['Tag Guide', 'tag-guide'],
+    ];
+
     public function __construct(private readonly Randomizer $random)
     {
     }
@@ -155,5 +169,56 @@ final class Corpus
     public function summary(): string
     {
         return $this->sentence() . ' ' . $this->sentence();
+    }
+
+    /**
+     * A comment is plain text: mostly a sentence or three, now and then a long one or one with line breaks, and never
+     * markup or a link, since the site prints it escaped and does not link it.
+     */
+    public function commentText(): string
+    {
+        $roll = $this->between(1, 100);
+
+        if ($roll <= 5) {
+            $text = $this->sentence();
+
+            // Well under the 3,000 characters a comment may hold.
+            while (mb_strlen($text, 'UTF-8') < 1200) {
+                $text .= ' ' . $this->sentence();
+            }
+
+            return $text;
+        }
+
+        if ($roll <= 17) {
+            return $this->sentence() . ($this->chance(50) ? "\n\n" : "\n") . $this->sentence();
+        }
+
+        $sentences = [];
+
+        for ($i = $this->between(1, 3); $i > 0; $i--) {
+            $sentences[] = $this->sentence();
+        }
+
+        return implode(' ', $sentences);
+    }
+
+    /**
+     * @return string a few paragraphs of HTML for a news post or page
+     */
+    public function htmlParagraphs(int $low, int $high): string
+    {
+        $html = [];
+
+        for ($i = $this->between($low, $high); $i > 0; $i--) {
+            $html[] = '<p>' . $this->paragraph() . '</p>';
+        }
+
+        return implode("\n", $html);
+    }
+
+    public function newsTitle(): string
+    {
+        return $this->pick(self::NEWS_TITLES);
     }
 }

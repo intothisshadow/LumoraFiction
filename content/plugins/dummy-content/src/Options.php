@@ -28,7 +28,14 @@ final class Options
         'max_chapters' => ['Most chapters in one story', 12, 1, 200],
         'words' => ['Average words per chapter', 400, 50, 3000],
         'bookmarks' => ['Bookmarks', 100, 0, 200000],
+        'comments' => ['Comments', 0, 0, 200000],
+        'news' => ['News posts', 0, 0, 5000],
+        // As many as Corpus::PAGES names, because each name is made at most once.
+        'pages' => ['Pages', 0, 0, 16],
     ];
+
+    /** Fields added after the first release: left empty (or missing from an older form), they mean "none". */
+    private const OPTIONAL = ['comments', 'news', 'pages'];
 
     public function __construct(
         public readonly int $users,
@@ -39,6 +46,9 @@ final class Options
         public readonly int $words,
         public readonly int $bookmarks,
         public readonly ?int $seed,
+        public readonly int $comments = 0,
+        public readonly int $news = 0,
+        public readonly int $pages = 0,
     ) {
     }
 
@@ -67,6 +77,11 @@ final class Options
 
         foreach (self::FIELDS as $field => [$label, , $min, $max]) {
             $raw = trim((string) ($input[$field] ?? ''));
+
+            if ($raw === '' && in_array($field, self::OPTIONAL, true)) {
+                $raw = '0';
+            }
+
             $values[$field] = $raw;
 
             if (preg_match('/^[0-9]{1,7}\z/', $raw) !== 1 || (int) $raw < $min || (int) $raw > $max) {
@@ -95,6 +110,9 @@ final class Options
                 (int) $values['words'],
                 (int) $values['bookmarks'],
                 $seed === '' ? null : (int) $seed,
+                (int) $values['comments'],
+                (int) $values['news'],
+                (int) $values['pages'],
             ),
             'values' => $values,
             'errors' => [],

@@ -20,7 +20,7 @@ use LumoraFiction\Plugins\DummyContent\Options;
 
 /** @var array<string, int|string> $values */
 /** @var array<string, string> $errors */
-/** @var array{user: int, story: int, term: int} $counts */
+/** @var array{user: int, story: int, term: int, news: int, page: int, comment: int} $counts */
 /** @var string $generateToken */
 /** @var string $removeToken */
 /** @var string $generateAction */
@@ -34,9 +34,12 @@ $hints = [
     'max_chapters' => 'About a third of the stories are one chapter. The rest are serials up to this long, with long ones rare.',
     'words' => 'Chapters vary from half to one and a half times this. Longer chapters make a bigger database.',
     'bookmarks' => 'Spread over the generated users and published stories.',
+    'comments' => 'Under published chapters of generated stories, in every state the Comments screen shows (published, waiting for approval, hidden, spam and reported), some by the story\'s own writer, about a quarter of them replies. Comments are made only when this is above 0, and a few stories and chapters get comments switched off.',
+    'news' => 'A mix of published posts and drafts, a few pinned, dated over the last several months. Written by a generated user who may publish news, or by you when there are none. Nothing is made when this is 0.',
+    'pages' => 'About, FAQ, Terms of Service and similar pages, each made once (up to 16), some in the menu or footer, some still drafts. A page whose address is already in use is skipped. Nothing is made when this is 0.',
 ];
 ?>
-<p class="lf-lead">Makes placeholder users, fandoms, tags, stories, chapters and bookmarks so themes, listings, search and feeds can be tried at the size of a real archive. Everything made here is listed, and one button removes all of it.</p>
+<p class="lf-lead">Makes placeholder users, fandoms, tags, stories, chapters, bookmarks, comments, news posts and pages so themes, listings, search and feeds can be tried at the size of a real archive. Everything made here is listed, and one button removes all of it.</p>
 
 <?php if ($errors !== []): ?>
     <div class="lf-notice lf-notice--error" role="alert" id="lf-error-summary" tabindex="-1">
@@ -81,8 +84,8 @@ $hints = [
 
     <fieldset class="lf-card">
         <legend>Remove dummy content</legend>
-        <p>Made so far and still here: <strong><?= number_format($counts['user']) ?></strong> users, <strong><?= number_format($counts['story']) ?></strong> stories and <strong><?= number_format($counts['term']) ?></strong> fandoms, characters, relationships and tags.</p>
-        <p class="lf-hint">Removing deletes those, their chapters, and every bookmark, reading place and follow that points at them. Nothing you or anyone else wrote is touched. This cannot be undone.</p>
+        <p>Made so far and still here: <strong><?= number_format($counts['user']) ?></strong> users, <strong><?= number_format($counts['story']) ?></strong> stories, <strong><?= number_format($counts['term']) ?></strong> fandoms, characters, relationships and tags, <strong><?= number_format($counts['comment']) ?></strong> comments, <strong><?= number_format($counts['news']) ?></strong> news posts and <strong><?= number_format($counts['page']) ?></strong> pages.</p>
+        <p class="lf-hint">Removing deletes those, their chapters, their comments with the replies and reports, and every bookmark, reading place and follow that points at them. Nothing you or anyone else wrote is touched. This cannot be undone.</p>
 
         <div class="lf-choice">
             <input type="checkbox" id="confirm" name="confirm" value="1">
