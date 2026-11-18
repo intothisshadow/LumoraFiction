@@ -57,7 +57,7 @@ add_action('routes_register', static function (\LumoraFiction\Core\Http\Router $
     $tracker = new Tracker($kernel->database);
     $sanitizer = new HtmlSanitizer();
     $news = new NewsService($kernel->database, $kernel->audit, $kernel->hooks, $kernel->newsImages);
-    $importer = new Importer($kernel->database, $tracker, $kernel->users, $kernel->stories, $kernel->chapters, $kernel->taxonomy, $news, $kernel->pages, $sanitizer, $kernel->audit, $kernel->hooks, comments: $kernel->comments);
+    $importer = new Importer($kernel->database, $tracker, $kernel->users, $kernel->stories, $kernel->chapters, $kernel->taxonomy, $news, $kernel->pages, $sanitizer, $kernel->audit, $kernel->hooks, comments: $kernel->comments, series: $kernel->series, seriesOn: static fn (): bool => \LumoraFiction\Services\GroupingSettings::seriesEnabled($kernel->config));
     $root = dirname(__DIR__, 3);
     $screen = new Screen(
         $kernel->auth,

@@ -26,7 +26,7 @@ final class Report
     /** One run of a hundred thousand skipped items must not make the stored report unreadable, so the list stops here. */
     public const LINES_MAX = 1500;
 
-    public const KINDS = ['user' => 'Accounts', 'term' => 'Classification terms', 'story' => 'Stories', 'chapter' => 'Chapters', 'comment' => 'Comments', 'bookmark' => 'Bookmarks', 'news' => 'News posts', 'page' => 'Pages'];
+    public const KINDS = ['user' => 'Accounts', 'term' => 'Classification terms', 'story' => 'Stories', 'chapter' => 'Chapters', 'series' => 'Series', 'comment' => 'Comments', 'bookmark' => 'Bookmarks', 'news' => 'News posts', 'page' => 'Pages'];
 
     /**
      * @param array<string, array{made: int, matched: int, again: int, skipped: int, failed: int}> $counts

@@ -48,6 +48,7 @@ final class Screen extends AdminController
         'classes' => 'Genres, warnings and tags',
         'authors' => 'Accounts',
         'stories' => 'Stories and chapters',
+        'series' => 'Series',
         'reviews' => 'Comments',
         'favorites' => 'Bookmarks',
         'news' => 'News posts',
@@ -344,6 +345,7 @@ final class Screen extends AdminController
         $options = [
             'reviews' => $request->checked('opt_reviews'),
             'guest_reviews' => $request->checked('opt_guest_reviews'),
+            'series' => $request->checked('opt_series'),
             'favorites' => $request->checked('opt_favorites'),
             'news' => $request->checked('opt_news'),
             'bio' => $request->checked('opt_bio'),

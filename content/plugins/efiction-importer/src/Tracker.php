@@ -42,6 +42,8 @@ final class Tracker
 
     public const PAGE = 'page';
 
+    public const SERIES = 'series';
+
     public function __construct(private readonly Database $database)
     {
     }

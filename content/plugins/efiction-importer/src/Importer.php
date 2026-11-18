@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace LumoraFiction\Plugins\EfictionImporter;
 
+use Closure;
 use InvalidArgumentException;
 use LumoraFiction\Core\Content\HtmlSanitizer;
 use LumoraFiction\Core\Database\Database;
@@ -34,6 +35,8 @@ use LumoraFiction\Services\ChapterService;
 use LumoraFiction\Services\CommentException;
 use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\DuplicateAccountException;
+use LumoraFiction\Services\GroupingException;
+use LumoraFiction\Services\SeriesService;
 use LumoraFiction\Services\NewsService;
 use LumoraFiction\Services\PageService;
 use LumoraFiction\Services\StoryService;
@@ -51,7 +54,7 @@ final class Importer
     public const LOCK_SECONDS = 60;
 
     /** The order the parts are brought in: what a later part points at is always made before it. */
-    private const PHASES = ['ratings', 'categories', 'characters', 'classes', 'authors', 'stories', 'reviews', 'favorites', 'news', 'pages'];
+    private const PHASES = ['ratings', 'categories', 'characters', 'classes', 'authors', 'stories', 'series', 'reviews', 'favorites', 'news', 'pages'];
 
     /** Rows read at a time, per part: a story carries all its chapters, so it goes a few at a time. */
     private const BATCH = ['authors' => 25, 'stories' => 5, 'news' => 20, 'pages' => 20];
@@ -70,6 +73,8 @@ final class Importer
         private readonly ?HookManager $hooks = null,
         private readonly float $stepSeconds = 8.0,
         private readonly ?CommentService $comments = null,
+        private readonly ?SeriesService $series = null,
+        private readonly ?Closure $seriesOn = null,
     ) {
     }
 
@@ -81,7 +86,11 @@ final class Importer
     {
         $this->tracker->ensureTables();
 
+        $seriesAvailable = $this->series !== null && ($this->seriesOn === null || ($this->seriesOn)());
+        $notes = (bool) ($options['series'] ?? false) && !$seriesAvailable ? ['Series are switched off under Settings > Series and collections, so none were imported.'] : [];
+
         $phases = array_values(array_filter(self::PHASES, static fn (string $phase): bool => match ($phase) {
+            'series' => (bool) ($options['series'] ?? false) && $seriesAvailable,
             'reviews' => (bool) ($options['reviews'] ?? false) || (bool) ($options['guest_reviews'] ?? false),
             'favorites' => (bool) ($options['favorites'] ?? false),
             'news' => (bool) ($options['news'] ?? false),
@@ -91,7 +100,7 @@ final class Importer
         }));
 
         $job = ['options' => $options, 'mapping' => $mapping, 'phases' => $phases, 'phase' => $phases[0] ?? '', 'cursor' => 0, 'admin' => $admin->id, 'ip' => $ipAddress];
-        $runId = $this->tracker->startRun($job, (new Report())->toArray());
+        $runId = $this->tracker->startRun($job, (new Report(notes: $notes))->toArray());
         $this->audit->record($admin->id, 'plugin.efiction_importer.start', 'plugin', 'efiction-importer', ['run' => $runId, 'parts' => $phases], $ipAddress);
 
         return $runId;
@@ -182,7 +191,7 @@ final class Importer
     public function removeAll(User $admin, string $ipAddress): array
     {
         $this->tracker->ensureTables();
-        $removed = ['comment' => 0, 'bookmark' => 0, 'story' => 0, 'news' => 0, 'page' => 0, 'term' => 0, 'user' => 0, 'kept' => 0];
+        $removed = ['comment' => 0, 'bookmark' => 0, 'series' => 0, 'story' => 0, 'news' => 0, 'page' => 0, 'term' => 0, 'user' => 0, 'kept' => 0];
 
         $this->database->execute(
             'DELETE r FROM {prefix}comment_reports r JOIN {prefix}efiction_items t ON t.kind = \'comment\' AND t.made = 1 AND t.local_id = r.comment_id',
@@ -193,6 +202,16 @@ final class Importer
         $removed['bookmark'] = $this->database->execute(
             'DELETE b FROM {prefix}bookmarks b JOIN {prefix}efiction_items t ON t.kind = \'bookmark\' AND t.made = 1 AND t.local_id = b.id',
         );
+
+        // A series goes first, which only drops the grouping: the stories in it are removed below if the import made them.
+        foreach ($this->series === null ? [] : $this->tracker->made(Tracker::SERIES) as $item) {
+            try {
+                $this->series->delete($admin, $item['local_id'], $ipAddress);
+                $removed['series']++;
+            } catch (Throwable) {
+                continue;
+            }
+        }
 
         foreach ($this->tracker->made(Tracker::STORY) as $item) {
             try {
@@ -269,6 +288,7 @@ final class Importer
                 ['c' => $cursor],
             ),
             'stories' => $source->select('SELECT sid AS id, title, summary, storynotes, catid, classes, charid, rid, `date`, updated, uid, coauthors, featured, validated, completed FROM `{p}stories` WHERE sid > :c ORDER BY sid LIMIT ' . $limit, ['c' => $cursor]),
+            'series' => $source->hasTable('series') && $source->hasTable('inseries') ? $source->select('SELECT seriesid AS id, title, summary, uid FROM `{p}series` WHERE seriesid > :c ORDER BY seriesid LIMIT ' . $limit, ['c' => $cursor]) : [],
             'reviews' => $source->hasTable('reviews') ? $source->select('SELECT reviewid AS id, item, chapid, uid, reviewer, review, `date` FROM `{p}reviews` WHERE type = \'ST\' AND reviewid > :c ORDER BY reviewid LIMIT ' . $limit, ['c' => $cursor]) : [],
             'favorites' => $source->hasTable('favorites') ? array_map(
                 static fn (array $row): array => $row + ['id' => (int) $row['uid'] . ':' . (int) $row['item']],
@@ -315,6 +335,7 @@ final class Importer
                 'classes' => $this->termClass($admin, $job, $runId, $report, $row, $ip),
                 'authors' => $this->author($job, $runId, $report, $row),
                 'stories' => $this->story($admin, $source, $text, $job, $runId, $report, $row, $ip),
+                'series' => $this->seriesRow($source, $runId, $report, $row),
                 'reviews' => $this->review($admin, $job, $runId, $report, $row),
                 'favorites' => $this->favorite($runId, $report, $row),
                 'news' => $this->newsPost($admin, $runId, $report, $row, $ip),
@@ -332,6 +353,7 @@ final class Importer
             'ratings', 'categories', 'characters', 'classes' => 'term',
             'authors' => 'user',
             'stories' => 'story',
+            'series' => 'series',
             'reviews' => 'comment',
             'favorites' => 'bookmark',
             'news' => 'news',
@@ -818,6 +840,89 @@ final class Importer
     }
 
     // ---- the optional parts ----------------------------------------------------------------------------
+
+    /**
+     * A series becomes a series here, owned by its eFiction author and holding the imported stories in eFiction's order.
+     * A series is one level and holds one author's stories, so a link to another series is dropped and a story by someone
+     * else, or one already in a series here, is left out; each case is counted and explained in the report.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function seriesRow(Source $source, int $runId, Report $report, array $row): void
+    {
+        $id = (string) $row['id'];
+
+        if ($this->tracker->find(Tracker::SERIES, $id) !== null) {
+            $report->again('series');
+
+            return;
+        }
+
+        $members = $source->select(
+            'SELECT sid FROM `{p}inseries` WHERE seriesid = :id AND confirmed = 1 AND subseriesid = 0 ORDER BY inorder, sid',
+            ['id' => (int) $row['id']],
+        );
+
+        if ((int) $source->value('SELECT COUNT(*) FROM `{p}inseries` WHERE seriesid = :id AND subseriesid <> 0', ['id' => (int) $row['id']]) > 0) {
+            $report->note('A series that holds another series was imported without that link, because a series here is one level.');
+        }
+
+        $stories = [];
+
+        foreach ($members as $member) {
+            $local = $this->tracker->localId(Tracker::STORY, (string) $member['sid']);
+
+            if ($local === null) {
+                $report->add('Stories left out of a series');
+
+                continue;
+            }
+
+            $stories[] = $local;
+        }
+
+        if ($stories === [] || $this->series === null) {
+            $report->skipped('series', $id, $stories === [] ? 'None of its stories was imported.' : 'Series are not available.');
+
+            return;
+        }
+
+        $ownerId = $this->tracker->localId(Tracker::USER, (string) $row['uid'])
+            ?? (int) $this->database->fetchColumn('SELECT owner_id FROM {prefix}stories WHERE id = :id', ['id' => $stories[0]]);
+        $owner = $ownerId > 0 ? $this->users->findById($ownerId) : null;
+
+        if ($owner === null) {
+            $report->skipped('series', $id, 'Its author is not in the archive.');
+
+            return;
+        }
+
+        [$title] = Text::utf8((string) $row['title']);
+        [$summary] = Text::utf8((string) ($row['summary'] ?? ''));
+
+        try {
+            $series = $this->series->create($owner, [
+                'title' => Text::cut(trim($title), SeriesService::TITLE_MAX),
+                'summary' => Text::cut(Text::plain($summary), SeriesService::SUMMARY_MAX),
+            ]);
+        } catch (GroupingException $exception) {
+            $report->skipped('series', $id, $exception->getMessage() . ' ' . implode(' ', $exception->errors));
+
+            return;
+        }
+
+        $this->tracker->record(Tracker::SERIES, $id, $series->id, $runId);
+        $report->made('series');
+
+        foreach ($stories as $storyId) {
+            try {
+                $this->series->addStory($owner, $series->id, $storyId);
+            } catch (GroupingException $exception) {
+                $report->add('Stories left out of a series');
+                $report->note($exception->getMessage());
+            }
+        }
+    }
 
     /**
      * @param array<string, mixed> $job

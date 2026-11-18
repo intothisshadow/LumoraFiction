@@ -41,6 +41,7 @@ Nothing is added to a classification list without being shown in this step.
 - **Chapters.** Title, order, notes and end notes, with the text run through the same sanitiser as a chapter written in the HTML editor. eFiction text is HTML, plain text or a mixture, and plain text is turned into paragraphs. A chapter that has no text is reported and skipped, and the rest of the story is still imported. eFiction does not date chapters, so each takes its story's dates. Word counts are worked out again.
 - **Where chapter text is found.** eFiction's own storage setting decides what is tried first. When that has nothing for a chapter (a missing or empty file, or empty text in the database) the other is tried, because a site that switched part-way holds a mixture. The path of a file is built only from the author and chapter numbers and must lie inside the stories folder. A chapter with no author number gets no guessed path. Text that is not valid UTF-8 is read in the character set the site's language file declares (Windows-1252 if it says nothing), and text that was saved in the wrong character set twice is turned back; the preview and report count how many chapters needed this.
 - **Reviews** by signed-in members become comments under the chapter they were written for (a review of the whole story goes under the first chapter), with their original dates. Star ratings are not imported.
+- **Series** have their own tick, off by default, with the number found beside it. Each becomes a series here, owned by its eFiction author, holding the imported stories in eFiction's order. A series here is one level and holds one author's stories, so a series inside another series is imported without that link, a story by a different author or already in a series here is left out and counted, and a series with no imported story is skipped; the report says each reason. Series that are switched off under **Settings > Series and collections** are not imported, and the report says so. **Remove everything this plugin imported** removes the series it made, and running the import again adds only new ones.
 - **Guest reviews** have their own tick, off by default, with the number found shown beside it. A guest review keeps the reviewer's name, the date and the text, and nothing else: eFiction keeps no email address or other detail for a guest, and none is stored. It becomes a comment owned by your own account (the Administrator who runs the import) but is shown under the reviewer's name followed by the label "Administrator" in brackets, with no profile link, so it never looks as if you wrote it. Nobody is notified of an imported guest review, and a reply to one does not notify your account. A story or chapter that has comments switched off is skipped and listed in the report, which also counts the guest reviews imported and skipped. **Remove everything this plugin imported** removes them like every other imported comment, and running the import again adds only the ones not yet brought across.
 - **Favourites** of stories become bookmarks.
 - **News** becomes news posts, published with their original dates, written by the imported member with the pen name when that member may write news here, and otherwise by the administrator running the import.
@@ -48,7 +49,7 @@ Nothing is added to a classification list without being shown in this step.
 
 ## What is not imported
 
-Co-authors (a story belongs to its main author, and the others are listed in the report), series, news comments, challenges, collections, themes and skins, blocks, panels and modules, eFiction's own settings, custom author profile fields, real names and websites (this site has no place for them), images and uploads other than a story's own text, and story featuring. The preview counts the series and co-authored stories so you know what to recreate by hand, for example under **Stories > Series**.
+Co-authors (a story belongs to its main author, and the others are listed in the report), news comments, challenges, collections, themes and skins, blocks, panels and modules, eFiction's own settings, custom author profile fields, real names and websites (this site has no place for them), images and uploads other than a story's own text, and story featuring. The preview counts co-authored stories so you know what to recreate by hand.
 
 ## Running it
 
@@ -87,7 +88,9 @@ It only reads these eFiction tables (with your prefix in front of the name), and
 - `favorites`: `uid`, `item`, `type`.
 - `news`: `nid`, `author`, `title`, `story`, `time`.
 - `messages`: `message_id`, `message_name`, `message_title`, `message_text`.
-- `series` and `coauthors`: counted only.
+- `series`: `seriesid`, `title`, `summary`, `uid`.
+- `inseries`: `seriesid`, `sid`, `subseriesid`, `confirmed`, `inorder`.
+- `coauthors`: counted only.
 - `settings`: `store`, `storiespath`, `language`, `version`.
 
 ## Where it keeps its records
