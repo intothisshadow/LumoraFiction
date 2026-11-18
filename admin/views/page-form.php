@@ -19,7 +19,9 @@ use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Page;
 
 /** @var Page|null $page */
-/** @var array{title: string, slug: string, content: string, content_format: string, in_menu: bool, in_footer: bool, sort_order: string, description: string, noindex: bool} $values */
+/** @var array{title: string, slug: string, content: string, content_format: string, in_menu: bool, in_footer: bool, sort_order: string, parent_id: string, description: string, noindex: bool} $values */
+/** @var array<int, string> $parentChoices */
+/** @var int $childCount */
 /** @var string $editor trusted markup from the content editor */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
@@ -55,6 +57,22 @@ $describe = static fn (string $name): string => ' aria-describedby="' . Html::e(
 
     <fieldset class="lf-card">
         <legend>Where it is linked</legend>
+
+        <?php if ($childCount > 0): ?>
+            <p class="lf-hint">This page has <?= (int) $childCount ?> <?= $childCount === 1 ? 'page' : 'pages' ?> under it in the main menu, so it cannot be put under another page. If you unpublish or delete it, <?= $childCount === 1 ? 'that page moves' : 'those pages move' ?> up to the top level of the menu and <?= $childCount === 1 ? 'is' : 'are' ?> listed on <?= $childCount === 1 ? 'its' : 'their' ?> own. Nothing is deleted with it.</p>
+        <?php else: ?>
+            <div class="lf-field<?= isset($errors['parent_id']) ? ' lf-field--error' : '' ?>">
+                <label for="parent_id">Parent page</label>
+                <select id="parent_id" name="parent_id"<?= $describe('parent_id') ?>>
+                    <option value="">None (top level)</option>
+                    <?php foreach ($parentChoices as $parentId => $parentTitle): ?>
+                        <option value="<?= (int) $parentId ?>"<?= (string) $values['parent_id'] === (string) $parentId ? ' selected' : '' ?>><?= Html::e($parentTitle) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="lf-hint" id="parent_id_hint">Groups this page under another in the main menu, which opens a list of the pages beneath it. Only top-level pages are offered, because the menu has one level. If the parent is a draft or is not shown in the main menu, this page is listed on its own instead, so it is never hidden.</p>
+                <?= $problem('parent_id') ?>
+            </div>
+        <?php endif; ?>
 
         <div class="lf-choice">
             <input type="checkbox" id="in_menu" name="in_menu" value="1"<?= $values['in_menu'] ? ' checked' : '' ?>>

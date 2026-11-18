@@ -356,7 +356,7 @@ final class ThemeRenderer
             $menu[] = ['label' => 'News', 'url' => PublicUrl::news(), 'current' => in_array($view, ['news-archive', 'news-single'], true)];
         }
 
-        return $this->cleanLinks($this->hooks->applyFilters('lf_navigation_items', $menu));
+        return $this->cleanLinks($this->hooks->applyFilters('lf_navigation_items', $menu), true);
     }
 
     /**
@@ -401,18 +401,36 @@ final class ThemeRenderer
 
     /**
      * Keeps only well-formed entries whose address is a path on this site, so a filter cannot put an outside link in a menu.
+     * Only the main menu takes a drop-down, and only one level of it: an item's optional `children` are cleaned by the same
+     * rule and their own children are dropped.
      *
-     * @return list<array{label: string, url: string, current: bool}>
+     * @return list<array{label: string, url: string, current: bool, icon: string, area: string, children: list<array{label: string, url: string, current: bool}>, section: bool}>
      */
-    private function cleanLinks(mixed $items): array
+    private function cleanLinks(mixed $items, bool $nested = false): array
     {
         $clean = [];
 
         foreach (is_array($items) ? $items : [] as $item) {
             if (is_array($item) && is_string($item['label'] ?? null) && $item['label'] !== '' && is_string($item['url'] ?? null) && preg_match(self::SAME_SITE, $item['url']) === 1) {
+                $children = [];
+
+                foreach ($nested && is_array($item['children'] ?? null) ? $item['children'] : [] as $child) {
+                    if (is_array($child) && is_string($child['label'] ?? null) && $child['label'] !== '' && is_string($child['url'] ?? null) && preg_match(self::SAME_SITE, $child['url']) === 1) {
+                        $children[] = ['label' => $child['label'], 'url' => $child['url'], 'current' => ($child['current'] ?? false) === true];
+                    }
+                }
+
                 // The only icon a link may carry is one core draws itself, so a filter cannot put markup in.
                 // Likewise "account" is the one area a link may name, so a theme can draw sign-in and account links apart from the menu.
-                $clean[] = ['label' => $item['label'], 'url' => $item['url'], 'current' => ($item['current'] ?? false) === true, 'icon' => ($item['icon'] ?? '') === 'feed' ? 'feed' : '', 'area' => ($item['area'] ?? '') === 'account' ? 'account' : ''];
+                $clean[] = [
+                    'label' => $item['label'],
+                    'url' => $item['url'],
+                    'current' => ($item['current'] ?? false) === true,
+                    'icon' => ($item['icon'] ?? '') === 'feed' ? 'feed' : '',
+                    'area' => ($item['area'] ?? '') === 'account' ? 'account' : '',
+                    'children' => $children,
+                    'section' => $children !== [] && ($item['section'] ?? false) === true,
+                ];
             }
         }
 

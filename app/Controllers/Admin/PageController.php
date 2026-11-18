@@ -50,7 +50,7 @@ final class PageController extends WriterController
     private const TOKEN = 'admin_pages';
 
     /** @var list<string> */
-    private const KEPT = ['title', 'slug', 'content', 'content_format', 'in_menu', 'in_footer', 'sort_order', 'description', 'noindex'];
+    private const KEPT = ['title', 'slug', 'content', 'content_format', 'in_menu', 'in_footer', 'sort_order', 'parent_id', 'description', 'noindex'];
 
     public function __construct(
         AuthService $auth,
@@ -85,8 +85,11 @@ final class PageController extends WriterController
         $pageCount = max(1, (int) ceil($total / PageService::STAFF_PAGE_SIZE));
         $page = min($pageCount, max(1, (int) ($request->queryValue('page') ?? 1)));
 
+        $rows = $this->pages->listForStaff($user, $filters, PageService::STAFF_PAGE_SIZE, ($page - 1) * PageService::STAFF_PAGE_SIZE, $sort);
+
         return $this->view->render('pages-list', [
-            'pages' => $this->pages->listForStaff($user, $filters, PageService::STAFF_PAGE_SIZE, ($page - 1) * PageService::STAFF_PAGE_SIZE, $sort),
+            'pages' => $rows,
+            'parents' => $this->pages->parentsOf($rows),
             'sort' => $sort,
             'filters' => $filters,
             'states' => [PublicationState::Draft, PublicationState::Published],
@@ -480,6 +483,8 @@ final class PageController extends WriterController
         return $this->view->render('page-form', [
             'page' => $page,
             'values' => $values,
+            'parentChoices' => $this->pages->parentChoices($page),
+            'childCount' => $page === null ? 0 : $this->pages->childCount($page->id),
             'editor' => $this->editor->render($user, 'content', (string) $values['content'], $stored, ['label' => 'Text', 'id' => 'content', 'actions' => $actions]),
             'errors' => $errors,
             'errorSummary' => $this->errorSummary($errors),
@@ -502,6 +507,7 @@ final class PageController extends WriterController
     {
         return $this->view->render('page-delete', [
             'page' => $page,
+            'childCount' => $this->pages->childCount($page->id),
             'errors' => $errors,
             'errorSummary' => $this->errorSummary($errors),
             'csrfToken' => Csrf::token(self::TOKEN),
@@ -515,7 +521,7 @@ final class PageController extends WriterController
      */
     private function emptyValues(): array
     {
-        return ['title' => '', 'slug' => '', 'content' => '', 'content_format' => '', 'in_menu' => false, 'in_footer' => false, 'sort_order' => '0', 'description' => '', 'noindex' => false];
+        return ['title' => '', 'slug' => '', 'content' => '', 'content_format' => '', 'in_menu' => false, 'in_footer' => false, 'sort_order' => '0', 'parent_id' => '', 'description' => '', 'noindex' => false];
     }
 
     /**
@@ -531,6 +537,7 @@ final class PageController extends WriterController
             'in_menu' => $request->checked('in_menu'),
             'in_footer' => $request->checked('in_footer'),
             'sort_order' => $request->input('sort_order') ?? '0',
+            'parent_id' => $request->input('parent_id') ?? '',
             'description' => $request->input('description') ?? '',
             'noindex' => $request->checked('noindex'),
         ];
@@ -549,6 +556,7 @@ final class PageController extends WriterController
             'in_menu' => $page->inMenu,
             'in_footer' => $page->inFooter,
             'sort_order' => (string) $page->sortOrder,
+            'parent_id' => $page->parentId === null ? '' : (string) $page->parentId,
             'description' => $page->description,
             'noindex' => $page->noindex,
         ];
@@ -568,6 +576,7 @@ final class PageController extends WriterController
             'in_menu' => $values['in_menu'],
             'in_footer' => $values['in_footer'],
             'sort_order' => $values['sort_order'],
+            'parent_id' => $values['parent_id'],
             'description' => $values['description'],
             'noindex' => $values['noindex'],
         ];

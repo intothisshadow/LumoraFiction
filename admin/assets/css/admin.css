@@ -1563,6 +1563,16 @@ fieldset.lf-card legend {
     font-size: 0.85rem;
 }
 
+/* A page under a parent on the Pages screen: indented below the parent, with a note saying whose child it is. */
+.lf-page-row--child {
+    padding-inline-start: 2rem;
+}
+
+.lf-page-row__parent,
+.lf-page-row__note {
+    display: block;
+}
+
 .lf-update-check--ok {
     background: var(--ok-bg);
     color: var(--ok);

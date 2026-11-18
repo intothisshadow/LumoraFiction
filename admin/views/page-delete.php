@@ -19,6 +19,7 @@ use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Page;
 
 /** @var Page $page */
+/** @var int $childCount */
 /** @var array<string, string> $errors */
 /** @var string $errorSummary trusted markup from the error-summary view */
 /** @var string $csrfToken */
@@ -33,6 +34,9 @@ use LumoraFiction\Models\Page;
     <div class="lf-card">
         <h2>Delete &ldquo;<?= Html::e($page->title) ?>&rdquo;?</h2>
         <p>This removes the page for good<?= $page->isPublished() ? ', and readers can no longer open it. Its links leave the menu and the footer' : '' ?>. This cannot be undone.<?= $page->isPublished() ? ' If you only want to hide it, unpublish it instead.' : '' ?></p>
+        <?php if ($childCount > 0): ?>
+            <p><?= (int) $childCount ?> <?= $childCount === 1 ? 'page is' : 'pages are' ?> under this one in the menu. <?= $childCount === 1 ? 'It is' : 'They are' ?> not deleted: <?= $childCount === 1 ? 'it moves' : 'they move' ?> up to the top level of the menu.</p>
+        <?php endif; ?>
         <p>
             <button type="submit" class="lf-button">Delete the page</button>
             <a href="<?= Html::e($backUrl) ?>">Cancel</a>

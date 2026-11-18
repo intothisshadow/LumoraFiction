@@ -52,7 +52,7 @@ final class PagePresentation
 
     public function menu(mixed $items): mixed
     {
-        return is_array($items) ? array_merge($items, $this->links($this->pages->menuPages())) : $items;
+        return is_array($items) ? array_merge($items, $this->tree()) : $items;
     }
 
     public function footer(mixed $items): mixed
@@ -77,6 +77,31 @@ final class PagePresentation
         if ($this->siteUrl !== '') {
             echo '<link rel="canonical" href="', Html::e($this->siteUrl . PublicUrl::page($this->current->slug, false)), '">', "\n";
         }
+    }
+
+    /**
+     * The menu pages, a parent carrying the pages under it. The page being shown marks its parent as the current section, and
+     * only the page itself is the current page.
+     *
+     * @return list<array{label: string, url: string, current: bool, children?: list<array{label: string, url: string, current: bool}>, section?: bool}>
+     */
+    private function tree(): array
+    {
+        $items = [];
+
+        foreach ($this->pages->menuTree() as $node) {
+            $children = $this->links($node['children']);
+            $item = $this->links([$node['page']])[0];
+
+            if ($children !== []) {
+                $item['children'] = $children;
+                $item['section'] = in_array(true, array_column($children, 'current'), true);
+            }
+
+            $items[] = $item;
+        }
+
+        return $items;
     }
 
     /**

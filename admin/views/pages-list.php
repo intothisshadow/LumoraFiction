@@ -23,6 +23,7 @@ use LumoraFiction\Models\Page;
 use LumoraFiction\Models\PublicationState;
 
 /** @var list<Page> $pages */
+/** @var array<int, Page> $parents the parents of the pages in the list, by id */
 /** @var ColumnSort $sort */
 /** @var array{state: string, search: string} $filters */
 /** @var list<PublicationState> $states */
@@ -113,9 +114,17 @@ $filtered = $filters['search'] !== '' || $filters['state'] !== '';
         </thead>
         <tbody>
             <?php foreach ($pages as $row): ?>
+                <?php
+                $parent = $row->parentId === null ? null : ($parents[$row->parentId] ?? null);
+                // A page under a parent that is a draft or not in the menu is listed on its own, so say so instead of ignoring the tick.
+                $standsAlone = $parent !== null && $row->inMenu && (!$parent->isPublished() || !$parent->inMenu);
+                ?>
                 <tr>
                     <?= BulkBar::checkbox('page_ids', $bulkForm, $row->id, 'Select ' . $row->title) ?>
-                    <th scope="row"><a href="<?= Html::e($pageUrl . '/' . $row->id) ?>"><?= Html::e($row->title) ?></a></th>
+                    <th scope="row"<?= $row->isChild() ? ' class="lf-page-row--child"' : '' ?>><a href="<?= Html::e($pageUrl . '/' . $row->id) ?>"><?= Html::e($row->title) ?></a>
+                        <?php if ($parent !== null): ?><span class="lf-hint lf-page-row__parent">Under <?= Html::e($parent->title) ?></span><?php endif; ?>
+                        <?php if ($standsAlone): ?><span class="lf-hint lf-page-row__note">Listed on its own in the menu, because <?= Html::e($parent->title) ?> <?= !$parent->isPublished() ? 'is a draft' : 'is not shown in the main menu' ?>.</span><?php endif; ?>
+                    </th>
                     <td><code>/<?= Html::e($row->slug) ?></code></td>
                     <td><span class="lf-status<?= $row->isPublished() ? ' lf-status--ok' : '' ?>"><?= Html::e($row->state->label()) ?></span></td>
                     <td><?= Html::e(implode(', ', array_filter([$row->inMenu ? 'Menu' : '', $row->inFooter ? 'Footer' : ''])) ?: 'Neither') ?></td>

@@ -35,11 +35,16 @@ final class ThemeContext
 
     private static ?self $current = null;
 
+    private bool $navigationScriptPrinted = false;
+
+    /** Counts the drop-down lists printed so far, so each gets its own id for its button to point at. */
+    private int $subMenus = 0;
+
     /**
      * @param array<string, mixed> $data
      * @param array{label: string, edit_url: string}|null $preview
      * @param array<string, string|bool> $options
-     * @param list<array{label: string, url: string, current: bool, area?: string}> $navigation
+     * @param list<array{label: string, url: string, current: bool, area?: string, children?: list<array{label: string, url: string, current: bool}>, section?: bool}> $navigation
      * @param Closure(string, array<string, mixed>): void $includePart
      */
     public function __construct(
@@ -319,12 +324,51 @@ final class ThemeContext
 
         echo '<nav class="lf-nav', $area === null ? '' : ' lf-nav--' . ($area === 'account' ? 'account' : 'main'), '" aria-label="', Html::e($label), '"><ul class="lf-nav__list">';
 
+        $dropDowns = false;
+
         foreach ($items as $item) {
-            echo '<li class="lf-nav__item', $item['current'] ? ' lf-nav__item--current' : '', '"><a class="lf-nav__link" href="', Html::e($item['url']), '"',
-                $item['current'] ? ' aria-current="page"' : '', '>', Html::e($item['label']), '</a></li>';
+            $children = is_array($item['children'] ?? null) ? $item['children'] : [];
+            $dropDowns = $dropDowns || $children !== [];
+
+            echo '<li class="lf-nav__item', $item['current'] ? ' lf-nav__item--current' : '', $children !== [] ? ' lf-nav__item--has-children' : '', ($item['section'] ?? false) === true ? ' lf-nav__item--current-section' : '', '"><a class="lf-nav__link" href="', Html::e($item['url']), '"',
+                $item['current'] ? ' aria-current="page"' : '', '>', Html::e($item['label']), '</a>';
+
+            if ($children !== []) {
+                $this->navigationChildren($item['label'], $children);
+            }
+
+            echo '</li>';
         }
 
         echo '</ul></nav>', "\n";
+
+        // One small script for every theme, loaded only when a menu has a drop-down. Without it the lists below stay open
+        // in the page, so no link is ever hidden.
+        if ($dropDowns && !$this->navigationScriptPrinted) {
+            $this->navigationScriptPrinted = true;
+            echo '<script src="', Html::e($this->assetUrl('js/navigation.js')), '" defer data-lf-navigation></script>', "\n";
+        }
+    }
+
+    /**
+     * The list of pages under one menu entry and the button that opens it. The button starts hidden, so a visitor without the
+     * script sees no control that does nothing.
+     *
+     * @param list<array{label: string, url: string, current: bool}> $children
+     */
+    private function navigationChildren(string $parent, array $children): void
+    {
+        $id = 'lf-nav-sub-' . ++$this->subMenus;
+
+        echo '<button type="button" class="lf-nav__toggle" hidden aria-expanded="false" aria-controls="', $id, '" data-lf-nav-toggle><span class="lf-screen-reader-text">', Html::e('Pages under ' . $parent), '</span><span class="lf-nav__toggle-icon" aria-hidden="true"></span></button>';
+        echo '<ul class="lf-nav__children" id="', $id, '">';
+
+        foreach ($children as $child) {
+            echo '<li class="lf-nav__child', $child['current'] ? ' lf-nav__child--current' : '', '"><a class="lf-nav__child-link" href="', Html::e($child['url']), '"',
+                $child['current'] ? ' aria-current="page"' : '', '>', Html::e($child['label']), '</a></li>';
+        }
+
+        echo '</ul>';
     }
 
     /**

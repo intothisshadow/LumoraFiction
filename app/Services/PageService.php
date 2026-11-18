@@ -106,7 +106,7 @@ final class PageService
     /**
      * The new page is a draft.
      *
-     * @param array<string, mixed> $input title, slug, content, format, in_menu, in_footer, sort_order, description, noindex
+     * @param array<string, mixed> $input title, slug, content, format, in_menu, in_footer, sort_order, parent_id, description, noindex
      * @throws PagePermissionException
      * @throws PageValidationException
      */
@@ -119,8 +119,8 @@ final class PageService
             $id = (int) $this->database->transaction(function () use ($actor, $values, $ipAddress): int {
                 $now = date('Y-m-d H:i:s');
                 $id = (int) $this->database->insertGetId(
-                    'INSERT INTO {prefix}pages (title, slug, content, content_format, publication_state, in_menu, in_footer, sort_order, description, noindex, edited_by, published_at, created_at, updated_at)
-                     VALUES (:title, :slug, :content, :format, :state, :in_menu, :in_footer, :sort_order, :description, :noindex, :editor, NULL, :created, :updated)',
+                    'INSERT INTO {prefix}pages (title, slug, content, content_format, publication_state, in_menu, in_footer, sort_order, parent_id, description, noindex, edited_by, published_at, created_at, updated_at)
+                     VALUES (:title, :slug, :content, :format, :state, :in_menu, :in_footer, :sort_order, :parent, :description, :noindex, :editor, NULL, :created, :updated)',
                     [
                         'title' => $values['title'],
                         'slug' => $values['slug'],
@@ -130,6 +130,7 @@ final class PageService
                         'in_menu' => $values['in_menu'] ? 1 : 0,
                         'in_footer' => $values['in_footer'] ? 1 : 0,
                         'sort_order' => $values['sort_order'],
+                        'parent' => $values['parent_id'],
                         'description' => $values['description'],
                         'noindex' => $values['noindex'] ? 1 : 0,
                         'editor' => $actor->id,
@@ -166,7 +167,7 @@ final class PageService
             $this->database->transaction(function () use ($actor, $page, $values, $ipAddress): void {
                 $this->database->execute(
                     'UPDATE {prefix}pages SET title = :title, slug = :slug, content = :content, content_format = :format, in_menu = :in_menu, in_footer = :in_footer,
-                     sort_order = :sort_order, description = :description, noindex = :noindex, edited_by = :editor, updated_at = :updated WHERE id = :id',
+                     sort_order = :sort_order, parent_id = :parent, description = :description, noindex = :noindex, edited_by = :editor, updated_at = :updated WHERE id = :id',
                     [
                         'title' => $values['title'],
                         'slug' => $values['slug'],
@@ -175,6 +176,7 @@ final class PageService
                         'in_menu' => $values['in_menu'] ? 1 : 0,
                         'in_footer' => $values['in_footer'] ? 1 : 0,
                         'sort_order' => $values['sort_order'],
+                        'parent' => $values['parent_id'],
                         'description' => $values['description'],
                         'noindex' => $values['noindex'] ? 1 : 0,
                         'editor' => $actor->id,
@@ -218,7 +220,8 @@ final class PageService
     }
 
     /**
-     * A deleted page leaves every menu and the footer with it, because both are built from the table.
+     * A deleted page leaves every menu and the footer with it, because both are built from the table. The pages that were
+     * under it are never deleted: they move up to the top level.
      *
      * @throws PagePermissionException
      */
@@ -227,8 +230,9 @@ final class PageService
         $page = $this->manageable($actor, $id);
 
         $this->database->transaction(function () use ($actor, $page, $ipAddress): void {
+            $moved = $this->database->execute('UPDATE {prefix}pages SET parent_id = NULL WHERE parent_id = :id', ['id' => $page->id]);
             $this->database->execute('DELETE FROM {prefix}pages WHERE id = :id', ['id' => $page->id]);
-            $this->audit->record($actor->id, 'page.delete', 'page', (string) $page->id, ['slug' => $page->slug, 'state' => $page->state->value], $ipAddress);
+            $this->audit->record($actor->id, 'page.delete', 'page', (string) $page->id, ['slug' => $page->slug, 'state' => $page->state->value] + ($moved > 0 ? ['children_moved_up' => $moved] : []), $ipAddress);
         });
 
         $this->published = null;
@@ -379,6 +383,96 @@ final class PageService
     }
 
     /**
+     * The main menu as the reader sees it: top-level items in menu order, each with the published pages under it that are in
+     * the menu. A page under a parent that is a draft or not in the menu is listed on its own at the top level instead, so
+     * unpublishing a parent never makes its pages unreachable. The footer stays a flat list.
+     *
+     * @return list<array{page: Page, children: list<Page>}>
+     */
+    public function menuTree(): array
+    {
+        $menu = $this->menuPages();
+        $parents = [];
+
+        foreach ($menu as $page) {
+            if ($page->parentId === null) {
+                $parents[$page->id] = true;
+            }
+        }
+
+        $under = [];
+        $top = [];
+
+        foreach ($menu as $page) {
+            if ($page->parentId !== null && isset($parents[$page->parentId])) {
+                $under[$page->parentId][] = $page;
+
+                continue;
+            }
+
+            $top[] = $page;
+        }
+
+        return array_map(static fn (Page $page): array => ['page' => $page, 'children' => $under[$page->id] ?? []], $top);
+    }
+
+    /**
+     * The pages that may be chosen as this page's parent: top-level pages other than itself, in any state, and none at all
+     * for a page that has pages under it (one level only). id => title.
+     *
+     * @return array<int, string>
+     */
+    public function parentChoices(?Page $editing = null): array
+    {
+        if ($editing !== null && $this->childCount($editing->id) > 0) {
+            return [];
+        }
+
+        $choices = [];
+
+        foreach ($this->database->fetchAll('SELECT id, title, publication_state FROM {prefix}pages WHERE parent_id IS NULL AND id <> :self ORDER BY title, id', ['self' => $editing->id ?? 0]) as $row) {
+            $choices[(int) $row['id']] = (string) $row['title'] . ($row['publication_state'] === PublicationState::Published->value ? '' : ' (draft)');
+        }
+
+        return $choices;
+    }
+
+    public function childCount(int $id): int
+    {
+        return (int) $this->database->fetchColumn('SELECT COUNT(*) FROM {prefix}pages WHERE parent_id = :id', ['id' => $id]);
+    }
+
+    /**
+     * The parents of the pages in a list, for the admin list to name them and explain a placement.
+     *
+     * @param list<Page> $pages
+     * @return array<int, Page> parent pages by id
+     */
+    public function parentsOf(array $pages): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (Page $page): ?int => $page->parentId, $pages))));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $marks = implode(', ', array_map(static fn (int $index): string => ':p' . $index, array_keys($ids)));
+        $params = [];
+
+        foreach ($ids as $index => $id) {
+            $params['p' . $index] = $id;
+        }
+
+        $parents = [];
+
+        foreach ($this->database->fetchAll('SELECT * FROM {prefix}pages WHERE id IN (' . $marks . ')', $params) as $row) {
+            $parents[(int) $row['id']] = $this->hydrate($row);
+        }
+
+        return $parents;
+    }
+
+    /**
      * @return list<Page>
      */
     public function footerPages(): array
@@ -411,11 +505,24 @@ final class PageService
 
         [$where, $params] = $this->staffFilter($filters);
 
+        $sort ??= self::sortFrom(null, null);
+
         return array_map($this->hydrate(...), $this->database->fetchAll(
-            'SELECT p.* FROM {prefix}pages p WHERE ' . $where . ' ORDER BY ' . ($sort ?? self::sortFrom(null, null))->orderBy()
+            'SELECT p.* FROM {prefix}pages p LEFT JOIN {prefix}pages par ON par.id = p.parent_id WHERE ' . $where . ' ORDER BY ' . ($sort->key === 'order' ? self::menuOrder($sort->direction) : $sort->orderBy())
             . ' LIMIT ' . max(1, min(100, $limit)) . ' OFFSET ' . max(0, $offset),
             $params,
         ));
+    }
+
+    /**
+     * Menu order keeps a page under its parent: a group is placed by its top-level page, the parent comes first, and the
+     * number applies within each level. The direction reverses the groups and the pages within one, never parent and child.
+     */
+    private static function menuOrder(string $direction): string
+    {
+        $d = $direction === ColumnSort::ASCENDING ? 'ASC' : 'DESC';
+
+        return "COALESCE(par.sort_order, p.sort_order) $d, COALESCE(p.parent_id, p.id) $d, (p.parent_id IS NOT NULL) ASC, p.sort_order $d, p.id $d";
     }
 
     /**
@@ -539,7 +646,7 @@ final class PageService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{title: string, slug: string, content: string, format: ContentFormat, in_menu: bool, in_footer: bool, sort_order: int, description: string, noindex: bool}
+     * @return array{title: string, slug: string, content: string, format: ContentFormat, in_menu: bool, in_footer: bool, sort_order: int, parent_id: ?int, description: string, noindex: bool}
      */
     private function validated(array $input, ?Page $existing): array
     {
@@ -607,11 +714,27 @@ final class PageService
             $order = 0;
         }
 
+        $parentId = $existing->parentId ?? null;
+
+        // Only checked when the request names a parent, so a change of placement or publication never trips over it.
+        if (array_key_exists('parent_id', $input)) {
+            $parentInput = $input['parent_id'];
+            $parentId = is_int($parentInput) ? $parentInput : (is_string($parentInput) && preg_match('/^[0-9]{1,10}\z/', trim($parentInput)) === 1 ? (int) trim($parentInput) : ($parentInput === null || $parentInput === '' ? 0 : -1));
+            $problem = $parentId > 0 ? $this->parentProblem($parentId, $existing) : ($parentId < 0 ? 'Choose a parent page from the list.' : null);
+
+            if ($problem !== null) {
+                $errors['parent_id'] = $problem;
+            }
+
+            $parentId = $parentId > 0 ? $parentId : null;
+        }
+
         if ($errors !== []) {
             throw new PageValidationException($errors);
         }
 
         return [
+            'parent_id' => $parentId,
             'title' => $title,
             'slug' => (string) $slug,
             'content' => $content,
@@ -622,6 +745,33 @@ final class PageService
             'description' => $description,
             'noindex' => array_key_exists('noindex', $input) ? $input['noindex'] === true : ($existing->noindex ?? false),
         ];
+    }
+
+    /**
+     * One level only: a parent is a top-level page other than the page itself, and a page that has pages under it cannot
+     * be put under another.
+     */
+    private function parentProblem(int $parentId, ?Page $existing): ?string
+    {
+        if ($existing !== null && $parentId === $existing->id) {
+            return 'A page cannot be its own parent.';
+        }
+
+        $parent = $this->database->fetchOne('SELECT id, parent_id FROM {prefix}pages WHERE id = :id', ['id' => $parentId]);
+
+        if ($parent === null) {
+            return 'Choose a parent page from the list.';
+        }
+
+        if ($parent['parent_id'] !== null) {
+            return 'That page is itself under another page. Only one level is possible, so choose a top-level page.';
+        }
+
+        if ($existing !== null && $this->childCount($existing->id) > 0) {
+            return 'This page has pages under it, so it cannot be put under another page. Move those pages first.';
+        }
+
+        return null;
     }
 
     private function slugProblem(?string $slug, ?Page $existing): ?string
@@ -669,6 +819,7 @@ final class PageService
             publishedAt: is_string($row['published_at']) && $row['published_at'] !== '' ? new DateTimeImmutable($row['published_at']) : null,
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             updatedAt: new DateTimeImmutable((string) $row['updated_at']),
+            parentId: ($row['parent_id'] ?? null) === null ? null : (int) $row['parent_id'],
         );
     }
 }

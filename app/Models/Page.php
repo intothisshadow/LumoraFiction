@@ -37,7 +37,13 @@ final readonly class Page
         public ?DateTimeImmutable $publishedAt,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?int $parentId = null,
     ) {
+    }
+
+    public function isChild(): bool
+    {
+        return $this->parentId !== null;
     }
 
     public function isPublished(): bool

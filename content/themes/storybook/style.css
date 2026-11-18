@@ -263,6 +263,121 @@ img {
     border-bottom-color: var(--lf-link);
 }
 
+/* Pages grouped under a main-menu entry. Without the menu script the list stays open under its parent; with it, the list is a
+   drop-down panel opened from the button, and on a narrow screen it opens inline below its parent. */
+.lf-nav__item--has-children {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.lf-nav__children {
+    flex-basis: 100%;
+    margin: 0;
+    padding: 0 0 0 0.75rem;
+    list-style: none;
+    font-size: 0.95rem;
+}
+
+.lf-nav__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-inline-start: 0.1rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--lf-radius);
+    color: var(--lf-text);
+    cursor: pointer;
+}
+
+.lf-nav__toggle[hidden] {
+    display: none;
+}
+
+.lf-nav__toggle:focus-visible {
+    outline: 2px solid var(--lf-link);
+    outline-offset: 1px;
+}
+
+.lf-nav__toggle-icon {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+}
+
+.lf-nav__toggle[aria-expanded="true"] .lf-nav__toggle-icon {
+    transform: translateY(1px) rotate(225deg);
+}
+
+.lf-nav__child-link {
+    display: block;
+    padding: 0.35rem 0.65rem;
+    color: var(--lf-text);
+    text-decoration: none;
+    border-radius: var(--lf-radius);
+}
+
+.lf-nav__child-link:hover {
+    background: var(--lf-bg);
+    color: var(--lf-link);
+}
+
+.lf-nav__child--current .lf-nav__child-link,
+.lf-nav__item--current-section > .lf-nav__link {
+    font-weight: 700;
+}
+
+.lf-nav__item--current-section > .lf-nav__link {
+    border-bottom-color: var(--lf-link);
+}
+
+.lf-nav--enhanced .lf-nav__item--has-children {
+    position: relative;
+    flex-wrap: nowrap;
+}
+
+.lf-nav--enhanced .lf-nav__children {
+    display: none;
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    z-index: 20;
+    min-width: 12rem;
+    padding: 0.35rem;
+    background: var(--lf-surface);
+    border: 1px solid var(--lf-border);
+    border-radius: var(--lf-radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    font-size: 1rem;
+}
+
+.lf-nav--enhanced .lf-nav__item--open > .lf-nav__children {
+    display: block;
+}
+
+@media (max-width: 40rem) {
+    .lf-nav--enhanced .lf-nav__item--has-children {
+        flex-wrap: wrap;
+    }
+
+    .lf-nav--enhanced .lf-nav__children {
+        position: static;
+        flex-basis: 100%;
+        min-width: 0;
+        padding: 0 0 0 0.75rem;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 /* Grows to fill a short page so the footer sits at the bottom of the screen. */
 .lf-main {
     flex: 1 0 auto;
