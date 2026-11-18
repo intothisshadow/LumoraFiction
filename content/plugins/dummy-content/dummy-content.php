@@ -15,7 +15,7 @@
 
 /**
  * Plugin Name: Dummy Content
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: Ariane
  * Description: Makes placeholder users, stories, chapters, comments, news posts and pages for testing, and removes them again. Development sites only.
  * Requires PHP: 8.3

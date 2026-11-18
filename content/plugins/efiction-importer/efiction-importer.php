@@ -19,7 +19,7 @@
  * Author: Ariane
  * Description: Reads an eFiction 3.5 database and brings its authors, stories, chapters and classification across, with a preview, a report and a way to undo it.
  * Requires PHP: 8.3
- * Requires at least: 1.4.0
+ * Requires at least: 1.5.0
  */
 
 declare(strict_types=1);
