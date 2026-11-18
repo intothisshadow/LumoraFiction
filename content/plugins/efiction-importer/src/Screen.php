@@ -343,6 +343,7 @@ final class Screen extends AdminController
 
         $options = [
             'reviews' => $request->checked('opt_reviews'),
+            'guest_reviews' => $request->checked('opt_guest_reviews'),
             'favorites' => $request->checked('opt_favorites'),
             'news' => $request->checked('opt_news'),
             'bio' => $request->checked('opt_bio'),

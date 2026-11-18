@@ -114,7 +114,7 @@ final class CommentNotifier
     {
         $who = $name === '' ? 'Someone' : $name;
 
-        if ($reply->userId !== $ownerId && $parent->userId !== $ownerId) {
+        if ($reply->userId !== $ownerId && ($parent->userId !== $ownerId || $parent->isGuest())) {
             $preferences = $this->comments->preferences($ownerId);
 
             if ($preferences['notify_comments']) {
@@ -126,7 +126,8 @@ final class CommentNotifier
             }
         }
 
-        if ($parent->userId === $reply->userId) {
+        // A guest review belongs to the importing account only on paper, so nobody is told someone answered it.
+        if ($parent->userId === $reply->userId || $parent->isGuest()) {
             return;
         }
 

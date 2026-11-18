@@ -16,6 +16,7 @@
 declare(strict_types=1);
 
 use LumoraFiction\Helpers\Html;
+use LumoraFiction\Services\CommentService;
 
 /** @var array<string, mixed> $facts */
 /** @var array<string, mixed> $mapping */
@@ -54,7 +55,7 @@ $kindNames = ['genre' => 'Genres', 'warning' => 'Archive warnings', 'tag' => 'Ta
             <tr><th scope="row">Stories</th><td><?= $n($facts['stories']) ?></td><td>Validated, so published: <?= $n($facts['stories_validated']) ?>. Skipped for having no chapters: <?= $n($facts['stories_no_chapters']) ?>. Skipped for having no author: <?= $n($facts['stories_no_author']) ?>.</td></tr>
             <tr><th scope="row">Chapters</th><td><?= $n($facts['chapters']) ?></td><td>Text is kept <?= $facts['store'] === 'db' ? 'in the database' : 'in files' ?> according to eFiction's settings<?= $storiesFolder !== '' ? ' (stories folder: <code>' . Html::e($storiesFolder) . '</code>)' : '' ?>. Of the first <?= $n($check['checked']) ?> checked: text in the database <?= $n($check['database']) ?>, text in a file <?= $n($check['file']) ?>, no text <?= $n($check['none']) ?>, character set repaired <?= $n($check['converted']) ?>.</td></tr>
             <tr><th scope="row">Fandoms, characters, ratings, classes</th><td><?= $n($facts['categories']) ?>, <?= $n($facts['characters']) ?>, <?= $n($facts['ratings']) ?>, <?= $n($facts['classes']) ?></td><td>Mapped below. Nothing is added to a list without being shown here.</td></tr>
-            <tr><th scope="row">Reviews, favourites, news, pages</th><td><?= $n($facts['reviews']) ?> (and <?= $n($facts['guest_reviews']) ?> by guests), <?= $n($facts['favorites']) ?>, <?= $n($facts['news']) ?>, <?= $n(count($pages)) ?></td><td>Each is off until ticked below. Guest reviews are never imported.</td></tr>
+            <tr><th scope="row">Reviews, favourites, news, pages</th><td><?= $n($facts['reviews']) ?> (and <?= $n($facts['guest_reviews']) ?> by guests), <?= $n($facts['favorites']) ?>, <?= $n($facts['news']) ?>, <?= $n(count($pages)) ?></td><td>Each is off until ticked below.</td></tr>
             <tr><th scope="row">Series and co-authors</th><td><?= $n($facts['series']) ?> and <?= $n($facts['coauthored']) ?></td><td>Reported only. Co-authors are not supported, and a story belongs to its main author.</td></tr>
         </tbody>
     </table>
@@ -158,6 +159,8 @@ $kindNames = ['genre' => 'Genres', 'warning' => 'Archive warnings', 'tag' => 'Ta
 
         <div class="lf-choice"><input type="checkbox" id="opt_bio" name="opt_bio" value="1"><label for="opt_bio">Author biographies (real names and websites are never imported)</label></div>
         <div class="lf-choice"><input type="checkbox" id="opt_reviews" name="opt_reviews" value="1"><label for="opt_reviews">Story reviews by members, as comments (<?= $n($facts['reviews']) ?>)</label></div>
+        <div class="lf-choice"><input type="checkbox" id="opt_guest_reviews" name="opt_guest_reviews" value="1"><label for="opt_guest_reviews">Guest reviews, as comments under your account (<?= $n($facts['guest_reviews']) ?>)</label></div>
+        <p class="lf-hint">A guest review keeps the reviewer's name, date and text. It belongs to your account but is shown under the reviewer's name, followed by the word <?= Html::e(CommentService::GUEST_LABEL) ?> in brackets, and nobody is notified of it. eFiction keeps no email address for a guest, so none is stored.</p>
         <div class="lf-choice"><input type="checkbox" id="opt_favorites" name="opt_favorites" value="1"><label for="opt_favorites">Favourite stories, as bookmarks (<?= $n($facts['favorites']) ?>)</label></div>
         <div class="lf-choice"><input type="checkbox" id="opt_news" name="opt_news" value="1"><label for="opt_news">News posts (<?= $n($facts['news']) ?>)</label></div>
 

@@ -29,6 +29,9 @@ $hasActions = ($comment['edit_url'] ?? '') !== '' || ($comment['report_url'] ?? 
                 <span class="lf-screen-reader-text"><?= lf_e($comment['reply_to_label']) ?>: </span>
             <?php endif; ?>
             <span class="lf-comment__name"><?= lf_e($comment['name'] ?? '') ?></span>
+            <?php if (($comment['is_guest'] ?? false) === true && ($comment['guest_label'] ?? '') !== ''): ?>
+                <span class="lf-comment__guest">(<?= lf_e($comment['guest_label']) ?>)</span>
+            <?php endif; ?>
             <?php if (($comment['is_author'] ?? false) === true): ?>
                 <span class="lf-comment__badge"><?= lf_e($comment['author_label'] ?? 'Author') ?></span>
             <?php endif; ?>

@@ -20,6 +20,7 @@ use LumoraFiction\Core\Http\PublicUrl;
 use LumoraFiction\Helpers\Html;
 use LumoraFiction\Models\Comment;
 use LumoraFiction\Models\CommentStatus;
+use LumoraFiction\Services\CommentService;
 
 /** @var list<array{comment: Comment, story_title: string, story_slug: string, owner_id: int, chapter_number: int, chapter_title: string, commenter: string, commenter_status: string, published: bool, parent_commenter: string}> $rows */
 /** @var array<int, list<array{name: string, reason: string, at: string}>> $reports */
@@ -192,7 +193,7 @@ $active = array_filter(['story' => 'Story ' . $filters['story'], 'chapter' => 'C
                             <?php if ($isModerator): ?> &middot; <a href="<?= Html::e($listUrl . $query(['user' => $comment->userId])) ?>">This commenter</a><?php endif; ?>
                         </p>
                     </td>
-                    <td><?= Html::e($row['commenter'] === '' ? 'Unknown' : $row['commenter']) ?><?= $comment->userId === $row['owner_id'] ? ' <span class="lf-status lf-status--ok">Author</span>' : '' ?></td>
+                    <td><?= Html::e($row['commenter'] === '' ? 'Unknown' : $row['commenter']) ?><?= $comment->isGuest() ? ' <span class="lf-hint">(' . Html::e(CommentService::GUEST_LABEL) . ')</span>' : '' ?><?= !$comment->isGuest() && $comment->userId === $row['owner_id'] ? ' <span class="lf-status lf-status--ok">Author</span>' : '' ?></td>
                     <td>
                         <a href="<?= Html::e($listUrl . $query(['story' => $comment->storyId])) ?>"><?= Html::e($row['story_title']) ?></a><br>
                         <?= $row['chapter_number'] > 0 ? 'Chapter ' . (int) $row['chapter_number'] : 'Chapter removed' ?>

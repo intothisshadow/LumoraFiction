@@ -251,6 +251,9 @@ final class CommentPresenter
             // Worked out from the story's owner when the list is built; the theme prints the label as real text.
             'is_author' => $entry['is_author'],
             'author_label' => 'Author',
+            // An imported guest review: `name` is the guest's, never linked, and the label says which account it came in through.
+            'is_guest' => $comment->isGuest(),
+            'guest_label' => $comment->isGuest() ? CommentService::GUEST_LABEL : '',
             'body_html' => self::bodyHtml($comment->body),
             'posted' => $comment->createdAt->format('j M Y, H:i'),
             'datetime' => $comment->createdAt->format('Y-m-d\TH:i:s'),

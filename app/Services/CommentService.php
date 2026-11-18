@@ -36,6 +36,14 @@ final class CommentService
 
     public const REASON_MAX = 300;
 
+    /** As long as the longest name eFiction keeps for a reviewer. */
+    public const GUEST_NAME_MAX = 60;
+
+    public const GUEST_NAME_DEFAULT = 'Guest';
+
+    /** Printed after a guest's name so the comment never looks as if the importing account wrote it; themes only place it. */
+    public const GUEST_LABEL = 'Administrator';
+
     /** Comments one account may post in a window, whatever their status, so a flood is slowed even if the spam guard is fooled. */
     public const RATE_LIMIT = 6;
 
@@ -267,6 +275,49 @@ final class CommentService
     }
 
     /**
+     * Stores a guest's review that an import brought across, under the importing Administrator's account and with the
+     * original date. The only way a guest name is ever stored: post() has no such argument, so a form, a reply or a hook
+     * cannot set one. Nothing is announced and no hook fires, so neither the Administrator nor the story's writer is
+     * notified of each imported review.
+     *
+     * @throws CommentException
+     */
+    public function importGuest(User $admin, int $chapterId, string $guestName, string $body, ?DateTimeImmutable $date = null): Comment
+    {
+        if (!$admin->can(Capability::ManageSite)) {
+            throw new CommentException('Only an Administrator can import comments.');
+        }
+
+        $target = $this->target($chapterId);
+
+        if ($target === null) {
+            throw new CommentException('That chapter is not open for comments.');
+        }
+
+        if ($this->isClosed($target['story_id'], $target['chapter_id'])) {
+            throw new CommentException('Comments are turned off here.');
+        }
+
+        $body = $this->cleanBody($body);
+        $name = self::cleanGuestName($guestName);
+        $id = $this->database->insertGetId(
+            'INSERT INTO {prefix}comments (story_id, chapter_id, user_id, parent_id, guest_name, body, status, report_count, created_at) VALUES (:story, :chapter, :user, NULL, :guest, :body, \'published\', 0, :created)',
+            ['story' => $target['story_id'], 'chapter' => $target['chapter_id'], 'user' => $admin->id, 'guest' => $name, 'body' => $body, 'created' => ($date ?? new DateTimeImmutable())->format('Y-m-d H:i:s')],
+        );
+
+        return $this->find((int) $id) ?? throw new CommentException('The comment could not be saved.');
+    }
+
+    /** A guest's name as stored: no control characters, trimmed, cut to the limit, and "Guest" when nothing is left. */
+    public static function cleanGuestName(string $name): string
+    {
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F\s]+/u', ' ', mb_check_encoding($name, 'UTF-8') ? $name : mb_convert_encoding($name, 'UTF-8', 'UTF-8')));
+        $name = trim(mb_substr($name, 0, self::GUEST_NAME_MAX, 'UTF-8'));
+
+        return $name === '' ? self::GUEST_NAME_DEFAULT : $name;
+    }
+
+    /**
      * Whether a published, top-level comment can be answered right now: the site allows replies, and it is not itself a
      * reply. Who is asking and whether the chapter is open are checked by the caller or by post().
      */
@@ -297,6 +348,7 @@ final class CommentService
         $minutes = $this->settings->editMinutes();
 
         return $minutes > 0
+            && !$comment->isGuest()
             && $comment->userId === $user->id
             && $user->can(Capability::Comment)
             && in_array($comment->status, [CommentStatus::Published, CommentStatus::Pending], true)
@@ -596,7 +648,7 @@ final class CommentService
         foreach ($rows as $row) {
             $comment = $this->hydrate($row);
             // Worked out each time from the story's owner, never stored, so a changed owner or a deleted account stays right.
-            $items[] = ['comment' => $comment, 'name' => (string) ($row['display_name'] ?? ''), 'is_author' => $comment->userId === $storyOwnerId, 'pending' => $comment->status === CommentStatus::Pending];
+            $items[] = $this->listEntry($comment, $row, $storyOwnerId);
         }
 
         return $items;
@@ -624,7 +676,7 @@ final class CommentService
         $items = [];
 
         foreach ($rows as $row) {
-            $items[] = ['comment' => $this->hydrate($row), 'name' => (string) ($row['display_name'] ?? ''), 'chapter' => (int) $row['chapter_number']];
+            $items[] = ['comment' => $this->hydrate($row), 'name' => self::shownName($row), 'chapter' => (int) $row['chapter_number']];
         }
 
         return $items;
@@ -757,8 +809,21 @@ final class CommentService
      */
     private function listEntry(Comment $comment, array $row, int $storyOwnerId): array
     {
-        // Worked out each time from the story's owner, never stored, so a changed owner or a deleted account stays right.
-        return ['comment' => $comment, 'name' => (string) ($row['display_name'] ?? ''), 'is_author' => $comment->userId === $storyOwnerId, 'pending' => $comment->status === CommentStatus::Pending];
+        // Worked out each time from the story's owner, never stored, so a changed owner or a deleted account stays right. A
+        // guest review is owned by the importing account, which may be the story's owner, but the owner did not write it.
+        return ['comment' => $comment, 'name' => self::shownName($row), 'is_author' => !$comment->isGuest() && $comment->userId === $storyOwnerId, 'pending' => $comment->status === CommentStatus::Pending];
+    }
+
+    /**
+     * The name printed beside a comment: an imported guest's own name, otherwise the account's.
+     *
+     * @param array<string, mixed> $row a comments row joined to its account as display_name
+     */
+    private static function shownName(array $row): string
+    {
+        $guest = $row['guest_name'] ?? null;
+
+        return is_string($guest) && $guest !== '' ? $guest : (string) ($row['display_name'] ?? '');
     }
 
     /**
@@ -773,7 +838,7 @@ final class CommentService
 
         $rows = $this->database->fetchAll(
             'SELECT c.*, s.title AS story_title, s.slug AS story_slug, s.owner_id, ch.number AS chapter_number, ch.title AS chapter_title,
-                    u.display_name AS commenter, u.status AS commenter_status, pu.display_name AS parent_commenter,
+                    u.display_name AS commenter, u.status AS commenter_status, pu.display_name AS parent_commenter, pc.guest_name AS parent_guest,
                     (s.publication_state = \'published\' AND ch.publication_state = \'published\') AS is_public
              FROM {prefix}comments c JOIN {prefix}stories s ON s.id = c.story_id
              LEFT JOIN {prefix}chapters ch ON ch.id = c.chapter_id LEFT JOIN {prefix}users u ON u.id = c.user_id
@@ -791,10 +856,10 @@ final class CommentService
                 'owner_id' => (int) $row['owner_id'],
                 'chapter_number' => (int) ($row['chapter_number'] ?? 0),
                 'chapter_title' => (string) ($row['chapter_title'] ?? ''),
-                'commenter' => (string) ($row['commenter'] ?? ''),
+                'commenter' => self::shownName($row + ['display_name' => $row['commenter'] ?? '']),
                 'commenter_status' => (string) ($row['commenter_status'] ?? ''),
                 'published' => (int) ($row['is_public'] ?? 0) === 1,
-                'parent_commenter' => (string) ($row['parent_commenter'] ?? ''),
+                'parent_commenter' => self::shownName(['guest_name' => $row['parent_guest'] ?? null, 'display_name' => $row['parent_commenter'] ?? '']),
             ];
         }
 
@@ -977,7 +1042,7 @@ final class CommentService
     {
         $rows = $this->database->fetchAll(
             "SELECT u.id, u.email, u.display_name FROM {prefix}users u JOIN {prefix}comment_accounts a ON a.user_id = u.id AND a.email_replies = 1
-             WHERE u.status = 'active' AND u.id <> :writer AND u.id IN (SELECT user_id FROM {prefix}comments WHERE chapter_id = :chapter AND status = 'published')
+             WHERE u.status = 'active' AND u.id <> :writer AND u.id IN (SELECT user_id FROM {prefix}comments WHERE chapter_id = :chapter AND status = 'published' AND guest_name IS NULL)
              ORDER BY u.id LIMIT " . max(1, min(50, $limit)),
             ['writer' => $writerId, 'chapter' => $chapterId],
         );
@@ -1203,6 +1268,7 @@ final class CommentService
             createdAt: new DateTimeImmutable((string) $row['created_at']),
             editedAt: $row['edited_at'] === null ? null : new DateTimeImmutable((string) $row['edited_at']),
             parentId: ($row['parent_id'] ?? null) === null ? null : (int) $row['parent_id'],
+            guestName: is_string($row['guest_name'] ?? null) && $row['guest_name'] !== '' ? $row['guest_name'] : null,
         );
     }
 }

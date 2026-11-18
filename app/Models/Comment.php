@@ -32,7 +32,14 @@ final readonly class Comment
         public DateTimeImmutable $createdAt,
         public ?DateTimeImmutable $editedAt = null,
         public ?int $parentId = null,
+        public ?string $guestName = null,
     ) {
+    }
+
+    /** An imported guest review: owned by the importing account, shown under the guest's own name. */
+    public function isGuest(): bool
+    {
+        return $this->guestName !== null;
     }
 
     public function isReply(): bool

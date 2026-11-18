@@ -31,6 +31,7 @@ use LumoraFiction\Models\WorkStatus;
 use LumoraFiction\Services\AccountRules;
 use LumoraFiction\Services\AuditLogService;
 use LumoraFiction\Services\ChapterService;
+use LumoraFiction\Services\CommentException;
 use LumoraFiction\Services\CommentService;
 use LumoraFiction\Services\DuplicateAccountException;
 use LumoraFiction\Services\NewsService;
@@ -68,6 +69,7 @@ final class Importer
         private readonly AuditLogService $audit,
         private readonly ?HookManager $hooks = null,
         private readonly float $stepSeconds = 8.0,
+        private readonly ?CommentService $comments = null,
     ) {
     }
 
@@ -80,7 +82,7 @@ final class Importer
         $this->tracker->ensureTables();
 
         $phases = array_values(array_filter(self::PHASES, static fn (string $phase): bool => match ($phase) {
-            'reviews' => (bool) ($options['reviews'] ?? false),
+            'reviews' => (bool) ($options['reviews'] ?? false) || (bool) ($options['guest_reviews'] ?? false),
             'favorites' => (bool) ($options['favorites'] ?? false),
             'news' => (bool) ($options['news'] ?? false),
             'pages' => (($options['pages'] ?? []) !== []),
@@ -267,7 +269,7 @@ final class Importer
                 ['c' => $cursor],
             ),
             'stories' => $source->select('SELECT sid AS id, title, summary, storynotes, catid, classes, charid, rid, `date`, updated, uid, coauthors, featured, validated, completed FROM `{p}stories` WHERE sid > :c ORDER BY sid LIMIT ' . $limit, ['c' => $cursor]),
-            'reviews' => $source->hasTable('reviews') ? $source->select('SELECT reviewid AS id, item, chapid, uid, review, `date` FROM `{p}reviews` WHERE type = \'ST\' AND reviewid > :c ORDER BY reviewid LIMIT ' . $limit, ['c' => $cursor]) : [],
+            'reviews' => $source->hasTable('reviews') ? $source->select('SELECT reviewid AS id, item, chapid, uid, reviewer, review, `date` FROM `{p}reviews` WHERE type = \'ST\' AND reviewid > :c ORDER BY reviewid LIMIT ' . $limit, ['c' => $cursor]) : [],
             'favorites' => $source->hasTable('favorites') ? array_map(
                 static fn (array $row): array => $row + ['id' => (int) $row['uid'] . ':' . (int) $row['item']],
                 $source->select('SELECT uid, item FROM `{p}favorites` WHERE type = \'ST\' ORDER BY uid, item LIMIT ' . $limit . ' OFFSET ' . max(0, $cursor)),
@@ -313,7 +315,7 @@ final class Importer
                 'classes' => $this->termClass($admin, $job, $runId, $report, $row, $ip),
                 'authors' => $this->author($job, $runId, $report, $row),
                 'stories' => $this->story($admin, $source, $text, $job, $runId, $report, $row, $ip),
-                'reviews' => $this->review($runId, $report, $row),
+                'reviews' => $this->review($admin, $job, $runId, $report, $row),
                 'favorites' => $this->favorite($runId, $report, $row),
                 'news' => $this->newsPost($admin, $runId, $report, $row, $ip),
                 'pages' => $this->page($admin, $runId, $report, $row, $ip),
@@ -818,11 +820,21 @@ final class Importer
     // ---- the optional parts ----------------------------------------------------------------------------
 
     /**
+     * @param array<string, mixed> $job
      * @param array<string, mixed> $row
      */
-    private function review(int $runId, Report $report, array $row): void
+    private function review(User $admin, array $job, int $runId, Report $report, array $row): void
     {
         $id = (string) $row['id'];
+        $guest = (int) $row['uid'] <= 0;
+        $members = (bool) ($job['options']['reviews'] ?? false);
+        $guests = (bool) ($job['options']['guest_reviews'] ?? false);
+
+        // One pass reads both kinds. A member's review is left alone, without a line in the report, when only guests were
+        // ticked; a guest's is reported as skipped when only members were.
+        if (!$guest && !$members || $guest && !$members && !$guests) {
+            return;
+        }
 
         if ($this->tracker->find(Tracker::COMMENT, $id) !== null) {
             $report->again('comment');
@@ -830,8 +842,14 @@ final class Importer
             return;
         }
 
-        if ((int) $row['uid'] <= 0) {
-            $report->skipped('comment', $id, 'A guest wrote it; comments need an account.');
+        if ($guest && !$guests) {
+            $report->skipped('comment', $id, 'A guest wrote it, and guest reviews were not ticked.');
+
+            return;
+        }
+
+        if ($guest) {
+            $this->guestReview($admin, $runId, $report, $row);
 
             return;
         }
@@ -866,6 +884,56 @@ final class Importer
         );
         $this->tracker->record(Tracker::COMMENT, $id, $commentId, $runId);
         $report->made('comment');
+    }
+
+    /**
+     * A guest's review becomes a comment owned by the importing Administrator and shown under the reviewer's own name. It
+     * goes through the comment service, so a story or chapter with comments switched off is refused and reported.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function guestReview(User $admin, int $runId, Report $report, array $row): void
+    {
+        $id = (string) $row['id'];
+        $storyId = $this->tracker->localId(Tracker::STORY, (string) $row['item']);
+
+        if ($storyId === null || $this->comments === null) {
+            $this->skipGuest($report, $id, $storyId === null ? 'Its story was not imported.' : 'Comments are not available.');
+
+            return;
+        }
+
+        $chapterId = $this->tracker->localId(Tracker::CHAPTER, (string) $row['chapid']);
+        $chapterId ??= (int) $this->database->fetchColumn('SELECT id FROM {prefix}chapters WHERE story_id = :story ORDER BY number LIMIT 1', ['story' => $storyId]);
+
+        [$review] = Text::utf8((string) $row['review']);
+        $body = Text::cut(Text::plain($review), CommentService::BODY_MAX);
+
+        if ($chapterId <= 0 || $body === '') {
+            $this->skipGuest($report, $id, $body === '' ? 'It is empty.' : 'Its chapter was not imported.');
+
+            return;
+        }
+
+        [$name] = Text::utf8((string) ($row['reviewer'] ?? ''));
+
+        try {
+            $comment = $this->comments->importGuest($admin, $chapterId, $name, $body, Text::date($row['date']) ?? new \DateTimeImmutable());
+        } catch (CommentException $exception) {
+            $this->skipGuest($report, $id, $exception->getMessage());
+
+            return;
+        }
+
+        $this->tracker->record(Tracker::COMMENT, $id, $comment->id, $runId);
+        $report->made('comment');
+        $report->add('Guest reviews imported');
+    }
+
+    private function skipGuest(Report $report, string $id, string $reason): void
+    {
+        $report->skipped('comment', $id, 'A guest review: ' . $reason);
+        $report->add('Guest reviews skipped');
     }
 
     /**

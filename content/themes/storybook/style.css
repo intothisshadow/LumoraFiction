@@ -1896,6 +1896,7 @@ html[data-lf-reader-mode="on"]:has([data-lf-reader-exit]) .lf-chapter__text p {
     font-weight: 600;
 }
 
+.lf-comment__guest,
 .lf-comment__date,
 .lf-comment__edited {
     color: var(--lf-muted);

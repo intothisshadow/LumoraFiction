@@ -29,7 +29,7 @@ The password is kept only in your session while you work. It is never written to
 - **Characters.** Brought across as characters under their fandom, or left out. A comma in a name is replaced by a space, because a comma separates names here.
 - **Class types.** Each of eFiction's class types (genres, warnings and any custom ones) becomes genres, archive warnings or tags here, or is left out.
 - **Stories that eFiction had not validated.** They become drafts, or go to the approval queue when this site's own rule would hold that author's story for review anyway. A story that would publish without review is left as a draft rather than published.
-- **Optional parts**, each off until you tick it: author biographies, story reviews by members as comments, favourite stories as bookmarks, news posts, and the pages you pick from eFiction's messages.
+- **Optional parts**, each off until you tick it: author biographies, story reviews by members as comments, reviews by guests as comments, favourite stories as bookmarks, news posts, and the pages you pick from eFiction's messages.
 
 Nothing is added to a classification list without being shown in this step.
 
@@ -40,14 +40,15 @@ Nothing is added to a classification list without being shown in this step.
 - **Stories.** Title, summary, the story notes (placed in the story's end notes, the nearest place), created and updated dates, and completed or not. A validated story is published by the administrator running the import; the others are drafts or go to the approval queue. A story keeps its rating, fandoms, characters and the genres, warnings and tags you mapped.
 - **Chapters.** Title, order, notes and end notes, with the text run through the same sanitiser as a chapter written in the HTML editor. eFiction text is HTML, plain text or a mixture, and plain text is turned into paragraphs. A chapter that has no text is reported and skipped, and the rest of the story is still imported. eFiction does not date chapters, so each takes its story's dates. Word counts are worked out again.
 - **Where chapter text is found.** eFiction's own storage setting decides what is tried first. When that has nothing for a chapter (a missing or empty file, or empty text in the database) the other is tried, because a site that switched part-way holds a mixture. The path of a file is built only from the author and chapter numbers and must lie inside the stories folder. A chapter with no author number gets no guessed path. Text that is not valid UTF-8 is read in the character set the site's language file declares (Windows-1252 if it says nothing), and text that was saved in the wrong character set twice is turned back; the preview and report count how many chapters needed this.
-- **Reviews** by signed-in members become comments under the chapter they were written for (a review of the whole story goes under the first chapter), with their original dates. A review by a guest is skipped, because a comment needs an account. Star ratings are not imported.
+- **Reviews** by signed-in members become comments under the chapter they were written for (a review of the whole story goes under the first chapter), with their original dates. Star ratings are not imported.
+- **Guest reviews** have their own tick, off by default, with the number found shown beside it. A guest review keeps the reviewer's name, the date and the text, and nothing else: eFiction keeps no email address or other detail for a guest, and none is stored. It becomes a comment owned by your own account (the Administrator who runs the import) but is shown under the reviewer's name followed by the label "Administrator" in brackets, with no profile link, so it never looks as if you wrote it. Nobody is notified of an imported guest review, and a reply to one does not notify your account. A story or chapter that has comments switched off is skipped and listed in the report, which also counts the guest reviews imported and skipped. **Remove everything this plugin imported** removes them like every other imported comment, and running the import again adds only the ones not yet brought across.
 - **Favourites** of stories become bookmarks.
 - **News** becomes news posts, published with their original dates, written by the imported member with the pen name when that member may write news here, and otherwise by the administrator running the import.
 - **Pages.** The messages you tick (custom pages, and the welcome, copyright and policy texts) become pages. They arrive as drafts to read through, because eFiction's own texts often hold its template placeholders, and none takes an address the site already uses.
 
 ## What is not imported
 
-Co-authors (a story belongs to its main author, and the others are listed in the report), series, news comments, challenges, collections, themes and skins, blocks, panels and modules, eFiction's own settings, custom author profile fields, real names and websites (this site has no place for them), images and uploads other than a story's own text, story featuring, and a guest's review. The preview counts the series and co-authored stories so you know what to recreate by hand, for example under **Stories > Series**.
+Co-authors (a story belongs to its main author, and the others are listed in the report), series, news comments, challenges, collections, themes and skins, blocks, panels and modules, eFiction's own settings, custom author profile fields, real names and websites (this site has no place for them), images and uploads other than a story's own text, and story featuring. The preview counts the series and co-authored stories so you know what to recreate by hand, for example under **Stories > Series**.
 
 ## Running it
 
@@ -82,7 +83,7 @@ It only reads these eFiction tables (with your prefix in front of the name), and
 - `classtypes`: `classtype_id`, `classtype_name`, `classtype_title`.
 - `classes`: `class_id`, `class_type`, `class_name`.
 - `ratings`: `rid`, `rating`.
-- `reviews`: `reviewid`, `item`, `chapid`, `uid`, `review`, `date`, `type`.
+- `reviews`: `reviewid`, `item`, `chapid`, `reviewer`, `uid`, `review`, `date`, `type`.
 - `favorites`: `uid`, `item`, `type`.
 - `news`: `nid`, `author`, `title`, `story`, `time`.
 - `messages`: `message_id`, `message_name`, `message_title`, `message_text`.
